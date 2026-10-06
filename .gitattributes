@@ -1,0 +1,4 @@
+# run packages and reference data are generated; do not diff them line by line
+runs/**/*.js -diff linguist-generated
+reference/*.js -diff linguist-generated
+*.gz binary

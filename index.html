@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spain 2024 Run Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <h1>Spain 2024 Run Viewer</h1>
+    <span class="sub">Model runs compared with real OMIE day-ahead results</span>
+  </header>
+
+  <div class="layout">
+    <nav class="runs" aria-label="Runs">
+      <h2>Published runs · <span id="run-count"></span></h2>
+      <div class="run-list" id="run-list"></div>
+      <p class="hint">Runs are added with <span class="mono">scripts/publish_run.py</span> in the model repo. Get the newest ones with <span class="mono">git pull</span>.</p>
+    </nav>
+
+    <main class="report" id="report">
+      <p class="status-note" id="status-note" hidden></p>
+      <section class="card run-head" id="run-head"></section>
+      <div class="sticky-bar">
+        <div class="tabs" role="tablist" aria-label="Report sections" id="tabs"></div>
+        <section class="period" id="period" aria-label="Time period shown"></section>
+      </div>
+      <section class="kpis" id="kpis" aria-label="Headline numbers" data-tabs="overview price mix status"></section>
+
+      <section class="card" id="sec-price" role="tabpanel" data-tabs="overview price">
+        <div class="sec-head">
+          <div>
+            <h3>Price: model vs real</h3>
+            <p>Spanish marginal price for each hour. "Real" is OMIE's day-ahead price. Red marks below the chart are hours where the AC redispatch failed.</p>
+          </div>
+          <div class="controls">
+            <div class="seg" role="group" aria-label="Model market stage" id="price-stage"></div>
+            <div class="seg" role="group" aria-label="Time resolution" id="price-res"></div>
+          </div>
+        </div>
+        <div class="legend" id="price-legend"></div>
+        <div class="chart" id="price-chart"></div>
+      </section>
+
+      <section class="card" id="sec-mix" role="tabpanel" data-tabs="overview mix">
+        <div class="sec-head">
+          <div>
+            <h3>Generation mix: model vs real</h3>
+            <p>Energy per technology. Market stages are compared with OMIE's day-ahead programme (the plan), the redispatch with ENTSO-E's measured generation (what plants really produced). "Compare with" switches the real data.</p>
+          </div>
+          <div class="controls">
+            <div class="seg" role="group" aria-label="Model stage for the mix" id="mix-stage"></div>
+            <div class="seg" role="group" aria-label="Time resolution for the mix" id="mix-res"></div>
+            <span class="ctl-label">Compare with</span>
+            <div class="seg" role="group" aria-label="Real data to compare with" id="mix-ref"></div>
+          </div>
+        </div>
+        <div class="mix-grid">
+          <div>
+            <div class="legend" id="stack-legend"></div>
+            <div class="stack-pair">
+              <div><div class="stack-title" id="stack-real-title">Real</div><div class="chart" id="stack-real"></div></div>
+              <div><div class="stack-title" id="stack-model-title">Model</div><div class="chart" id="stack-model"></div></div>
+            </div>
+          </div>
+          <div>
+            <div class="table-wrap"><table id="mix-table"></table></div>
+            <p class="fineprint" id="mix-note"></p>
+          </div>
+          <div>
+            <div class="legend" id="mix-legend"></div>
+            <div class="small-multiples" id="mix-sm"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="sec-status" role="tabpanel" data-tabs="overview status">
+        <div class="sec-head">
+          <div>
+            <h3>AC redispatch: solved and failed hours</h3>
+            <p>One row per day, one cell per hour. A dot means a combined-cycle gas plant was running at the balancing stage.</p>
+          </div>
+        </div>
+        <div class="status-grid">
+          <div>
+            <div class="legend" id="status-legend"></div>
+            <div class="chart" id="status-chart"></div>
+          </div>
+          <div class="rate-list" id="rates"></div>
+        </div>
+      </section>
+
+      <section class="card" id="sec-grid" role="tabpanel" data-tabs="overview grid">
+        <div class="sec-head">
+          <div>
+            <h3>Grid: how full each line is</h3>
+            <p>Every line in the model's grid, drawn straight between its substations and coloured by its loading in the AC redispatch. Thick lines are 400 kV, thin lines 220 kV and below; dots are transformers.</p>
+          </div>
+          <div class="controls">
+            <div class="seg" role="group" aria-label="What the colour shows" id="grid-mode"></div>
+            <span class="ctl-label">Map</span>
+            <div class="seg" role="group" aria-label="Map style" id="grid-style"></div>
+          </div>
+        </div>
+        <div class="grid-hour" id="grid-hour" hidden></div>
+        <div class="legend" id="grid-legend"></div>
+        <div class="grid-wrap">
+          <div>
+            <div class="map" id="grid-map"></div>
+            <p class="map-hint">Drag to move. Zoom with + and −, a double-click, or Ctrl + scroll. Hover a line for details.</p>
+          </div>
+          <div class="grid-side">
+            <h4 id="grid-top-title">Most loaded</h4>
+            <div class="table-wrap"><table id="grid-top"></table></div>
+          </div>
+        </div>
+        <p class="fineprint">Basemap: Natural Earth (outlines, shaded relief, public domain) and es-atlas (communities, provinces). Loading is the flow divided by the line's limit in the model. Where a corridor has several circuits, the most loaded circuit counts. Hours where the AC redispatch failed have no flows and are left out of the maximum and the hour counts.</p>
+      </section>
+
+      <section class="card" id="sec-plants" role="tabpanel" data-tabs="overview plants">
+        <div class="sec-head">
+          <div>
+            <h3>Power plants</h3>
+            <p>Every real power plant in the model at its substation, coloured by fuel. Units of the same fuel at one substation are one circle; the circle's area shows the MW you pick.</p>
+          </div>
+          <div class="controls">
+            <div class="seg" role="group" aria-label="What the circle size shows" id="plant-size"></div>
+            <div class="seg" role="group" aria-label="Period or one hour" id="plant-time"></div>
+            <span class="ctl-label">Map</span>
+            <div class="seg" role="group" aria-label="Map style" id="plant-style"></div>
+          </div>
+        </div>
+        <div class="grid-hour" id="plant-hour" hidden></div>
+        <div class="legend" id="plant-legend"></div>
+        <div class="grid-wrap">
+          <div>
+            <div class="map" id="plant-map"></div>
+            <p class="map-hint">Click a fuel above to hide or show it. Drag to move; zoom with + and −, a double-click, or Ctrl + scroll.</p>
+          </div>
+          <div class="grid-side">
+            <h4 id="plant-top-title">Largest plants</h4>
+            <div class="table-wrap"><table id="plant-top"></table></div>
+          </div>
+        </div>
+        <p class="fineprint">Real vs model uses ENTSO-E's measured output per unit, matched to the model's plants in <code>entsoe_unit_crosswalk.csv</code>; plants ENTSO-E reports only in part are left out. Output and change are from the AC redispatch; "Redispatch change" is redispatch output minus balancing output, so it shows what the grid stage changed. Hydro includes pumped storage (pumping is not counted as output). Not shown: the model's industrial CHP, waste and mini-hydro blocks (spread over 100 substations, so not at real locations) and load shedding. Failed AC hours are left out of averages.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+<!-- map background, the list of published runs, then the viewer itself -->
+<script src="reference/basemap.js"></script>
+<script src="runs/manifest.js"></script>
+<script src="viewer.js"></script>
+</body>
+</html>
