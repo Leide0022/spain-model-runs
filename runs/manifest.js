@@ -2,6 +2,37 @@
 window.RUN_MANIFEST = [
  {
   "schema": 1,
+  "id": "2024-08-01_august-2024",
+  "name": "August 2024",
+  "note": "First full August run.",
+  "published": "2026-10-06T13:01:19+02:00",
+  "published_by": "Lars Erik Eide",
+  "first_day": "2024-08-01",
+  "last_day": "2024-08-31",
+  "n_days": 31,
+  "ac_solved": 658,
+  "ac_total": 744,
+  "months": [
+   "2024-08"
+  ],
+  "size_mb": 4.1,
+  "info": {
+   "ran_by": "Lars Erik Eide",
+   "branch": "gas-mw-chp-residual",
+   "commit": "3c38135",
+   "commit_message": "",
+   "uncommitted_files": [],
+   "started": null,
+   "finished": null,
+   "runtime_min": null,
+   "power_flow": null,
+   "linear_solver": null,
+   "label": null,
+   "reconstructed": true
+  }
+ },
+ {
+  "schema": 1,
   "id": "2024-01-05_january-5-31",
   "name": "January 5–31",
   "note": "First long January run. Checking solve rate and price level after the 2024-01-01 inputs.",
