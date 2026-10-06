@@ -31,6 +31,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 DATA = REPO.parent                      # folder that holds the model repo and the raw downloads
 OUT = REPO / "reference"
+GZIP = {"method": "gzip", "mtime": 0}     # no timestamp, so unchanged data gives an unchanged file
 YEAR = 2024
 KX, KY = 111.32 * cos(radians(40.0)), 111.32   # map projection in km; the same as the viewer
 
@@ -213,9 +214,9 @@ def main():
     OUT.mkdir(exist_ok=True)
     idx = hours_index()
     hourly = pd.concat([omie_price(idx), omie_programme(idx), entsoe_actual(idx)], axis=1).round(1)
-    hourly.to_csv(OUT / f"real_hourly_{YEAR}.csv.gz", compression="gzip")
+    hourly.to_csv(OUT / f"real_hourly_{YEAR}.csv.gz", compression=GZIP)
     sites, cov, wide, table = sites_and_real(idx)
-    wide.round(1).to_csv(OUT / f"real_sites_{YEAR}.csv.gz", compression="gzip")
+    wide.round(1).to_csv(OUT / f"real_sites_{YEAR}.csv.gz", compression=GZIP)
     (OUT / "sites.json").write_text(json.dumps(dict(year=YEAR, sites=sites, coverage=cov), ensure_ascii=False, indent=1),
                                     encoding="utf-8")
     pd.DataFrame(table, columns=["site", "fuel", "confidence", "entsoe_units", "model_units", "model_capacity_mw",
