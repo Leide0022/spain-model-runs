@@ -2,6 +2,37 @@
 window.RUN_MANIFEST = [
  {
   "schema": 1,
+  "id": "2024-05-01_may-2024",
+  "name": "May 2024",
+  "note": "First full May run.",
+  "published": "2026-10-06T13:07:53+02:00",
+  "published_by": "Lars Erik Eide",
+  "first_day": "2024-05-01",
+  "last_day": "2024-05-31",
+  "n_days": 31,
+  "ac_solved": 606,
+  "ac_total": 744,
+  "months": [
+   "2024-05"
+  ],
+  "size_mb": 4.0,
+  "info": {
+   "ran_by": "Lars Erik Eide",
+   "branch": "gas-mw-chp-residual",
+   "commit": "3c38135",
+   "commit_message": "",
+   "uncommitted_files": [],
+   "started": null,
+   "finished": null,
+   "runtime_min": null,
+   "power_flow": null,
+   "linear_solver": null,
+   "label": null,
+   "reconstructed": true
+  }
+ },
+ {
+  "schema": 1,
   "id": "2024-08-01_august-2024",
   "name": "August 2024",
   "note": "First full August run.",
