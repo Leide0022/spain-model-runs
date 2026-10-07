@@ -281,3 +281,55 @@ tr.total-row td { border-top: 1px solid var(--axis); font-weight: 600; }
 button.sort { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
 button.sort:hover { color: var(--ink); }
 .linkbtn { border: 0; background: none; padding: 0; font: inherit; color: var(--model); cursor: pointer; text-decoration: underline; }
+/* Market stages tab: the model laid out like the PowerVision paper */
+.pv-title { font-size: 20px !important; }
+.pv-block { margin-top: 40px; padding-top: 28px; border-top: 1px solid var(--grid); }
+.pv-block:first-of-type { margin-top: 20px; }
+.pv-block h4 { margin: 0 0 14px; font-size: 19px; font-weight: 600; letter-spacing: -0.01em; }
+.pv-fig { margin: 0; }
+.pv-fig figcaption { margin-top: 12px; font-size: 13px; line-height: 1.5; color: var(--ink-2); max-width: 95ch; }
+.pv-fig figcaption b { color: var(--ink); }
+.pv-ref { font-size: 12px; color: var(--muted); font-style: italic; white-space: nowrap; }
+.pv-tbc { font-style: italic; color: var(--muted); }
+.pv-muted-txt { color: var(--muted); }
+.pv-gap { margin-top: 18px; }
+/* flow diagram (Fig. 2) */
+.pv-svg-wrap { overflow-x: auto; }
+.pv-svg { display: block; width: 100%; min-width: 640px; height: auto; color: var(--ink-2); }
+.pv-svg text { font-family: var(--font-ui); font-size: 13px; fill: var(--ink); }
+.pv-svg text.ti { font-weight: 600; font-size: 14px; }
+.pv-svg text.hd2 { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; fill: var(--muted); }
+.pv-svg text.sm { font-size: 11.5px; fill: var(--ink-2); }
+.pv-svg text.df { font-size: 11px; fill: var(--note-ink); }
+.pv-svg text.lb { font-size: 12.5px; font-weight: 600; }
+.pv-svg .bx { fill: var(--surface-2); stroke: var(--axis); }
+.pv-svg .st { fill: var(--surface); stroke: var(--model); stroke-width: 1.5; }
+.pv-svg .st.rd { stroke: var(--soto); stroke-width: 2; }
+.pv-svg .ar { stroke: var(--ink-2); stroke-width: 1.4; fill: none; }
+.pv-svg .hd { fill: var(--ink-2); }
+.pv-svg .ax { stroke: var(--axis); stroke-width: 1; }
+.pv-svg .cv { stroke: var(--model); stroke-width: 2; fill: none; }
+.pv-svg .zn { fill: var(--model); fill-opacity: 0.16; }
+.pv-svg .gr { fill: var(--soto); fill-opacity: 0.18; }
+/* tables in the paper's style: rules above and below, none between rows */
+.pv-book { border-collapse: collapse; width: 100%; border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink); }
+.pv-book th { font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); padding: 7px 12px; vertical-align: bottom; white-space: normal; }
+.pv-book thead tr:last-child th { border-bottom: 1px solid var(--ink); }
+.pv-book th.grp { text-align: center; border-bottom: 1px solid var(--axis); }
+.pv-book td { border: 0; padding: 6px 12px; font-size: 13.5px; vertical-align: top; white-space: normal; }
+.pv-book tbody tr:first-child td { padding-top: 9px; }
+.pv-book tbody tr:last-child td { padding-bottom: 9px; }
+.pv-book td .sub { font-size: 11.5px; color: var(--muted); }
+.pv-book tr.pv-muted td { color: var(--muted); }
+#pv-gates td, #pv-gates th { text-align: left; }
+/* data sources (Fig. 7) */
+.pv-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.pv-panel { border: 1px solid var(--axis); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); }
+.pv-panel-h { font-weight: 600; font-size: 14px; padding: 9px 12px; background: var(--surface-2); border-bottom: 1px solid var(--axis); }
+.pv-panel ul { list-style: none; margin: 0; padding: 6px 12px 10px; display: grid; gap: 9px; flex: 1; }
+.pv-panel li { display: flex; flex-direction: column; gap: 1px; font-size: 13px; }
+.pv-panel li span { color: var(--ink-2); font-size: 12px; }
+.pv-panel li code { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.pv-panel-f { font-size: 12px; font-weight: 600; padding: 6px 12px; }
+.pv-panel-f.zn { background: color-mix(in srgb, var(--model) 16%, transparent); }
+.pv-panel-f.gr { background: color-mix(in srgb, var(--soto) 18%, transparent); }

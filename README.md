@@ -46,6 +46,7 @@ runs worth discussing, not every test.
 | `reference/` | real data for 2024, built once: OMIE day-ahead price and programme per technology, ENTSO-E actual generation per type and per unit (45 matched plant sites), and the map background |
 | `tools/build_reference.py` | rebuilds `reference/` from the raw OMIE/ENTSO-E downloads (only needed when the real data changes) |
 | `tools/build_basemap.py` | rebuilds the map background (Natural Earth outlines and shaded relief, es-atlas regions) |
+| `tools/build_model_facts.py` | rebuilds `reference/model_facts.js`, the model facts on the Market stages tab (capacity, load, line and transformer types); rerun when the model's data changes |
 
 The real data for the redispatch comes from ENTSO-E (what plants really produced); the market
 stages are compared with OMIE's day-ahead programme. Matching ENTSO-E's unit codes to the model's

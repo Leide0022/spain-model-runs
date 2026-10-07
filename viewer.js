@@ -16,7 +16,7 @@
 
   const state = { run: MANIFEST.length ? MANIFEST[0].id : null, priceStage: "DA", priceRes: "hour", mixStage: "DA", mixRes: "hour", mixRef: "omie", zoom: null, tab: "overview", gridMode: "max", gridHour: null, gridSel: null, mapStyle: "terrain", plantSize: "cap", plantTime: "period", plantHour: null, plantSel: null, plantHidden: [], playSpeed: 2,
     gridLayers: ["hv", "lv", "trafo", "border"], gridSort: ["max", -1], gridQuery: "", gridAll: false };
-  const TABS = [["overview", "Overview"], ["price", "Price"], ["mix", "Generation mix"], ["status", "AC redispatch"], ["grid", "Grid"], ["plants", "Power plants"]];
+  const TABS = [["overview", "Overview"], ["price", "Price"], ["mix", "Generation mix"], ["status", "AC redispatch"], ["grid", "Grid"], ["plants", "Power plants"], ["stages", "Market stages"]];
   try { const saved = localStorage.getItem("runviewer.tab"); if (TABS.some(x => x[0] === saved)) state.tab = saved; } catch (e) {}
   try { const ms = localStorage.getItem("runviewer.mapStyle"); if (["plain", "political", "terrain", "dark"].includes(ms)) state.mapStyle = ms; } catch (e) {}
   const CAT_COLOR = { Hydro: "var(--cat-1)", CCGT: "var(--cat-2)", Wind: "var(--cat-3)", Solar: "var(--cat-4)",
@@ -1469,9 +1469,115 @@
     $("rates").innerHTML = rate("All hours", all) + rate("With CCGT running", g1) + rate("Without CCGT", g0, "gas off at balancing");
   }
 
+  // ---------- market stages: the model laid out like the PowerVision paper ----------
+  // Static facts about the model (reference/model_facts.js); the same for every run.
+  let stagesDone = false;
+  function renderStages() {
+    if (stagesDone) return;
+    const F = window.MODEL_FACTS;
+    if (!F) { $("pv-structure").innerHTML = `<p class="fineprint">reference/model_facts.js is missing. Run tools/build_model_facts.py.</p>`; return; }
+    stagesDone = true;
+    const n0 = x => Number(x).toLocaleString("en-GB");
+    const cap = (label, text, paper) => `<b>${label}</b> ${text} <span class="pv-ref">${paper}</span>`;
+    const tbc = `<span class="pv-tbc">to be checked</span>`;
+
+    // Fig. 2: model structure, drawn like the paper's flow diagram
+    const X = i => 20 + i * 156, W = i => (i === 5 ? 140 : 118), CX = i => X(i) + W(i) / 2;
+    const ST = [["DA", "day-ahead"], ["ID2", "IDA2 · 22:00 D−1"], ["ID3", "IDA3 · 10:00 D"], ["CID", "h − 1"], ["BAL", "h · paper: BE"], ["Redispatch", "AC · h"]];
+    const arrow = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="ar" marker-end="url(#pv-head)"/>`;
+    const lines = (x, y0, list, cls = "") => list.map((s, k) => `<text x="${x}" y="${y0 + k * 18}" class="${cls}">${s}</text>`).join("");
+    $("pv-structure").innerHTML = `<svg class="pv-svg" viewBox="0 0 960 400" role="img" aria-label="Structure of the model: inputs and a forecasting model feed a chain of market stages, DA, ID2, ID3, CID and BAL on one zone, then an AC redispatch on the transmission grid">
+      <defs><marker id="pv-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="hd"/></marker></defs>
+      <rect x="20" y="20" width="380" height="165" rx="8" class="bx"/>
+      <text x="36" y="46" class="ti">Inputs</text><text x="100" y="46" class="df">paper: all from FanSi</text>
+      <text x="36" y="72" class="hd2">Static</text>${lines(36, 92, ["Production capacity", "Plant costs", "Grid model"])}
+      <text x="200" y="72" class="hd2">Time-dependent</text>${lines(200, 92, ["Water values, SDDP (weekly)", "Fuel and CO₂ prices (daily)", "Nuclear, coal, CHP (daily)", "Demand, wind, solar (hourly)", "Cross-border flow (hourly)"])}
+      <rect x="430" y="20" width="340" height="165" rx="8" class="bx"/>
+      <text x="446" y="46" class="ti">Forecasting model</text>
+      ${lines(446, 72, ["ENTSO-E data:", "day-ahead forecast and", "lagged actuals of wind,", "solar and load", "→ linear regression"])}
+      <text x="446" y="172" class="df">paper: wind and load only</text>
+      <line x1="642" y1="62" x2="642" y2="150" class="ax"/><line x1="642" y1="150" x2="756" y2="150" class="ax"/>
+      <path d="M648,140 C672,104 700,88 752,76" class="cv"/>
+      <text x="646" y="58" class="sm">RMSE</text><text x="700" y="168" class="sm" text-anchor="middle">lead time [h]</text>
+      <rect x="800" y="20" width="140" height="165" rx="8" class="bx"/>
+      <text x="812" y="46" class="ti">Transmission</text><text x="812" y="64" class="ti">grid data</text>
+      ${lines(812, 88, [`${n0(F.n_buses)} buses`, `${n0(F.lines.reduce((s, l) => s + l.lines, 0))} lines`, `${n0(F.n_trafos)} transformers`, "shunt reactors"])}
+      <text x="812" y="172" class="df">paper: DC flow</text>
+      ${arrow(CX(0), 185, CX(0), 246)}
+      <line x1="600" y1="185" x2="600" y2="214" class="ar"/><line x1="${CX(1)}" y1="214" x2="${CX(4)}" y2="214" class="ar"/>
+      ${[1, 2, 3, 4].map(i => arrow(CX(i), 214, CX(i), 246)).join("")}
+      <text x="608" y="207" class="sm">forecast updates</text>
+      ${arrow(CX(5), 185, CX(5), 246)}
+      ${ST.map(([s, d], i) => `<rect x="${X(i)}" y="250" width="${W(i)}" height="58" rx="6" class="${i === 5 ? "st rd" : "st"}"/>
+        <text x="${CX(i)}" y="274" class="ti" text-anchor="middle">${s}</text><text x="${CX(i)}" y="294" class="sm" text-anchor="middle">${d}</text>`).join("")}
+      ${[0, 1, 2, 3, 4].map(i => arrow(X(i) + W(i) + 3, 279, X(i + 1) - 3, 279)).join("")}
+      <text x="${(CX(1) + CX(4)) / 2}" y="330" class="sm" text-anchor="middle">trading adjustments at every gate (the active case)</text>
+      <text x="20" y="352" class="hd2">Resolution</text>
+      <rect x="20" y="358" width="${X(4) + W(4) - 20}" height="30" rx="4" class="zn"/>
+      <text x="${(20 + X(4) + W(4)) / 2}" y="378" class="lb" text-anchor="middle">Zonal: Spain as one zone, no grid</text>
+      <rect x="${X(5)}" y="358" width="${W(5)}" height="30" rx="4" class="gr"/>
+      <text x="${CX(5)}" y="378" class="lb" text-anchor="middle">Transmission grid</text>
+    </svg>`;
+    $("pv-structure-cap").innerHTML = cap("Fig. 2, Spanish version.", "The model is a chain of deterministic optimisation problems. DA to BAL clear Spain as one zone with no grid; each re-clears with that gate's forecast and moves the previous schedule as little as possible. Only the redispatch sees the transmission grid. Yellow labels show where the paper's Norway model differs.", "PowerVision paper, Fig. 2");
+
+    // Table 1: gates
+    const G = [
+      ["DA", "12:00 D−1 (−12 h)", "0–23", "Zonal", "12:00 D−1", "12:00 D−1"],
+      ["IDA1", "not modelled", "–", "–", "15:00 D−1", "–"],
+      ["ID2", "22:00 D−1 (−2 h)", "0–23", "Zonal", "IDA2, 22:00 D−1", tbc],
+      ["ID3", "10:00 D (+10 h)", "12–23", "Zonal", "IDA3, 10:00 D (hours 12–23)", tbc],
+      ["CID", "h − 1", "h", "Zonal", `continuous; closing ${tbc}`, tbc],
+      ["BAL", "h", "h", "Zonal", `REE balancing; ${tbc}`, tbc],
+      ["Redispatch", "h", "h", `Grid (${n0(F.n_buses)} buses)`, `REE redispatch; ${tbc}`, tbc],
+    ];
+    $("pv-gates").innerHTML = `<thead><tr><th rowspan="2">Stage</th><th colspan="3" class="grp">Model</th><th colspan="2" class="grp">Real Spain, gate closure</th></tr>
+      <tr><th>GCT</th><th>Delivery hours</th><th>Resolution</th><th>from 14 June 2024</th><th>before 14 June 2024</th></tr></thead><tbody>`
+      + G.map(r => `<tr${r[1] === "not modelled" ? ` class="pv-muted"` : ""}>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("") + "</tbody>";
+    $("pv-gates-cap").innerHTML = cap("Table 1, Spanish version.", "Gate closure time (GCT), delivery hours and resolution of each stage. Hours are Spanish local time relative to 0:00 on the delivery day; −12 h is 12:00 the day before. The model's times are those used to build each gate's forecast (forecast_updates/main.py). Since 14 June 2024 Spain trades in the three European intraday auctions at the times in the paper's Fig. 1; the model's ID2 matches IDA2 and ID3 matches IDA3. Before that Spain had its own MIBEL sessions, so January and May have no one-to-one match.", "PowerVision paper, Table 1");
+
+    // Table 2: capacity and load
+    const C = F.capacity;
+    $("pv-capacity").innerHTML = `<thead><tr><th>Spain (one zone)</th><th>Model</th><th>Real 2024 (ENTSO-E)</th><th>Model − real</th></tr></thead><tbody>`
+      + C.rows.map(r => `<tr><td>${r.item}</td><td>${n0(r.model)} ${r.unit}${r.model_note ? `<div class="sub">${r.model_note}</div>` : ""}</td><td>${n0(r.real)} ${r.unit}</td><td>${signed(r.model - r.real, 0)} ${r.unit} <span class="pv-muted-txt">(${signed(100 * (r.model - r.real) / r.real, 0)} %)</span></td></tr>`).join("") + "</tbody>";
+    $("pv-capacity-cap").innerHTML = cap("Table 2, Spanish version.", `Installed wind and solar capacity and mean load. Model: ${C.model_src}. Real: ${C.real_src}. ENTSO-E gives one capacity per year, so solar built during 2024 may be missing from it (to be checked). The model's load includes exports to France and Portugal; ENTSO-E's does not.`, "PowerVision paper, Table 2");
+
+    // Fig. 7: data sources, grouped like the paper
+    const nd = `<span class="pv-tbc">source not documented</span>`;
+    const P = [
+      ["Demand, wind and solar", "zn", "Zonal stages", [
+        ["Day-ahead baseline per hour", "OMIE technology report, 2024", "omie_conversion/"],
+        ["Forecast at each gate", "ENTSO-E actuals and day-ahead forecasts, 2022–2024", "forecast_updates/"],
+        ["Spread over the buses", `share per bus (Data/load.csv) ${nd}`, "data_preparation.jl"]]],
+      ["Generators", "zn", "Zonal stages and grid", [
+        ["Plant list and capacity", `Data/generations.csv ${nd}`, ""],
+        ["Nuclear, coal and CHP per day", "OMIE technology report", "omie_conversion/"],
+        ["Fuel and CO₂ prices", "MIBGAS, EU ETS", "fuel_prices.jl"],
+        ["Hydro water values", "37 climate years of inflow (Data/ts)", "midterm_sddp4.jl"]]],
+      ["Cross-border", "zn", "Zonal stages and grid", [
+        ["Exchange with France and Portugal", "ENTSO-E flows, OMIE exchange, 2024", "entsoe_download/"]]],
+      ["Transmission grid", "gr", "Grid", [
+        ["Buses, lines, transformers", `${nd}; the per-km values match the open European grid model`, "data_preparation.jl"],
+        ["Shunt reactors", "REE, installed fleet December 2024", "data_preparation.jl"],
+        [`Line rating × ${F.line_rating_factor}`, "N-1 margin, config.toml", ""]]],
+    ];
+    $("pv-sources").innerHTML = `<div class="pv-panels">` + P.map(([h, cls, use, items]) => `<div class="pv-panel">
+        <div class="pv-panel-h">${h}</div>
+        <ul>${items.map(([what, src, code]) => `<li><b>${what}</b><span>${src}</span>${code ? `<code>${code}</code>` : ""}</li>`).join("")}</ul>
+        <div class="pv-panel-f ${cls}">Used in: ${use}</div></div>`).join("") + `</div>`;
+    $("pv-sources-cap").innerHTML = cap("Fig. 7, Spanish version.", "The main data sources and the code that processes them (in the model repo). The paper builds its Norway grid from an open European grid model and line data from NVE; here the grid's source is not documented, but its standard line values match that same open model.", "PowerVision paper, Fig. 7");
+
+    // Table 3: lines and transformers
+    const lrf = F.line_rating_factor;
+    $("pv-lines").innerHTML = `<thead><tr><th>Lines</th><th>Count</th><th>Circuits</th><th>Current limit</th><th>Thermal capacity per circuit</th><th>Limit in the model (× ${lrf})</th><th>r / x per km</th></tr></thead><tbody>`
+      + F.lines.map(l => `<tr><td>${l.kv} kV${l.dc ? " DC" : ""}</td><td>${n0(l.lines)}</td><td>${n0(l.circuits)}</td><td>${l.imax_ka} kA</td><td>${n0(l.mva)} MVA</td><td>${n0(l.limit)} MW</td><td>${l.dc ? "–" : `${l.r} / ${l.x} Ω`}</td></tr>`).join("") + "</tbody>";
+    $("pv-trafos").innerHTML = `<thead><tr><th>Transformers (high side)</th><th>Count</th><th>Standard unit</th><th>Units</th><th>Installed</th><th>Limit in the model (× ${lrf})</th></tr></thead><tbody>`
+      + F.trafos.map(t => `<tr><td>${t.hv} kV</td><td>${t.count}</td><td>${n0(t.unit_mva)} MVA</td><td>${t.units}</td><td>${n0(t.installed)} MVA</td><td>${n0(t.limit)} MW</td></tr>`).join("") + "</tbody>";
+    $("pv-lines-cap").innerHTML = cap("Table 3, Spanish version.", `Line and transformer assumptions. Every line of one voltage level has the same current limit and values per km: standard line types, not the real rating of each line, which is not public. The 400 kV and 320 kV reactances (0.246 and 0.265 Ω/km) are the values the paper uses. Transformers are sized by a rule (a number of standard units), with ${F.trafo_x.map(x => Math.round(x * 100)).join("–")} % reactance. Example: the Arkale transformer at the French border is 3 × 100 MVA here but a 550 MVA phase-shifter in reality (REE, 2017). The 320 kV link to France is modelled as four AC lines; the one DC line is the 250 kV link to the Balearic Islands. The paper compares three line-type cases; this model has one.`, "PowerVision paper, Table 3");
+  }
+
   function renderAll() {
     const v = view();
-    renderRunList(); renderHead(run()); renderTabs(v); renderPeriod(); renderKpis(v); renderPrice(v); renderMix(v); renderStatus(v); renderGrid(v); renderPlants(v);
+    renderRunList(); renderHead(run()); renderTabs(v); renderPeriod(); renderKpis(v); renderPrice(v); renderMix(v); renderStatus(v); renderGrid(v); renderPlants(v); renderStages();
   }
 
   // ---------- loading runs ----------

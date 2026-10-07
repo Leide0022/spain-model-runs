@@ -158,11 +158,42 @@
         <p class="fineprint">Real vs model uses ENTSO-E's measured output per unit, matched to the model's plants in <code>entsoe_unit_crosswalk.csv</code>; plants ENTSO-E reports only in part are left out. Output and change are from the AC redispatch; "Redispatch change" is redispatch output minus balancing output, so it shows what the grid stage changed. Hydro includes pumped storage (pumping is not counted as output). Not shown: the model's industrial CHP, waste and mini-hydro blocks (spread over 100 substations, so not at real locations) and load shedding. Failed AC hours are left out of averages.</p>
       </section>
 
+      <section class="card" id="sec-stages" role="tabpanel" data-tabs="stages">
+        <div class="sec-head">
+          <div>
+            <h3 class="pv-title">Market stages: the model next to the PowerVision paper</h3>
+            <p>The overview the PowerVision paper (Koks et al., 2026) gives for Norway, filled in for this model of Spain. Each figure and table keeps the paper's number, so they can be read side by side. These facts are the same for every run.</p>
+          </div>
+        </div>
+        <div class="pv-block">
+          <h4>Model structure</h4>
+          <figure class="pv-fig"><div class="pv-svg-wrap" id="pv-structure"></div><figcaption id="pv-structure-cap"></figcaption></figure>
+        </div>
+        <div class="pv-block">
+          <h4>Market stages and gate closure</h4>
+          <figure class="pv-fig"><div class="table-wrap"><table id="pv-gates" class="pv-book"></table></div><figcaption id="pv-gates-cap"></figcaption></figure>
+        </div>
+        <div class="pv-block">
+          <h4>Wind, solar and load</h4>
+          <figure class="pv-fig"><div class="table-wrap"><table id="pv-capacity" class="pv-book"></table></div><figcaption id="pv-capacity-cap"></figcaption></figure>
+        </div>
+        <div class="pv-block">
+          <h4>Data sources and processing</h4>
+          <figure class="pv-fig"><div id="pv-sources"></div><figcaption id="pv-sources-cap"></figcaption></figure>
+        </div>
+        <div class="pv-block">
+          <h4>Line and transformer assumptions</h4>
+          <figure class="pv-fig"><div class="table-wrap"><table id="pv-lines" class="pv-book"></table></div>
+            <div class="table-wrap pv-gap"><table id="pv-trafos" class="pv-book"></table></div><figcaption id="pv-lines-cap"></figcaption></figure>
+        </div>
+      </section>
+
     </main>
   </div>
 </div>
 <!-- map background, the list of published runs, then the viewer itself -->
 <script src="reference/basemap.js"></script>
+<script src="reference/model_facts.js"></script>
 <script src="runs/manifest.js"></script>
 <script src="viewer.js"></script>
 </body>
