@@ -2,6 +2,39 @@
 window.RUN_MANIFEST = [
  {
   "schema": 1,
+  "id": "2024-12-01_december-2024-free-france-split",
+  "name": "December 2024, free France split",
+  "note": "Full December chain (1-29 Dec; 30-31 Dec have no inputs yet) with crossborder_split = country_total (branch xb-split-country-total), MA57. All 696 AC hours solve.",
+  "published": "2026-10-07T17:01:05+02:00",
+  "published_by": "magnusberard",
+  "first_day": "2024-12-01",
+  "last_day": "2024-12-29",
+  "n_days": 29,
+  "ac_solved": 696,
+  "ac_total": 696,
+  "months": [
+   "2024-12"
+  ],
+  "size_mb": 3.8,
+  "info": {
+   "ran_by": "magnusberard",
+   "branch": "xb-split-country-total",
+   "commit": "b9e8933",
+   "commit_message": "Let the redispatch split the cross-border exchange over the border buses",
+   "uncommitted_files": [
+    "Manifest.toml"
+   ],
+   "started": "2026-10-07 14:06:11",
+   "finished": "2026-10-07 16:14:29",
+   "runtime_min": 128.3,
+   "power_flow": "AC",
+   "linear_solver": "ma57",
+   "label": "2024",
+   "reconstructed": false
+  }
+ },
+ {
+  "schema": 1,
   "id": "2024-11-01_november-2024-free-france-split",
   "name": "November 2024, free France split",
   "note": "Full November chain with crossborder_split = country_total (branch xb-split-country-total), MA57. All 720 AC hours solve.",
