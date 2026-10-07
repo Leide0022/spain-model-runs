@@ -16,7 +16,7 @@
 
   const state = { run: MANIFEST.length ? MANIFEST[0].id : null, priceStage: "DA", priceRes: "hour", mixStage: "DA", mixRes: "hour", mixRef: "omie", zoom: null, tab: "overview", gridMode: "max", gridHour: null, gridSel: null, mapStyle: "terrain", plantSize: "cap", plantTime: "period", plantHour: null, plantSel: null, plantHidden: [], playSpeed: 2,
     gridLayers: ["hv", "lv", "trafo", "border"], gridSort: ["max", -1], gridQuery: "", gridAll: false };
-  const TABS = [["overview", "Overview"], ["price", "Price"], ["mix", "Generation mix"], ["status", "AC redispatch"], ["grid", "Grid"], ["plants", "Power plants"], ["stages", "Market stages"]];
+  const TABS = [["overview", "Overview"], ["price", "Price"], ["mix", "Generation mix"], ["status", "AC redispatch"], ["grid", "Grid"], ["plants", "Power plants"], ["stages", "Market stages"], ["esios", "REE (e·sios)"]];
   try { const saved = localStorage.getItem("runviewer.tab"); if (TABS.some(x => x[0] === saved)) state.tab = saved; } catch (e) {}
   try { const ms = localStorage.getItem("runviewer.mapStyle"); if (["plain", "political", "terrain", "dark"].includes(ms)) state.mapStyle = ms; } catch (e) {}
   const CAT_COLOR = { Hydro: "var(--cat-1)", CCGT: "var(--cat-2)", Wind: "var(--cat-3)", Solar: "var(--cat-4)",
@@ -50,6 +50,12 @@
     corr: ["Correlation", "How well the model follows the ups and downs of the real price, from −1 to 1. 1 means the same shape (even if the level is off), 0 means no relation."],
     shed: ["Load shed", "Demand the redispatch could not supply, summed over the solved hours shown. It should be 0."],
     real_price: ["Real price", "OMIE's day-ahead marginal price for the Spanish zone (the marginalpdbc files)."],
+    real_bal: ["Real balancing price", "REE's price for replacement reserve (RR), the hourly balancing energy market, from e·sios. The closest real counterpart of the model's balancing (BAL) price; Spain has no single balancing price."],
+    ree_rd: ["REE redispatch", "What REE changed after the market for grid security, from e·sios: technical constraints after the day-ahead (phase I adds energy where the grid needs it, phase II takes about the same amount out elsewhere) and real-time constraints."],
+    model_bal: ["Model balancing", "What the model's balancing stage moved compared with the continuous intraday schedule, summed up and down over the plants that respond (wind, solar and the fixed cross-border flows left out: their forecast change is what has to be balanced)."],
+    ree_imb: ["REE net imbalance", "e·sios indicator 1338: the net imbalance of generation and demand in each hour, which REE covers with balancing energy."],
+    model_imb: ["Model forecast change", "Load minus wind minus solar at the balancing stage, minus the same at the continuous intraday stage: the forecast change the model's balancing stage has to cover. It is the model's counterpart of the imbalance."],
+    model_rd: ["Model redispatch", "The model's AC redispatch minus its balancing schedule, summed over the power plants on the map (CHP, waste and mini-hydro blocks and the border are left out). Failed AC hours have no value."],
     real_mix: ["Real generation", "OMIE's day-ahead programme per technology (the 'Energía horaria por tecnologías' report)."],
     DA: ["Day-ahead (DA)", "Clears all 24 hours the day before delivery, using the day-ahead forecast of load, wind and solar."],
     ID2: ["Intraday 2 (ID2)", "Re-clears all 24 hours with an updated forecast, starting from the DA schedule."],
@@ -138,6 +144,7 @@
       price: each(r.price, sl), real_price: sl(r.real_price), status: sl(r.status), shed: sl(r.shed),
       real_mix: each(r.real_mix, sl), mix: each(r.mix, m => each(m, sl)),
       real_phys: each(r.real_phys, sl), mix_phys: each(r.mix_phys, m => each(m, sl)),
+      balancing: r.balancing ? each(r.balancing, sl) : null,
     };
   }
   function setZoom(a, b) {
@@ -171,6 +178,13 @@
     for (const k in attrs) e.setAttribute(k, attrs[k]);
     if (parent) parent.appendChild(e);
     return e;
+  }
+  // REE e·sios series (reference/esios_2024.js) for the days a view shows, 24 values per day
+  const esiosDay = window.ESIOS ? Object.fromEntries(window.ESIOS.days.map((d, i) => [d, i])) : {};
+  function esiosFor(r, key) {
+    const E = window.ESIOS, s = E && E.series[key];
+    if (!s) return null;
+    return r.days.flatMap(d => { const i = esiosDay[d]; return i == null ? Array(24).fill(null) : s.slice(i * 24, i * 24 + 24); });
   }
   const mean = a => { let s = 0, n = 0; for (const x of a) if (x != null) { s += x; n++; } return n ? s / n : null; };
   function pairs(a, b) { const out = []; for (let i = 0; i < a.length; i++) if (a[i] != null && b[i] != null) out.push([a[i], b[i]]); return out; }
@@ -539,7 +553,7 @@
     const v = view();
     renderTabs(v);
     // sections that were hidden have no width yet, so draw them now that they are visible
-    renderPrice(v); renderMix(v); renderStatus(v); renderGrid(v); renderPlants(v);
+    renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v);
     // if the page was scrolled down, jump back to the top of the new tab's content
     const headBottom = $("run-head").getBoundingClientRect().bottom;
     if (headBottom < 0) window.scrollTo({ top: window.scrollY + headBottom + 16 });
@@ -1421,6 +1435,115 @@
     }
   }
 
+  // ---------- balancing: the model's BAL stage next to REE's balancing markets (e·sios) ----------
+  function renderBalancing(r) {
+    if ($("sec-bal").hidden || !window.ESIOS) return;
+    const nd = r.days.length, hourly = nd <= 3, E = k => esiosFor(r, k);
+    const agg = a => hourly ? a : dailyMean(a, nd);
+    const PR = [["Model, balancing (BAL)", r.price.BAL, "var(--model)", 2], ["REE, RR price", E("rr_price"), "var(--real)", 1.5],
+                ["REE, aFRR up", E("afrr_up_price"), "var(--cat-2)", 1.2], ["REE, aFRR down", E("afrr_down_price"), "var(--cat-3)", 1.2]];
+    $("bal-legend").innerHTML = PR.map(([n, , c]) => `<span><i class="sw-line" style="background:${c}"></i>${n}</span>`).join("")
+      + `<span style="color:var(--muted)">${hourly ? "each hour" : "daily mean"}</span>`;
+    const host = $("bal-chart");
+    const ser = PR.map(([name, v, color, width]) => ({ name, values: agg(v), color, width }));
+    lineChart(host, {
+      n: ser[0].values.length, height: 300, yUnit: "€/MWh", label: "Balancing price, model vs REE", endLabels: false,
+      xTicks: dayTicks(r.days, hourly, host.clientWidth - 60), onZoom: (a, b) => zoomFromChart(a, b, hourly),
+      series: ser,
+      tooltip: i => `<b>${hourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i]) + " (daily mean)"}</b>`
+        + ser.map(s => `<div class="row"><i class="sw-line" style="background:${s.color}"></i>${s.name}<span class="v">${nf(s.values[i])} €/MWh</span></div>`).join(""),
+    });
+    const sum = a => a ? a.reduce((s, x) => s + (x || 0), 0) / 1000 : 0;
+    const sumAbs = a => a ? a.reduce((s, x) => s + Math.abs(x || 0), 0) / 1000 : 0;
+    const V = [["aFRR (secondary)", "afrr"], ["mFRR (tertiary)", "mfrr"], ["RR (replacement)", "rr"]];
+    const rows = V.map(([l, k]) => [l, sum(E(k + "_up")), sum(E(k + "_down")), mean(E(k === "rr" ? "rr_price" : k + "_up_price"))]);
+    const ru = rows.reduce((s, x) => s + x[1], 0), rd = rows.reduce((s, x) => s + x[2], 0);
+    const B = r.balancing;
+    const pct = (a, b) => b ? ` <span class="pv-muted-txt">(${nf(100 * a / b, 0)} % of REE)</span>` : "";
+    $("bal-table").innerHTML = `<thead><tr><th>Balancing energy, ${nd} day${nd > 1 ? "s" : ""}</th><th>Up, GWh</th><th>Down, GWh</th><th>Mean price up, €/MWh (RR: its one price)</th></tr></thead><tbody>`
+      + rows.map(([l, u, d, pz]) => `<tr><td>REE, ${l}</td><td>${nf(u, 0)}</td><td>${nf(d, 0)}</td><td>${nf(pz, 1)}</td></tr>`).join("")
+      + `<tr class="total-row"><td>REE, total</td><td>${nf(ru, 0)}</td><td>${nf(rd, 0)}</td><td></td></tr>`
+      + (B ? `<tr class="total-row"><td>${term("Model, balancing stage", "model_bal")}</td><td>${nf(sum(B.up), 0)}${pct(sum(B.up), ru)}</td><td>${nf(sum(B.down), 0)}${pct(sum(B.down), rd)}</td><td>${nf(mean(r.price.BAL), 1)} <span class="pv-muted-txt">(BAL price)</span></td></tr>`
+           : `<tr><td colspan="4" class="pv-tbc">The model's balancing volume is not in this run's package yet; publish it again with the current publish_run.py.</td></tr>`)
+      + "</tbody>";
+    $("imb-table").innerHTML = `<thead><tr><th>What had to be balanced, ${nd} day${nd > 1 ? "s" : ""}</th><th>Sum of hourly absolute values, GWh</th></tr></thead><tbody>`
+      + `<tr><td>${term("REE, net imbalance of generation and demand", "ree_imb")}</td><td>${nf(sumAbs(E("imbalance")), 0)}</td></tr>`
+      + (B ? `<tr><td>${term("Model, forecast change from CID to balancing", "model_imb")}</td><td>${nf(sumAbs(B.need), 0)}${pct(sumAbs(B.need), sumAbs(E("imbalance")))}</td></tr>` : "")
+      + "</tbody>";
+    // volume charts: REE's balancing energy (aFRR + mFRR + RR) vs the model's balancing stage
+    const vhost = $("bal-vol");
+    if (!B) { vhost.innerHTML = ""; return; }
+    const add = (...a) => a[0].map((_, i) => a.reduce((s, x) => s + (x[i] || 0), 0));
+    const rUp = add(E("afrr_up"), E("mfrr_up"), E("rr_up")), rDn = add(E("afrr_down"), E("mfrr_down"), E("rr_down"));
+    const unit = hourly ? "MW" : "GWh/day", ag = a => hourly ? a : dailySum(a, nd);
+    vhost.innerHTML = `<div class="rd-pair"><div><h4>Balancing up</h4><div class="chart" id="bal-up"></div></div><div><h4>Balancing down</h4><div class="chart" id="bal-down"></div></div></div>`;
+    const draw = (id, label, real, model) => {
+      const rv = ag(real), mv = ag(model);
+      lineChart($(id), {
+        n: rv.length, height: 220, yTicks: 4, yUnit: unit, label, endLabels: true,
+        xTicks: dayTicks(r.days, hourly, $(id).clientWidth - 110), onZoom: (a, b) => zoomFromChart(a, b, hourly),
+        series: [{ name: "REE", values: rv, color: "var(--real)", width: 1.5 }, { name: "Model", values: mv, color: "var(--model)", width: 2 }],
+        tooltip: i => `<b>${hourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i])}</b>
+          <div class="row"><i class="sw-line" style="background:var(--real)"></i>REE<span class="v">${nf(rv[i], hourly ? 0 : 1)} ${unit}</span></div>
+          <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model<span class="v">${nf(mv[i], hourly ? 0 : 1)} ${unit}</span></div>`,
+      });
+    };
+    requestAnimationFrame(() => { draw("bal-up", "Balancing up, REE vs model", rUp, B.up); draw("bal-down", "Balancing down, REE vs model", rDn, B.down); });
+  }
+
+  // ---------- redispatch: model vs what REE really did (e·sios) ----------
+  function renderRedispatch(r) {
+    if ($("sec-rd").hidden) return;
+    const host = $("rd-charts");
+    if (!window.ESIOS) { host.innerHTML = `<p class="fineprint">reference/esios_2024.js is missing. Run tools/build_esios.py.</p>`; return; }
+    const nd = r.days.length, N = nd * 24, h0 = r.offset * 24, hourly = nd <= 3;
+    const pr = plantRun(r.id), H = pr.H;
+    // model: redispatch minus balancing per plant group, summed up and down (no value in failed hours)
+    const mUp = new Array(N).fill(null), mDown = new Array(N).fill(null);
+    for (let i = 0; i < N; i++) {
+      if (r.status[i] !== 1) continue;
+      let up = 0, dn = 0;
+      PD.groups.forEach((p, g) => {
+        if (p.f === "Imports") return;
+        const v = pr.chg[g * H + h0 + i]; if (v === -128) return;
+        const mw = v / 127 * p.cap; if (mw > 0) up += mw; else dn -= mw;
+      });
+      mUp[i] = up; mDown[i] = dn;
+    }
+    const E = k => esiosFor(r, k);
+    const add = (...a) => a[0].map((_, i) => a.reduce((s, x) => s + (x[i] || 0), 0));
+    const rUp = add(E("rt1_up"), E("rt2_up"), E("rtr_up")), rDown = add(E("rt1_down"), E("rt2_down"), E("rtr_down"));
+    const unit = hourly ? "MW" : "GWh/day";
+    const agg = a => hourly ? a : dailySum(a, nd);
+    const draw = (id, label, real, model) => {
+      const rv = agg(real), mv = agg(model);
+      lineChart($(id), {
+        n: rv.length, height: 230, yTicks: 4, yUnit: unit, label, endLabels: true,
+        xTicks: dayTicks(r.days, hourly, $(id).clientWidth - 110),
+        onZoom: (a, b) => zoomFromChart(a, b, hourly),
+        series: [{ name: "REE", values: rv, color: "var(--real)", width: 1.5 }, { name: "Model", values: mv, color: "var(--model)", width: 2 }],
+        tooltip: i => `<b>${hourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i])}</b>
+          <div class="row"><i class="sw-line" style="background:var(--real)"></i>REE<span class="v">${nf(rv[i], hourly ? 0 : 1)} ${unit}</span></div>
+          <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model<span class="v">${nf(mv[i], hourly ? 0 : 1)} ${unit}</span></div>`,
+      });
+    };
+    host.innerHTML = `<div class="rd-pair"><div><h4>Turned up</h4><div class="chart" id="rd-up"></div></div><div><h4>Turned down</h4><div class="chart" id="rd-down"></div></div></div>`;
+    $("rd-legend").innerHTML = `<span><i class="sw-line" style="background:var(--real)"></i>${term("REE redispatch", "ree_rd")}</span><span><i class="sw-line" style="background:var(--model)"></i>${term("Model redispatch", "model_rd")}</span><span style="color:var(--muted)">${hourly ? "MW each hour" : "Energy per day"}</span>`;
+    requestAnimationFrame(() => { draw("rd-up", "Redispatch up, REE vs model", rUp, mUp); draw("rd-down", "Redispatch down, REE vs model", rDown, mDown); });
+    // totals over the solved hours, so both sides cover the same hours
+    const ok = i => r.status[i] === 1;
+    const tot = a => a ? a.reduce((s, x, i) => s + (ok(i) ? (x || 0) : 0), 0) / 1000 : 0;
+    const rows = [["REE, technical constraints after day-ahead, phase I", tot(E("rt1_up")), tot(E("rt1_down"))],
+                  ["REE, technical constraints, phase II", tot(E("rt2_up")), tot(E("rt2_down"))],
+                  ["REE, real-time constraints", tot(E("rtr_up")), tot(E("rtr_down"))]];
+    const ru = rows.reduce((s, x) => s + x[1], 0), rd = rows.reduce((s, x) => s + x[2], 0), mu = tot(mUp), md = tot(mDown);
+    const solved = r.status.reduce((a, b) => a + b, 0);
+    $("rd-table").innerHTML = `<thead><tr><th>Over the ${solved} solved hours</th><th>Up, GWh</th><th>Down, GWh</th></tr></thead><tbody>`
+      + rows.map(([l, u, d]) => `<tr><td>${l}</td><td>${nf(u, 0)}</td><td>${nf(d, 0)}</td></tr>`).join("")
+      + `<tr class="total-row"><td>REE, total</td><td>${nf(ru, 0)}</td><td>${nf(rd, 0)}</td></tr>`
+      + `<tr class="total-row"><td>Model</td><td>${nf(mu, 0)} <span class="pv-muted-txt">(${ru ? nf(100 * mu / ru, 0) : "–"} % of REE)</span></td><td>${nf(md, 0)} <span class="pv-muted-txt">(${rd ? nf(100 * md / rd, 0) : "–"} %)</span></td></tr></tbody>`;
+  }
+
   function renderStatus(r) {
     const host = $("status-chart"); host.innerHTML = "";
     const nd = r.days.length;
@@ -1577,7 +1700,7 @@
 
   function renderAll() {
     const v = view();
-    renderRunList(); renderHead(run()); renderTabs(v); renderPeriod(); renderKpis(v); renderPrice(v); renderMix(v); renderStatus(v); renderGrid(v); renderPlants(v); renderStages();
+    renderRunList(); renderHead(run()); renderTabs(v); renderPeriod(); renderKpis(v); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderStages();
   }
 
   // ---------- loading runs ----------
@@ -1668,7 +1791,7 @@
   start();
   // Redraw the charts whenever the report column changes width (also covers the frame
   // settling to its final size after the first render, and late web-font loads).
-  const redraw = () => { if (!run()) return; const v = view(); renderPrice(v); renderMix(v); renderStatus(v); renderGrid(v); renderPlants(v); };
+  const redraw = () => { if (!run()) return; const v = view(); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); };
   let rt, lastW = $("report").clientWidth;
   new ResizeObserver(() => {
     const w = $("report").clientWidth;

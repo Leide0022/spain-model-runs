@@ -96,6 +96,44 @@
         </div>
       </section>
 
+      <section class="card" id="sec-esios-intro" role="tabpanel" data-tabs="esios">
+        <div class="sec-head">
+          <div>
+            <h3 class="pv-title">REE (e·sios): what the grid operator really did</h3>
+            <p>Red Eléctrica's own data for the stages after the market, from its e·sios platform: redispatch for grid security and the balancing markets. These are the real counterparts of the model's last two stages (BAL and AC redispatch). Spanish peninsula, 2024; the data is downloaded with esios_download/fetch_esios.py (model repo) and built into reference/esios_2024.js by tools/build_esios.py.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="sec-rd" role="tabpanel" data-tabs="esios">
+        <div class="sec-head">
+          <div>
+            <h3>Redispatch: model vs what REE really did</h3>
+            <p>How much the grid stage turned plants up and down, next to REE's own redispatch for grid security (e·sios). REE acts on the day-ahead programme and starts plants, mostly gas, where the grid needs them; the model acts on its balancing schedule.</p>
+          </div>
+        </div>
+        <div class="legend" id="rd-legend"></div>
+        <div id="rd-charts"></div>
+        <div class="table-wrap pv-gap"><table id="rd-table"></table></div>
+        <p class="fineprint">REE: technical constraints after the day-ahead market (phase I adds energy where the grid needs it, phase II takes about the same amount out elsewhere) plus real-time constraints, Spanish peninsula, from e·sios (indicators 701–704, 720, 721). Model: AC redispatch minus balancing, summed over the power plants on the map; CHP, waste and mini-hydro blocks and the border are left out, and failed AC hours have no value.</p>
+      </section>
+
+      <section class="card" id="sec-bal" role="tabpanel" data-tabs="esios">
+        <div class="sec-head">
+          <div>
+            <h3>Balancing: the model's BAL stage vs REE's balancing markets</h3>
+            <p>The model's balancing price next to REE's balancing energy prices, and how much balancing energy REE used. Spain has no single balancing price: RR (replacement reserve) is the hourly market closest to the model's BAL stage; aFRR is the automatic reserve.</p>
+          </div>
+        </div>
+        <div class="legend" id="bal-legend"></div>
+        <div class="chart" id="bal-chart"></div>
+        <div class="legend pv-gap" id="bal-vol-legend"><span><i class="sw-line" style="background:var(--real)"></i>REE (aFRR + mFRR + RR)</span><span><i class="sw-line" style="background:var(--model)"></i>Model, balancing stage</span></div>
+        <div id="bal-vol"></div>
+        <div class="table-wrap pv-gap"><table id="bal-table"></table></div>
+        <div class="table-wrap pv-gap"><table id="imb-table"></table></div>
+        <p class="fineprint">REE: e·sios indicators 680–683 (aFRR), 10394/10395 and 676/677 (mFRR; 10386/10387 in December), 1782–1784 (RR), 1338 (net imbalance). Prices are averaged over the hours with activation. Model: the balancing stage's change from the continuous intraday schedule, and the forecast change (load − wind − solar) it covers.</p>
+      </section>
+
       <section class="card" id="sec-grid" role="tabpanel" data-tabs="overview grid">
         <div class="sec-head">
           <div>
@@ -194,6 +232,7 @@
 <!-- map background, the list of published runs, then the viewer itself -->
 <script src="reference/basemap.js"></script>
 <script src="reference/model_facts.js"></script>
+<script src="reference/esios_2024.js"></script>
 <script src="runs/manifest.js"></script>
 <script src="viewer.js"></script>
 </body>

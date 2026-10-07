@@ -333,3 +333,7 @@ button.sort:hover { color: var(--ink); }
 .pv-panel-f { font-size: 12px; font-weight: 600; padding: 6px 12px; }
 .pv-panel-f.zn { background: color-mix(in srgb, var(--model) 16%, transparent); }
 .pv-panel-f.gr { background: color-mix(in srgb, var(--soto) 18%, transparent); }
+/* redispatch vs REE */
+.rd-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px 24px; }
+.rd-pair h4 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+#rd-table td:first-child { white-space: normal; }
