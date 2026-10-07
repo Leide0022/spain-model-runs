@@ -2,6 +2,39 @@
 window.RUN_MANIFEST = [
  {
   "schema": 1,
+  "id": "2024-09-01_september-2024-free-france-split",
+  "name": "September 2024, free France split",
+  "note": "Full September chain with crossborder_split = country_total (branch xb-split-country-total). All 720 AC hours solve.",
+  "published": "2026-10-07T16:07:23+02:00",
+  "published_by": "Lars Erik Eide",
+  "first_day": "2024-09-01",
+  "last_day": "2024-09-30",
+  "n_days": 30,
+  "ac_solved": 720,
+  "ac_total": 720,
+  "months": [
+   "2024-09"
+  ],
+  "size_mb": 3.9,
+  "info": {
+   "ran_by": "Lars Erik Eide",
+   "branch": "xb-split-country-total",
+   "commit": "b9e8933",
+   "commit_message": "Let the redispatch split the cross-border exchange over the border buses",
+   "uncommitted_files": [
+    "Manifest.toml"
+   ],
+   "started": "2026-10-07 13:57:01",
+   "finished": "2026-10-07 15:32:43",
+   "runtime_min": 95.7,
+   "power_flow": "AC",
+   "linear_solver": "ma57",
+   "label": "2024",
+   "reconstructed": false
+  }
+ },
+ {
+  "schema": 1,
   "id": "2024-05-01_may-2024-free-france-split",
   "name": "May 2024, free France split",
   "note": "Same as the May run, but the redispatch chooses how the France/Portugal exchange is split over the border lines (crossborder_split = country_total). All 744 AC hours solve (606 before).",
