@@ -2,6 +2,41 @@
 window.RUN_MANIFEST = [
  {
   "schema": 1,
+  "id": "2024-05-01_may-2024-free-france-split",
+  "name": "May 2024, free France split",
+  "note": "Same as the May run, but the redispatch chooses how the France/Portugal exchange is split over the border lines (crossborder_split = country_total). All 744 AC hours solve (606 before).",
+  "published": "2026-10-07T13:19:19+02:00",
+  "published_by": "Lars Erik Eide",
+  "first_day": "2024-05-01",
+  "last_day": "2024-05-31",
+  "n_days": 31,
+  "ac_solved": 744,
+  "ac_total": 744,
+  "months": [
+   "2024-05"
+  ],
+  "size_mb": 4.0,
+  "info": {
+   "ran_by": "Lars Erik Eide",
+   "branch": "xb-split-country-total",
+   "commit": "134d50e",
+   "commit_message": "Record run info at run start; publish runs to the results viewer",
+   "uncommitted_files": [
+    "Manifest.toml",
+    "config.toml",
+    "run_market_chain.jl"
+   ],
+   "started": "2026-10-07 11:53:44",
+   "finished": "2026-10-07 13:15:25",
+   "runtime_min": 81.7,
+   "power_flow": "AC",
+   "linear_solver": "ma57",
+   "label": "2024",
+   "reconstructed": false
+  }
+ },
+ {
+  "schema": 1,
   "id": "2024-05-01_may-2024",
   "name": "May 2024",
   "note": "First full May run.",
