@@ -415,9 +415,9 @@
     for (const src of [real, model]) for (let i = 0; i < n; i++) {
       let tot = 0; for (const c of CATS) tot += Math.max(0, src[c][i] || 0); yMax = Math.max(yMax, tot);
     }
-    $("stack-real-title").innerHTML = `Real <span>${REF_NAME[md.ref]}</span>`;
-    const stageName = MIX_STAGES.find(s => s[0] === state.mixStage)[1].toLowerCase();
-    $("stack-model-title").innerHTML = `Model <span>${stageName}${state.mixStage === "RD" ? ", gaps are failed hours" : ""}</span>`;
+    const stageName = MIX_STAGES.find(s => s[0] === state.mixStage)[1];
+    $("stack-real-title").innerHTML = `<span class="st-main"><i style="background:var(--real)"></i>Real</span><span class="st-sub">${REF_NAME[md.ref]}</span>`;
+    $("stack-model-title").innerHTML = `<span class="st-main"><i style="background:var(--model)"></i>Model</span><span class="st-sub">${stageName}${state.mixStage === "RD" ? ", gaps are failed hours" : ""} · grouped like ${md.ref === "entsoe" ? "ENTSO-E" : "OMIE"}</span>`;
     $("stack-legend").innerHTML = [...STACK].reverse().map(c => `<span><i class="sw-box" style="background:${CAT_COLOR[c]}"></i>${term(c, c)}</span>`).join("")
       + `<span style="color:var(--muted)">${hourly ? "MW each hour" : "Average MW per day"}</span>`;
     const charts = [];
@@ -1210,6 +1210,14 @@
       const mae = mean(p.map(q => Math.abs(q[0] - q[1])));
       return { c, gm, gr, diff: gm - gr, pct: gr > 0.5 ? 100 * (gm - gr) / gr : null, mae };
     });
+    // Switching the real data only regroups the model into that source's categories; say so,
+    // with the model total (all hours with a model value), which is the same in both groupings.
+    const modelTotal = md.cats.reduce((s, c) => s + mix[c].reduce((a, v) => a + (v || 0), 0), 0) / 1000;
+    $("mix-ref-note").innerHTML = (md.ref === "entsoe"
+      ? `<b>Same model run, regrouped</b> into ENTSO-E's fuel types so it can be compared: CCGT and CHP gas → <b>Gas</b>; mini-hydro → <b>Hydro</b>; biomass, waste and oil → <b>Bio & other</b>.`
+      : `<b>Model grouped like OMIE's technology report:</b> CHP gas, biomass, waste and mini-hydro → <b>CHP group</b>. "ENTSO-E actual" regroups the same model numbers into fuel types.`)
+      + ` Only the grouping changes, not the model: total ${nf(modelTotal, 0)} GWh in both views.`;
+    const tot = rows.reduce((s, x) => ({ gm: s.gm + x.gm, gr: s.gr + x.gr }), { gm: 0, gr: 0 });
     const maxAbs = Math.max(...rows.map(x => Math.abs(x.diff)), 1);
     const input = state.mixStage === "DA" && md.ref === "omie" ? { Wind: 1, Solar: 1 } : {};
     $("mix-table").innerHTML = `<thead><tr><th>Technology</th><th>${term("Real GWh", md.ref === "entsoe" ? "ref_entsoe" : "real_mix")}</th><th>Model GWh</th><th>${term("Difference", "diff")}</th><th></th><th>${term("Hourly error", "hourly_error")}</th></tr></thead><tbody>` +
@@ -1220,14 +1228,15 @@
           <td>${nf(x.gr, 0)}</td><td>${nf(x.gm, 0)}</td>
           <td>${signed(x.diff, 0)} GWh${x.pct != null ? ` <span style="color:var(--muted)">(${signed(x.pct, 0)} %)</span>` : ""}</td><td>${bar}</td>
           <td>${nf(x.mae, 0)} MW</td></tr>`;
-      }).join("") + "</tbody>";
+      }).join("") + `<tr class="total-row"><td>Total</td><td>${nf(tot.gr, 0)}</td><td>${nf(tot.gm, 0)}</td>
+          <td>${signed(tot.gm - tot.gr, 0)} GWh</td><td></td><td></td></tr></tbody>`;
     const notes = [];
     const omie = md.ref === "omie";
     if (state.mixStage === "DA" && omie) notes.push("Wind and solar match exactly because the day-ahead uses OMIE's own numbers as input. The other rows are the model's own decisions.");
     if (state.mixStage === "BAL" && omie) notes.push("Balancing uses the updated wind, solar and load forecasts, while the reference is OMIE's day-ahead programme, so wind and solar differ here by design.");
     if (state.mixStage === "RD") notes.push(`Redispatch counts only the ${solved} of ${N} hours where the AC solve finished.`);
     if (state.mixStage === "RD" && omie) notes.push("OMIE's day-ahead programme is a plan, so this comparison also includes everything that changed in reality after the day-ahead. ENTSO-E actual is the fairer reference for this stage.");
-    if (!omie) notes.push("ENTSO-E reports by fuel, so Gas includes industrial CHP gas and Hydro includes mini-hydro. Imports are measured physical flows from France and Portugal.");
+    if (!omie) notes.push("Imports are measured physical flows from France and Portugal.");
     if (!omie && state.mixStage !== "RD") notes.push("This compares a market stage with the final real outcome, so the difference also includes the real changes made after that market.");
     notes.push("Hourly error is the mean absolute difference per hour.");
     $("mix-note").textContent = notes.join(" ");

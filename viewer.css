@@ -155,8 +155,13 @@ td .tag { font-size: 11px; color: var(--muted); margin-left: 6px; }
 .diffbar i { position: absolute; top: 0; height: 8px; border-radius: 2px; background: var(--model); }
 .diffbar::before { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--axis); }
 .stack-pair { display: grid; gap: 14px; }
-.stack-title { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
-.stack-title span { color: var(--muted); font-weight: 400; }
+.stack-title { margin: 4px 0 6px; }
+.stack-title .st-main { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+.stack-title .st-main i { display: inline-block; flex: none; width: 4px; height: 18px; border-radius: 2px; }
+.stack-title .st-sub { display: block; margin-left: 12px; font-size: 13px; color: var(--ink-2); }
+.ref-note { margin: 0 0 12px; padding: 8px 12px; border-radius: 6px; background: var(--note-bg); color: var(--note-ink); font-size: 13px; max-width: 110ch; }
+.ref-note b { font-weight: 600; }
+tr.total-row td { border-top: 1px solid var(--axis); font-weight: 600; }
 .tip table { border-collapse: collapse; width: auto; }
 .tip td, .tip th { border: 0; padding: 1px 0 1px 12px; font-size: 12px; text-align: right; text-transform: none; letter-spacing: 0; }
 .tip td:first-child, .tip th:first-child { padding-left: 0; text-align: left; }
