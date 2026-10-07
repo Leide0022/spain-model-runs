@@ -1,0 +1,33 @@
+{
+ "schema": 1,
+ "id": "2024-11-01_november-2024-free-france-split",
+ "name": "November 2024, free France split",
+ "note": "Full November chain with crossborder_split = country_total (branch xb-split-country-total), MA57. All 720 AC hours solve.",
+ "published": "2026-10-07T16:59:22+02:00",
+ "published_by": "magnusberard",
+ "first_day": "2024-11-01",
+ "last_day": "2024-11-30",
+ "n_days": 30,
+ "ac_solved": 720,
+ "ac_total": 720,
+ "months": [
+  "2024-11"
+ ],
+ "size_mb": 3.9,
+ "info": {
+  "ran_by": "magnusberard",
+  "branch": "xb-split-country-total",
+  "commit": "b9e8933",
+  "commit_message": "Let the redispatch split the cross-border exchange over the border buses",
+  "uncommitted_files": [
+   "Manifest.toml"
+  ],
+  "started": "2026-10-07 14:05:54",
+  "finished": "2026-10-07 16:14:50",
+  "runtime_min": 128.9,
+  "power_flow": "AC",
+  "linear_solver": "ma57",
+  "label": "2024",
+  "reconstructed": false
+ }
+}
