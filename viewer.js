@@ -14,7 +14,8 @@
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const NS = "http://www.w3.org/2000/svg";
 
-  const state = { run: MANIFEST.length ? MANIFEST[0].id : null, priceStage: "DA", priceRes: "hour", mixStage: "DA", mixRes: "hour", mixRef: "omie", zoom: null, tab: "overview", gridMode: "max", gridHour: null, gridSel: null, mapStyle: "terrain", plantSize: "cap", plantTime: "period", plantHour: null, plantSel: null, plantHidden: [], playSpeed: 2 };
+  const state = { run: MANIFEST.length ? MANIFEST[0].id : null, priceStage: "DA", priceRes: "hour", mixStage: "DA", mixRes: "hour", mixRef: "omie", zoom: null, tab: "overview", gridMode: "max", gridHour: null, gridSel: null, mapStyle: "terrain", plantSize: "cap", plantTime: "period", plantHour: null, plantSel: null, plantHidden: [], playSpeed: 2,
+    gridLayers: ["hv", "lv", "trafo", "border"], gridSort: ["max", -1], gridQuery: "", gridAll: false };
   const TABS = [["overview", "Overview"], ["price", "Price"], ["mix", "Generation mix"], ["status", "AC redispatch"], ["grid", "Grid"], ["plants", "Power plants"]];
   try { const saved = localStorage.getItem("runviewer.tab"); if (TABS.some(x => x[0] === saved)) state.tab = saved; } catch (e) {}
   try { const ms = localStorage.getItem("runviewer.mapStyle"); if (["plain", "political", "terrain", "dark"].includes(ms)) state.mapStyle = ms; } catch (e) {}
@@ -94,6 +95,11 @@
     p_up: ["Turned up", "A filled circle: the grid stage made the plant produce more than in the balancing market."],
     p_down: ["Turned down", "A ring: the grid stage made the plant produce less than in the balancing market."],
     soto: ["Soto de Ribera", "The coal plant studied in the thesis (Ribera de Arriba, Asturias). Location approximate."],
+    g_hv: ["400 kV lines", "The main transmission grid (400 kV, plus the 320 kV DC link to France counted as a line). Drawn thick."],
+    g_lv: ["220 kV and lower", "The regional grid: 220 kV and the few 132 kV lines. Drawn thin."],
+    g_trafo: ["Transformers", "Connect two voltage levels at one substation (e.g. 400/220 kV). Both ends are at the same place, so they are drawn as squares, coloured by loading like the lines."],
+    g_border: ["Border lines", "The lines to France and Portugal. The model enters the exchange with each country as fixed power at the far end of these lines, split by line rating."],
+    g_nlim: ["Hours at limit", "Solved AC hours in the period where this line or transformer carried its full limit (100 % loading). Failed hours are not counted."],
     g_limit: ["At limit", "The line carries its full limit. The AC redispatch does not let a line go over its limit, so 100 % means the limit is binding."],
     gas_dot: ["CCGT running", "A combined-cycle gas plant produced more than 1 MW at the balancing stage in that hour."],
   };
@@ -592,7 +598,63 @@
     return gridCache[id];
   }
   const binOf = (bins, v) => bins.find(b => v < b[0]);
-  const gName = c => c.t === "trafo" ? "Transformer " + c.ab[0] : c.names.map(n => n.replace(/^LTGES/, "")).join(" + ");
+  const gName = c => c.t === "trafo" ? c.names.join(" + ") : c.names.map(n => n.replace(/^LTGES/, "")).join(" + ");
+  // map layers the Show buttons switch on and off
+  const G_LAYERS = [["hv", "400 kV lines", "g_hv"], ["lv", "220 kV and lower", "g_lv"], ["trafo", "Transformers", "g_trafo"], ["border", "Border lines", "g_border"]];
+  const gLayer = k => k.cls === "international" ? "border" : k.t === "trafo" ? "trafo" : (parseFloat(k.kv) >= 300 ? "hv" : "lv");
+  const gShown = k => state.gridLayers.includes(gLayer(k));
+  // the foreign end of a border line, from its position (the Portuguese border lies west of 5° W)
+  const gCountry = k => k.a[0] / (111.32 * Math.cos(40 * Math.PI / 180)) < -5 ? "Portugal" : "France";
+  const gType = k => k.t === "trafo" ? `Transformer ${k.kv} kV` : gLayer(k) === "border" ? `Border line to ${gCountry(k)}, ${k.kv} kV` : `${k.kv ?? "?"} kV line`;
+  const gText = k => [gName(k), ...k.names, gType(k), ...k.ab].join(" ").toLowerCase();  // what the search matches
+  const gOption = k => `${gName(k)} (${k.ab.join("–")})`;
+
+  // per corridor over the shown period: highest loading (and when), hours ≥ 90 %, hours at the limit
+  const statCache = {};
+  function gridStats(r) {
+    const key = `${r.id}|${r.offset}|${r.days.length}`;
+    if (statCache[key]) return statCache[key];
+    const gr = gridRun(r.id), H = gr.H, h0 = r.offset * 24, h1 = h0 + r.days.length * 24, C = G.corridors.length;
+    const max = new Float32Array(C).fill(NaN), when = new Int32Array(C).fill(-1), n90 = new Int32Array(C), nlim = new Int32Array(C);
+    for (let c = 0; c < C; c++) for (let h = h0; h < h1; h++) {
+      const v = gr.load[c * H + h]; if (v === 255) continue;
+      if (!(v <= max[c])) { max[c] = v; when[c] = h; }
+      if (v >= 90) n90[c]++;
+      if (v >= 99.5) nlim[c]++;
+    }
+    return (statCache[key] = { max, when, n90, nlim });
+  }
+
+  // select a line or transformer, switch its layer on and zoom the map to it
+  function gridFocus(c, scroll) {
+    const k = G.corridors[c], F = G.frame, l = gLayer(k);
+    if (!state.gridLayers.includes(l)) state.gridLayers = [...state.gridLayers, l];
+    state.gridSel = c;
+    const w = k.t === "trafo" ? F[2] / 14 : Math.max(F[2] / 8, Math.abs(k.a[0] - k.b[0]) * 3);
+    const cx = (k.a[0] + k.b[0]) / 2, cy = (k.a[1] + k.b[1]) / 2;
+    mapVBs.grid = [cx - w / 2, cy - w * F[3] / F[2] / 2, w, w * F[3] / F[2]];
+    renderGrid(view());
+    if (scroll) $("grid-map").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  function wireGridSearch() {
+    const inp = $("grid-search");
+    if (inp.dataset.wired) return;
+    inp.dataset.wired = "1";
+    let t = null;
+    const pick = c => { inp.value = gName(G.corridors[c]); state.gridQuery = inp.value; state.gridAll = false; gridFocus(c, true); };
+    inp.addEventListener("input", () => {
+      const c = G.searchIdx && G.searchIdx.get(inp.value);
+      if (c != null) return pick(c);  // picked from the suggestions
+      clearTimeout(t);
+      t = setTimeout(() => { state.gridQuery = inp.value; state.gridAll = false; renderGrid(view()); }, 200);
+    });
+    inp.addEventListener("keydown", ev => {
+      if (ev.key !== "Enter") return;
+      const q = inp.value.trim().toLowerCase();
+      const c = q ? G.corridors.findIndex(k => gText(k).includes(q)) : -1;
+      if (c >= 0) { state.gridQuery = inp.value; gridFocus(c, true); }
+    });
+  }
 
   function gridValues(r) {
     const gr = gridRun(r.id), H = gr.H, h0 = r.offset * 24, h1 = h0 + r.days.length * 24, C = G.corridors.length;
@@ -657,10 +719,29 @@
 
     const bins = state.gridMode === "h90" ? H_BINS : G_BINS;
     $("grid-legend").className = "legend" + (state.mapStyle === "dark" ? " st-dark" : "");
-    $("grid-legend").innerHTML = bins.map(b => `<span><i class="lsw" style="background:${b[1]}"></i>${b[2] === "at limit" ? term("at limit", "g_limit") : b[2]}</span>`).join("")
-      + `<span><i class="lsw" style="height:2px;background:var(--ink-2)"></i>220 kV</span><span><i class="lsw" style="height:4px;background:var(--ink-2)"></i>400 kV</span>`
-      + `<span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--ink-2)"/></svg>transformer</span>`
-      + `<span><svg width="12" height="12" aria-hidden="true"><path d="M6 1L11 6L6 11L1 6Z" fill="var(--soto)"/></svg>${term("Soto de Ribera", "soto")}</span>`;
+    const SYM = {
+      hv: `<svg width="18" height="10" aria-hidden="true"><line x1="2" y1="5" x2="16" y2="5" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg>`,
+      lv: `<svg width="18" height="10" aria-hidden="true"><line x1="2" y1="5" x2="16" y2="5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+      trafo: `<svg width="12" height="12" aria-hidden="true"><rect x="1.5" y="1.5" width="9" height="9" fill="currentColor"/></svg>`,
+      border: `<svg width="18" height="10" aria-hidden="true"><line x1="2" y1="5" x2="16" y2="5" stroke="currentColor" stroke-width="2.4" stroke-dasharray="4 2"/></svg>`,
+    };
+    const nOf = l => G.corridors.reduce((n, k) => n + (gLayer(k) === l), 0);
+    $("grid-legend").innerHTML = `<div class="legend-row">` + bins.map(b => `<span><i class="lsw" style="background:${b[1]}"></i>${b[2] === "at limit" ? term("at limit", "g_limit") : b[2]}</span>`).join("")
+      + `<span><svg width="12" height="12" aria-hidden="true"><path d="M6 1L11 6L6 11L1 6Z" fill="var(--soto)"/></svg>${term("Soto de Ribera", "soto")}</span></div>`
+      + `<div class="legend-row"><span class="ctl-label">Show</span>` + G_LAYERS.map(([l, label, tk]) =>
+          `<button type="button" class="chip layer" data-l="${l}" data-tip="${tk}" aria-pressed="${state.gridLayers.includes(l)}">${SYM[l]}${label}<span class="n">${nOf(l)}</span></button>`).join("") + `</div>`;
+    $("grid-legend").querySelectorAll(".chip").forEach(b => b.addEventListener("click", () => {
+      const l = b.dataset.l;
+      state.gridLayers = state.gridLayers.includes(l) ? state.gridLayers.filter(x => x !== l) : [...state.gridLayers, l];
+      renderGrid(view());
+    }));
+    // search suggestions: rebuilt when the run (and so the grid) changes
+    if (G.listFor !== r.id) {
+      G.listFor = r.id;
+      G.searchIdx = new Map(G.corridors.map((k, c) => [gOption(k), c]));
+      $("grid-search-list").innerHTML = G.corridors.map(k => `<option value="${esc(gOption(k))}">${esc(gType(k))}</option>`).join("");
+    }
+    wireGridSearch();
 
     const { vals, when, gr } = gridValues(r);
     const C = G.corridors.length;
@@ -668,21 +749,33 @@
     const M = baseMap(host, "grid", "Map of the Spanish grid coloured by line loading");
     const F = M.F, tip = M.tip;
 
-    const order = [...Array(C).keys()].sort((a, b) => (isNaN(vals[a]) ? -1 : vals[a]) - (isNaN(vals[b]) ? -1 : vals[b]));
+    // lines first, transformers on top; within each, the most loaded last so they stay visible
+    const isTr = c => G.corridors[c].t === "trafo" ? 1 : 0;
+    const order = [...Array(C).keys()].filter(c => gShown(G.corridors[c]))
+      .sort((a, b) => isTr(a) - isTr(b) || (isNaN(vals[a]) ? -1 : vals[a]) - (isNaN(vals[b]) ? -1 : vals[b]));
     const gLines = svg("g", { "stroke-linecap": "round" }, M.data), gHit = svg("g", {}, M.data);
     const els = {};
     for (const c of order) {
-      const k = G.corridors[c], v = vals[c];
+      const k = G.corridors[c], v = vals[c], tr = k.t === "trafo";
       const col = isNaN(v) ? "var(--ld-0)" : binOf(bins, v)[1];
-      const w = k.t === "trafo" ? 7 : (k.kv >= 380 ? 2.4 : 1.2);
-      const attrs = { x1: k.a[0], y1: k.a[1], x2: k.b[0], y2: k.b[1], stroke: col, "stroke-width": w, "vector-effect": "non-scaling-stroke" };
-      if (isNaN(v)) attrs.opacity = 0.5;
-      els[c] = svg("line", attrs, gLines);
-      svg("line", { x1: k.a[0], y1: k.a[1], x2: k.b[0], y2: k.b[1], class: "hit", "stroke-width": 10, "vector-effect": "non-scaling-stroke", "data-c": c }, gHit);
+      const at = { x1: k.a[0], y1: k.a[1], x2: k.b[0], y2: k.b[1], "vector-effect": "non-scaling-stroke" };
+      if (tr) {
+        // both ends sit at one substation: a square of fixed screen size with a dark edge
+        const g = svg("g", isNaN(v) ? { opacity: 0.55 } : {}, gLines);
+        svg("line", { ...at, stroke: "var(--mp-sel)", "stroke-width": 11, "stroke-linecap": "square" }, g);
+        svg("line", { ...at, stroke: col, "stroke-width": 8, "stroke-linecap": "square" }, g);
+        els[c] = g;
+      } else {
+        const attrs = { ...at, stroke: col, "stroke-width": parseFloat(k.kv) >= 300 ? 2.4 : 1.2 };
+        if (gLayer(k) === "border") attrs["stroke-dasharray"] = "5 2.5";
+        if (isNaN(v)) attrs.opacity = 0.5;
+        els[c] = svg("line", attrs, gLines);
+      }
+      svg("line", { ...at, class: "hit", "stroke-width": tr ? 14 : 10, "stroke-linecap": tr ? "square" : "butt", "data-c": c }, gHit);
     }
     if (state.gridSel != null && els[state.gridSel]) {
-      const k = G.corridors[state.gridSel];
-      svg("line", { x1: k.a[0], y1: k.a[1], x2: k.b[0], y2: k.b[1], stroke: "var(--mp-sel)", "stroke-width": k.t === "trafo" ? 12 : 7, opacity: 0.3, "stroke-linecap": "round", "vector-effect": "non-scaling-stroke", "pointer-events": "none" }, gLines);
+      const k = G.corridors[state.gridSel], tr = k.t === "trafo";
+      svg("line", { x1: k.a[0], y1: k.a[1], x2: k.b[0], y2: k.b[1], stroke: "var(--mp-sel)", "stroke-width": tr ? 22 : 7, opacity: tr ? 0.35 : 0.3, "stroke-linecap": tr ? "square" : "round", "vector-effect": "non-scaling-stroke", "pointer-events": "none" }, gLines);
       gLines.appendChild(els[state.gridSel]);
     }
     M.rescale();
@@ -699,7 +792,7 @@
       if (M.panning()) return;
       const c = +ev.target.getAttribute("data-c"); if (isNaN(c)) return;
       const k = G.corridors[c], v = vals[c];
-      let rows = `<div class="row">${k.t === "trafo" ? "Transformer" : "Line"}<span class="v">${k.kv ?? "?"} kV${k.names.length > 1 ? ` · ${k.names.length} circuits` : ""}</span></div>`;
+      let rows = `<div class="row">${gType(k)}${k.names.length > 1 ? `<span class="v">${k.names.length} circuits</span>` : ""}</div>`;
       if (k.km) rows += `<div class="row">Length<span class="v">${nf(k.km, 0)} km</span></div>`;
       rows += `<div class="row">Between<span class="v">${k.ab[0]} – ${k.ab[1]}</span></div>`;
       rows += `<div class="row">Limit<span class="v">${nf(k.lim, 0)} MW</span></div>`;
@@ -712,6 +805,7 @@
         rows += state.gridMode === "max"
           ? `<div class="row">Highest loading<span class="v">${nf(v, 0)} %</span></div><div class="row">When<span class="v">${dayLabel(r.days[Math.floor(wh / 24)])}, ${hh(wh % 24)}</span></div>`
           : `<div class="row">Hours at ≥ 90 %<span class="v">${v} of ${r.status.reduce((a, b) => a + b, 0)}</span></div>`;
+        rows += `<div class="row">Hours at limit<span class="v">${gridStats(r).nlim[c]}</span></div>`;
       }
       M.showTip(ev, `<b>${gName(k)}</b>${rows}`);
     });
@@ -725,16 +819,46 @@
     // most-loaded list
     const unit = state.gridMode === "h90" ? "h" : "%";
     $("grid-top-title").textContent = state.gridMode === "h90" ? "Most hours at ≥ 90 %" : state.gridMode === "hour" ? "Most loaded in this hour" : "Highest loading in the period";
-    const top = [...Array(C).keys()].filter(c => !isNaN(vals[c]) && vals[c] > 0).sort((a, b) => vals[b] - vals[a] || G.corridors[b].lim - G.corridors[a].lim).slice(0, 12);
+    const top = [...Array(C).keys()].filter(c => gShown(G.corridors[c]) && !isNaN(vals[c]) && vals[c] > 0).sort((a, b) => vals[b] - vals[a] || G.corridors[b].lim - G.corridors[a].lim).slice(0, 12);
     $("grid-top").innerHTML = `<thead><tr><th>Line</th><th>kV</th><th>${state.gridMode === "h90" ? "Hours" : "Loading"}</th></tr></thead><tbody>` +
       (top.length ? top.map(c => { const k = G.corridors[c]; return `<tr data-c="${c}" class="${state.gridSel === c ? "sel" : ""}"><td>${gName(k)}</td><td>${k.kv ?? "?"}</td><td><i class="lsw" style="background:${binOf(bins, vals[c])[1]};margin-right:6px"></i>${nf(vals[c], 0)} ${unit}</td></tr>`; }).join("")
         : `<tr><td colspan="3" style="color:var(--muted)">No data</td></tr>`) + "</tbody>";
-    $("grid-top").querySelectorAll("tbody tr[data-c]").forEach(tr => tr.addEventListener("click", () => {
-      const c = +tr.dataset.c, k = G.corridors[c];
-      state.gridSel = c;
-      M.zoomTo((k.a[0] + k.b[0]) / 2, (k.a[1] + k.b[1]) / 2, Math.max(F[2] / 6, Math.abs(k.a[0] - k.b[0]) * 3));
+    $("grid-top").querySelectorAll("tbody tr[data-c]").forEach(tr => tr.addEventListener("click", () => gridFocus(+tr.dataset.c)));
+
+    // every line and transformer: sortable, follows the Show buttons and the search box
+    const st = gridStats(r), q = state.gridQuery.trim().toLowerCase(), one = state.gridMode === "hour";
+    const cols = [["name", "Name"], ["type", "Type"], ["lim", "Limit MW"], ...(one ? [["now", "This hour"]] : []),
+                  ["max", "Highest loading"], ["n90", "Hours ≥ 90 %"], ["nlim", term("Hours at limit", "g_nlim")]];
+    const val = { name: c => gName(G.corridors[c]), type: c => gType(G.corridors[c]), lim: c => G.corridors[c].lim,
+                  now: c => vals[c], max: c => st.max[c], n90: c => st.n90[c], nlim: c => st.nlim[c] };
+    let [sk, sd] = state.gridSort;
+    if (!val[sk] || (sk === "now" && !one)) { sk = "max"; sd = -1; }
+    const all = [...Array(C).keys()].filter(c => gShown(G.corridors[c]) && (!q || gText(G.corridors[c]).includes(q)));
+    all.sort((a, b) => {
+      const x = val[sk](a), y = val[sk](b);
+      if (typeof x === "string") return sd * x.localeCompare(y);
+      if (isNaN(x) || isNaN(y)) return isNaN(x) - isNaN(y);  // no data last
+      return sd * (x - y) || G.corridors[b].lim - G.corridors[a].lim;
+    });
+    const LIMIT = 60, rows = state.gridAll ? all : all.slice(0, LIMIT);
+    const pct = v => isNaN(v) ? "–" : `<i class="lsw" style="background:${binOf(G_BINS, v)[1]}"></i>${nf(v, 0)} %`;
+    $("grid-table").innerHTML = `<thead><tr>${cols.map(([k2, l]) => `<th aria-sort="${sk === k2 ? (sd < 0 ? "descending" : "ascending") : "none"}"><button type="button" class="sort" data-k="${k2}">${l}${sk === k2 ? (sd < 0 ? " ↓" : " ↑") : ""}</button></th>`).join("")}</tr></thead><tbody>`
+      + (rows.length ? rows.map(c => {
+        const k = G.corridors[c], wh = st.when[c] - h0;
+        return `<tr data-c="${c}" class="${state.gridSel === c ? "sel" : ""}"><td>${esc(gName(k))}<div class="sub">${k.ab.join(" – ")}</div></td><td>${gType(k)}</td><td>${nf(k.lim, 0)}</td>`
+          + (one ? `<td>${pct(vals[c])}</td>` : "")
+          + `<td>${pct(st.max[c])}${wh >= 0 ? `<div class="sub">${dayLabel(r.days[Math.floor(wh / 24)])}, ${hh(wh % 24)}</div>` : ""}</td><td>${st.n90[c]}</td><td>${st.nlim[c] ? `<b>${st.nlim[c]}</b>` : "0"}</td></tr>`;
+      }).join("")
+        : `<tr><td colspan="${cols.length}" style="color:var(--muted)">Nothing matches${q ? ` “${esc(q)}”` : ""}. Check the search box and the Show buttons above the map.</td></tr>`) + "</tbody>";
+    $("grid-table-count").innerHTML = `${all.length.toLocaleString("en-GB")} of ${C.toLocaleString("en-GB")} · hours counted over the ${r.status.reduce((a, b) => a + b, 0)} solved AC hours in the period`
+      + (all.length > LIMIT ? ` · <button type="button" class="linkbtn" id="grid-table-all">${state.gridAll ? `Show the first ${LIMIT}` : `Show all ${all.length.toLocaleString("en-GB")}`}</button>` : "");
+    $("grid-table").querySelectorAll("button.sort").forEach(b => b.addEventListener("click", () => {
+      const k2 = b.dataset.k;
+      state.gridSort = [k2, state.gridSort[0] === k2 ? -state.gridSort[1] : (k2 === "name" || k2 === "type" ? 1 : -1)];
       renderGrid(view());
     }));
+    $("grid-table").querySelectorAll("tbody tr[data-c]").forEach(tr => tr.addEventListener("click", () => gridFocus(+tr.dataset.c, true)));
+    if ($("grid-table-all")) $("grid-table-all").onclick = () => { state.gridAll = !state.gridAll; renderGrid(view()); };
   }
 
   // ---------- shared map: basemap, cities, Soto de Ribera, zoom and drag ----------
@@ -860,6 +984,38 @@
     return plantCache[id];
   }
   let maxCap = 1;  // largest plant group of the picked run
+  // real names: a plant group at the same substation and fuel as an ENTSO-E site takes the site's name
+  const plantName = p => { const s = PD.siteOf && PD.siteOf.get(`${p.x},${p.y},${p.f}`); return s == null ? null : RP.sites[s].name; };
+  const plantOption = (p, i) => `${plantName(p) ? plantName(p) + " — " : ""}${p.f}${p.tech && p.tech.toLowerCase() !== p.f.toLowerCase() ? " " + p.tech : ""} at ${p.bus}, ${nf(p.cap, 0)} MW`;
+  function plantFocus(i) {
+    const p = PD.groups[i], F = G.frame, realMode = state.plantSize === "real" || state.plantSize === "realout";
+    const s = PD.siteOf.get(`${p.x},${p.y},${p.f}`);
+    if (realMode && s == null) state.plantSize = "cap";  // no ENTSO-E data for this plant: show it on the capacity map
+    state.plantHidden = state.plantHidden.filter(f => f !== p.f);
+    state.plantSel = state.plantSize === "real" || state.plantSize === "realout" ? "s" + s : i;
+    const w = F[2] / 10;
+    mapVBs.plants = [p.x - w / 2, p.y - w * F[3] / F[2] / 2, w, w * F[3] / F[2]];
+    renderPlants(view());
+    $("plant-map").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  function wirePlantSearch() {
+    const inp = $("plant-search");
+    if (inp.dataset.wired) return;
+    inp.dataset.wired = "1";
+    inp.addEventListener("input", () => {
+      const i = PD.searchIdx && PD.searchIdx.get(inp.value);
+      if (i != null) { inp.value = plantName(PD.groups[i]) || `${PD.groups[i].f} at ${PD.groups[i].bus}`; plantFocus(i); }
+    });
+    inp.addEventListener("keydown", ev => {
+      if (ev.key !== "Enter") return;
+      const q = inp.value.trim().toLowerCase();
+      if (!q) return;
+      // biggest matching plant first
+      let best = -1;
+      PD.groups.forEach((p, i) => { if (plantOption(p, i).toLowerCase().includes(q) && (best < 0 || p.cap > PD.groups[best].cap)) best = i; });
+      if (best >= 0) plantFocus(best);
+    });
+  }
   function plantValues(r) {
     const pr = plantRun(r.id), H = pr.H, h0 = r.offset * 24, h1 = h0 + r.days.length * 24, N = PD.groups.length;
     const vals = new Float32Array(N).fill(NaN), size = state.plantSize, one = state.plantTime === "hour";
@@ -1006,6 +1162,7 @@
 
   function renderPlants(r) {
     if ($("sec-plants").hidden) return;
+    wirePlantSearch();
     seg($("plant-size"), [["cap", "Installed capacity", "p_cap"], ["out", "Output", "p_out"], ["chg", "Redispatch change", "p_chg"], ["realout", "Real output", "p_realout"], ["real", "Real vs model", "p_real"]], state.plantSize,
       v => { state.plantSize = v; renderPlants(view()); });
     const timeHost = $("plant-time");
@@ -1094,7 +1251,7 @@
         <div class="row">Capacity<span class="v">${nf(p.cap, 0)} MW${p.n > 1 ? ` · ${p.n} units` : ""}</span></div>`;
       if (state.plantSize !== "cap") rows += `<div class="row">${what}<span class="v">${mw(vals[i])}</span></div>`;
       if (chg) rows += `<div class="row">${vals[i] > 0 ? "Turned up by the grid stage" : "Turned down by the grid stage"}</div>`;
-      M.showTip(ev, `<b><i class="sw-box" style="background:${PLANT_COLOR[p.f]};margin-right:6px"></i>${p.f}</b>${rows}`);
+      M.showTip(ev, `<b><i class="sw-box" style="background:${PLANT_COLOR[p.f]};margin-right:6px"></i>${plantName(p) ? esc(plantName(p)) + " · " : ""}${p.f}</b>${rows}`);
     });
     gP.addEventListener("pointerleave", () => { M.tip.hidden = true; });
     gP.addEventListener("click", ev => {
@@ -1107,7 +1264,7 @@
     $("plant-top-title").textContent = state.plantSize === "cap" ? "Largest plants" : chg ? "Largest redispatch changes" : "Largest output";
     const top = shown.slice(0, 12);
     $("plant-top").innerHTML = `<thead><tr><th>Plant</th><th>${chg ? "Change" : "MW"}</th></tr></thead><tbody>` +
-      (top.length ? top.map(i => { const p = PD.groups[i]; return `<tr data-i="${i}" class="${state.plantSel === i ? "sel" : ""}"><td><i class="sw-box" style="background:${PLANT_COLOR[p.f]};margin-right:6px"></i>${p.f} · ${p.bus}</td><td>${mw(vals[i])}</td></tr>`; }).join("")
+      (top.length ? top.map(i => { const p = PD.groups[i]; return `<tr data-i="${i}" class="${state.plantSel === i ? "sel" : ""}"><td class="wrap"><i class="sw-box" style="background:${PLANT_COLOR[p.f]};margin-right:6px"></i>${plantName(p) ? esc(plantName(p)) : p.f + " · " + p.bus}</td><td>${mw(vals[i])}</td></tr>`; }).join("")
         : `<tr><td colspan="2" style="color:var(--muted)">No data</td></tr>`) + "</tbody>";
     $("plant-top").querySelectorAll("tbody tr[data-i]").forEach(tr => tr.addEventListener("click", () => {
       const i = +tr.dataset.i, p = PD.groups[i];
@@ -1384,6 +1541,10 @@
     G.corridors = r.grid.corridors; G.frame = r.grid.frame;
     PD.groups = r.plants.groups; maxCap = Math.max(1, ...PD.groups.map(p => p.cap));
     RP.sites = r.sites.sites; RP.coverage = r.sites.coverage;
+    PD.siteOf = new Map(RP.sites.map((s, i) => [`${s.x},${s.y},${s.f}`, i]));
+    PD.searchIdx = new Map(PD.groups.map((p, i) => [plantOption(p, i), i]));
+    $("plant-search-list").innerHTML = [...PD.groups.keys()].sort((a, b) => (plantName(PD.groups[b]) ? 1 : 0) - (plantName(PD.groups[a]) ? 1 : 0) || PD.groups[b].cap - PD.groups[a].cap)
+      .map(i => `<option value="${esc(plantOption(PD.groups[i], i))}"></option>`).join("");
     D.categories = r.categories; D.categories_phys = r.categories_phys;
     note.hidden = true; $("report").classList.remove("loading");
     renderAll();

@@ -260,3 +260,24 @@ tr.total-row td { border-top: 1px solid var(--axis); font-weight: 600; }
 @media (prefers-reduced-motion: no-preference) { .run-item, .seg button { transition: background-color .12s, border-color .12s; } }
 .report.loading { opacity: 0.45; pointer-events: none; }
 .status-note { background: var(--surface); border: 1px solid var(--hair); border-radius: 10px; padding: 14px 18px; color: var(--ink-2); }
+/* search above the maps; Show buttons for the grid layers; the full line/transformer table */
+.map-search { margin: 0 0 8px; }
+.map-search input { width: min(520px, 100%); font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid var(--hair); border-radius: 6px; background: var(--surface); color: var(--ink); }
+.chip.layer svg { color: var(--ink-2); flex: none; }
+.chip .n { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.grid-table { margin-top: 18px; }
+.gt-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 6px; }
+.gt-head h4 { margin: 0; font-size: 15px; font-weight: 600; }
+.gt-head span { font-size: 12px; color: var(--muted); }
+.gt-scroll { max-height: 440px; overflow: auto; border: 1px solid var(--hair); border-radius: 6px; }
+.gt-scroll thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+#grid-table td, #grid-table th { padding: 5px 8px; }
+#grid-table th { white-space: normal; vertical-align: bottom; line-height: 1.25; }
+#grid-table td:nth-child(2), #grid-table th:nth-child(2) { text-align: left; white-space: normal; }
+#grid-table tbody tr { cursor: pointer; }
+#grid-table tbody tr:hover, #grid-table tbody tr.sel { background: var(--surface-2); }
+#grid-table td .sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+#grid-table td .lsw { width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+button.sort { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+button.sort:hover { color: var(--ink); }
+.linkbtn { border: 0; background: none; padding: 0; font: inherit; color: var(--model); cursor: pointer; text-decoration: underline; }

@@ -100,7 +100,7 @@
         <div class="sec-head">
           <div>
             <h3>Grid: how full each line is</h3>
-            <p>Every line in the model's grid, drawn straight between its substations and coloured by its loading in the AC redispatch. Thick lines are 400 kV, thin lines 220 kV and below; dots are transformers.</p>
+            <p>Every line in the model's grid, drawn straight between its substations and coloured by its loading in the AC redispatch. Thick lines are 400 kV, thin lines 220 kV and below, dashed lines go to France or Portugal, squares are transformers. Use "Show" to pick what is drawn.</p>
           </div>
           <div class="controls">
             <div class="seg" role="group" aria-label="What the colour shows" id="grid-mode"></div>
@@ -109,6 +109,7 @@
           </div>
         </div>
         <div class="grid-hour" id="grid-hour" hidden></div>
+        <div class="map-search"><input type="search" id="grid-search" list="grid-search-list" autocomplete="off" placeholder="Search a line, transformer or substation, e.g. TR_65a15878 or ES00744" aria-label="Search lines, transformers and substations"><datalist id="grid-search-list"></datalist></div>
         <div class="legend" id="grid-legend"></div>
         <div class="grid-wrap">
           <div>
@@ -119,6 +120,11 @@
             <h4 id="grid-top-title">Most loaded</h4>
             <div class="table-wrap"><table id="grid-top"></table></div>
           </div>
+        </div>
+        <div class="grid-table">
+          <div class="gt-head"><h4>Lines and transformers</h4><span id="grid-table-count"></span></div>
+          <div class="table-wrap gt-scroll"><table id="grid-table"></table></div>
+          <p class="map-hint">Click a column to sort, a row to show it on the map. The list follows the Show buttons and the search box.</p>
         </div>
         <p class="fineprint">Basemap: Natural Earth (outlines, shaded relief, public domain) and es-atlas (communities, provinces). Loading is the flow divided by the line's limit in the model. Where a corridor has several circuits, the most loaded circuit counts. Hours where the AC redispatch failed have no flows and are left out of the maximum and the hour counts.</p>
       </section>
@@ -137,6 +143,7 @@
           </div>
         </div>
         <div class="grid-hour" id="plant-hour" hidden></div>
+        <div class="map-search"><input type="search" id="plant-search" list="plant-search-list" autocomplete="off" placeholder="Search a plant or substation, e.g. Almaraz or Aboño" aria-label="Search power plants"><datalist id="plant-search-list"></datalist></div>
         <div class="legend" id="plant-legend"></div>
         <div class="grid-wrap">
           <div>
