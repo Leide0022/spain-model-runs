@@ -337,3 +337,14 @@ button.sort:hover { color: var(--ink); }
 .rd-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px 24px; }
 .rd-pair h4 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
 #rd-table td:first-child { white-space: normal; }
+.rd-h4 { margin: 18px 0 4px; font-size: 14px; font-weight: 600; }
+/* why the difference: bars by cause/type and the cost bridge */
+#rd-why svg { display: block; font-family: var(--font-ui); }
+#rd-why text { fill: var(--ink-2); font-size: 12px; }
+#rd-why text.why-lab { fill: var(--ink); font-weight: 500; }
+#rd-why text.why-in { fill: #fff; font-size: 11px; font-weight: 600; pointer-events: none; }
+#rd-why text.why-val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+#rd-why text.why-h { fill: var(--ink); font-size: 13px; font-weight: 600; }
+#rd-why text.why-cap { font-size: 11px; }
+.why-legend { margin-top: 6px; }
+.why-key { font-weight: 600; color: var(--ink); }

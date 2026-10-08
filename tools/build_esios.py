@@ -34,7 +34,28 @@ SERIES = {
     # the marginal mFRR price (677/676) stops in December 2024, when e·sios moves to 10386/10387
     "mfrr_up_price": (["677_mfrr_up_price", "10386_mfrr_up_price_wavg"], "price"),
     "mfrr_down_price": (["676_mfrr_down_price", "10387_mfrr_down_price_wavg"], "price"),
+    # redispatch cost, EUR per hour: the extra cost over the market (P.O. 14.4). 709 = phase I up
+    # minus the refunds of phase I down and phase II down (+ phase II up); 724 is the whole real-time
+    # cost, 1723/1724 its up and down parts that go with the volumes 720/721
+    "rt_cost": (["709_rt_cost_eur"], "eur"),
+    "rt1_up_cost": (["1373_rt1_up_cost_eur"], "eur"), "rt1_down_cost": (["1374_rt1_down_cost_eur"], "eur"),
+    "rt2_up_cost": (["1375_rt2_up_cost_eur"], "eur"), "rt2_down_cost": (["1376_rt2_down_cost_eur"], "eur"),
+    "rtr_cost": (["724_rtr_cost_eur"], "eur"),
+    "rtr_up_cost": (["1723_rtr_up_cost_eur"], "eur"), "rtr_down_cost": (["1724_rtr_down_cost_eur"], "eur"),
 }
+# redispatch volume by cause (SCB overloads in the base case, SCA after a contingency, CT voltage
+# control, RTD distribution grid, RSI/RBI too little reserve up/down, ASE frequency, Otros other);
+# a series e·sios has no data for is missing from ../esios_download/hourly and counts as 0
+CAUSES = {"rt1": {"scb": (1790, 1791), "sca": (1792, 1793), "ct": (1794, 1795), "rtd": (1796, 1797),
+                  "rsi": (2352, 2353), "otros": (1800, 1801)},
+          "rtr": {"scb": (1802, 1803), "sca": (1804, 1805), "ct": (1806, 1807), "rtd": (1808, 1809),
+                  "otros": (1812, 1813), "rsi": (1814, 1815), "rbi": (1816, 1817), "ase": (1818, 1819)}}
+for stage, causes in CAUSES.items():
+    for cause, (up, down) in causes.items():
+        SERIES[f"{stage}_up_{cause}"] = ([f"{up}_{stage}_up_{cause}_mwh"], "mwh")
+        SERIES[f"{stage}_down_{cause}"] = ([f"{down}_{stage}_down_{cause}_mwh"], "mwh")
+# the one day with a repeated hour (clocks back); elsewhere two values in one hour are parts of it
+FALL_BACK = f"{YEAR}-10-27"
 
 
 def to_24(vals):
@@ -55,10 +76,18 @@ def local_hours():
 def series(files, kind, slots, days):
     vals = {}                                   # (date, hour) -> values in time order
     for f in files:
+        if not (SRC / f"{f}.csv").exists():
+            continue
         df = pd.read_csv(SRC / f"{f}.csv", encoding="utf-8")
         got = {}
         for d, h, v in zip(df.date, df.hour, df.value):
-            got.setdefault((d, int(h)), []).append(float(v))
+            k = (d, int(h))
+            if k in got and d != FALL_BACK and kind != "price":
+                got[k][0] += float(v)                 # two parts of one hour: add them
+            elif k in got and d != FALL_BACK:
+                continue                              # a price: keep the first
+            else:
+                got.setdefault(k, []).append(float(v))
         for k, v in got.items():
             if kind == "price":                 # stitch: the first file wins where it has a price
                 if k not in vals or not any(x != 0 for x in vals[k]):
@@ -71,7 +100,7 @@ def series(files, kind, slots, days):
         seen[(d, h)] = n + 1
         v = vals.get((d, h), [])
         x = v[n] if n < len(v) else None
-        if kind == "mwh":
+        if kind in ("mwh", "eur"):
             x = round(x or 0.0)
         elif kind == "net":
             x = None if x is None else round(x)
@@ -92,7 +121,7 @@ def main():
                    "window.ESIOS = " + json.dumps(dict(year=YEAR, days=days, series=data), separators=(",", ":"))
                    + ";\n", encoding="utf-8")
     print(f"wrote {OUT.relative_to(REPO)} ({OUT.stat().st_size / 1e3:.0f} kB), {len(days)} days")
-    for k in ("rt1_up", "rt2_down", "rtr_up", "rr_price", "mfrr_up_price"):
+    for k in ("rt1_up", "rt2_down", "rtr_up", "rr_price", "mfrr_up_price", "rt_cost", "rtr_cost"):
         v = [x for x in data[k] if x is not None]
         print(f"  {k}: mean {sum(v) / len(v):.0f}, {len(v)} hours")
 

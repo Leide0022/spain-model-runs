@@ -55,7 +55,8 @@
     model_bal: ["Model balancing", "What the model's balancing stage moved compared with the continuous intraday schedule, summed up and down over the plants that respond (wind, solar and the fixed cross-border flows left out: their forecast change is what has to be balanced)."],
     ree_imb: ["REE net imbalance", "e·sios indicator 1338: the net imbalance of generation and demand in each hour, which REE covers with balancing energy."],
     model_imb: ["Model forecast change", "Load minus wind minus solar at the balancing stage, minus the same at the continuous intraday stage: the forecast change the model's balancing stage has to cover. It is the model's counterpart of the imbalance."],
-    model_rd: ["Model redispatch", "The model's AC redispatch minus its balancing schedule, summed over the power plants on the map (CHP, waste and mini-hydro blocks and the border are left out). Failed AC hours have no value."],
+    rd_cost: ["Extra cost of redispatch", "What the redispatch costs on top of the market: paid for energy turned up minus what is saved or refunded for energy turned down. REE: its settled cost of technical constraints (P.O. 14.4), pay-as-bid with start-up costs. Model: marginal cost × change, with no start-ups or bids."],
+    model_rd: ["Model redispatch", "The model's AC redispatch minus its balancing schedule, summed over all units except the fixed border flows. It includes the grid losses the copper-plate markets do not see. Failed AC hours have no value."],
     real_mix: ["Real generation", "OMIE's day-ahead programme per technology (the 'Energía horaria por tecnologías' report)."],
     DA: ["Day-ahead (DA)", "Clears all 24 hours the day before delivery, using the day-ahead forecast of load, wind and solar."],
     ID2: ["Intraday 2 (ID2)", "Re-clears all 24 hours with an updated forecast, starting from the DA schedule."],
@@ -145,6 +146,7 @@
       real_mix: each(r.real_mix, sl), mix: each(r.mix, m => each(m, sl)),
       real_phys: each(r.real_phys, sl), mix_phys: each(r.mix_phys, m => each(m, sl)),
       balancing: r.balancing ? each(r.balancing, sl) : null,
+      redispatch: r.redispatch ? Object.fromEntries(Object.entries(r.redispatch).map(([k, v]) => [k, Array.isArray(v) ? sl(v) : each(v, sl)])) : null,
     };
   }
   function setZoom(a, b) {
@@ -1498,9 +1500,12 @@
     if (!window.ESIOS) { host.innerHTML = `<p class="fineprint">reference/esios_2024.js is missing. Run tools/build_esios.py.</p>`; return; }
     const nd = r.days.length, N = nd * 24, h0 = r.offset * 24, hourly = nd <= 3;
     const pr = plantRun(r.id), H = pr.H;
-    // model: redispatch minus balancing per plant group, summed up and down (no value in failed hours)
-    const mUp = new Array(N).fill(null), mDown = new Array(N).fill(null);
-    for (let i = 0; i < N; i++) {
+    // model: redispatch minus balancing, summed up and down (no value in failed hours). Packages
+    // published with the current publish_run.py carry it over all units, with the cost; older
+    // ones fall back to the plant groups on the map, without cost.
+    const RD = r.redispatch;
+    const mUp = RD ? RD.up.slice() : new Array(N).fill(null), mDown = RD ? RD.down.slice() : new Array(N).fill(null);
+    for (let i = 0; i < N && !RD; i++) {
       if (r.status[i] !== 1) continue;
       let up = 0, dn = 0;
       PD.groups.forEach((p, g) => {
@@ -1532,16 +1537,128 @@
     requestAnimationFrame(() => { draw("rd-up", "Redispatch up, REE vs model", rUp, mUp); draw("rd-down", "Redispatch down, REE vs model", rDown, mDown); });
     // totals over the solved hours, so both sides cover the same hours
     const ok = i => r.status[i] === 1;
-    const tot = a => a ? a.reduce((s, x, i) => s + (ok(i) ? (x || 0) : 0), 0) / 1000 : 0;
-    const rows = [["REE, technical constraints after day-ahead, phase I", tot(E("rt1_up")), tot(E("rt1_down"))],
-                  ["REE, technical constraints, phase II", tot(E("rt2_up")), tot(E("rt2_down"))],
-                  ["REE, real-time constraints", tot(E("rtr_up")), tot(E("rtr_down"))]];
-    const ru = rows.reduce((s, x) => s + x[1], 0), rd = rows.reduce((s, x) => s + x[2], 0), mu = tot(mUp), md = tot(mDown);
+    const tot = a => a ? a.reduce((s, x, i) => s + (ok(i) ? (x || 0) : 0), 0) : 0;
+    const G = a => tot(a) / 1000, M = a => tot(a) / 1e6;
+    // REE cost = extra cost over the market (P.O. 14.4): what is paid for going up minus the refunds
+    // for going down. Phase I/II from 1373–1376 (their net is indicator 709); real time from 1723/1724
+    const rows = [
+      ["REE, after the day-ahead, phase I", G(E("rt1_up")), G(E("rt1_down")), M(E("rt1_up_cost")) - M(E("rt1_down_cost"))],
+      ["REE, after the day-ahead, phase II (rebalancing)", G(E("rt2_up")), G(E("rt2_down")), M(E("rt2_up_cost")) - M(E("rt2_down_cost"))],
+      ["REE, real time", G(E("rtr_up")), G(E("rtr_down")), M(E("rtr_up_cost")) + M(E("rtr_down_cost"))],
+    ];
+    const ru = rows.reduce((s, x) => s + x[1], 0), rd = rows.reduce((s, x) => s + x[2], 0), rc = rows.reduce((s, x) => s + x[3], 0);
+    const mu = G(mUp), md = G(mDown), mc = RD ? M(RD.cost) : null, ml = RD ? G(RD.losses) : null;
+    const perMWh = (c, v) => c == null || !v ? "–" : nf(1e6 * c / (1000 * v), 1);
     const solved = r.status.reduce((a, b) => a + b, 0);
-    $("rd-table").innerHTML = `<thead><tr><th>Over the ${solved} solved hours</th><th>Up, GWh</th><th>Down, GWh</th></tr></thead><tbody>`
-      + rows.map(([l, u, d]) => `<tr><td>${l}</td><td>${nf(u, 0)}</td><td>${nf(d, 0)}</td></tr>`).join("")
-      + `<tr class="total-row"><td>REE, total</td><td>${nf(ru, 0)}</td><td>${nf(rd, 0)}</td></tr>`
-      + `<tr class="total-row"><td>Model</td><td>${nf(mu, 0)} <span class="pv-muted-txt">(${ru ? nf(100 * mu / ru, 0) : "–"} % of REE)</span></td><td>${nf(md, 0)} <span class="pv-muted-txt">(${rd ? nf(100 * md / rd, 0) : "–"} %)</span></td></tr></tbody>`;
+    const pctOf = (a, b) => b ? ` <span class="pv-muted-txt">(${nf(100 * a / b, 0)} %)</span>` : "";
+    $("rd-table").innerHTML = `<thead><tr><th>Over the ${solved} solved hours</th><th>Up, GWh</th><th>Down, GWh</th><th>${term("Extra cost", "rd_cost")}, M€</th><th>€ per MWh up</th></tr></thead><tbody>`
+      + rows.map(([l, u, d, c]) => `<tr><td>${l}</td><td>${nf(u, 0)}</td><td>${nf(d, 0)}</td><td>${nf(c, 1)}</td><td>${perMWh(c, u)}</td></tr>`).join("")
+      + `<tr class="total-row"><td>REE, total</td><td>${nf(ru, 0)}</td><td>${nf(rd, 0)}</td><td>${nf(rc, 1)}</td><td>${perMWh(rc, ru)}</td></tr>`
+      + `<tr class="total-row"><td>Model, AC redispatch</td><td>${nf(mu, 0)}${pctOf(mu, ru)}</td><td>${nf(md, 0)}${pctOf(md, rd)}</td><td>${mc == null ? "–" : nf(mc, 1) + pctOf(mc, rc)}</td><td>${perMWh(mc, mu)}</td></tr>`
+      + (RD ? `<tr><td class="pv-muted-txt">of which grid losses in the model (the markets have none)</td><td class="pv-muted-txt">${nf(ml, 0)}</td><td></td><td></td><td></td></tr>` : "")
+      + "</tbody>";
+    $("rd-cost-note").innerHTML = RD ? `REE's whole real-time cost was ${nf(M(E("rtr_cost")), 1)} M€ (indicator 724); the table uses its up and down parts (1723, 1724), which go with the volumes.`
+      : `This run's package has no model cost yet; publish it again with the current publish_run.py.`;
+    // cost per day (or hour), REE vs model
+    const cHost = $("rd-cost-chart");
+    if (!RD) { cHost.innerHTML = ""; return; }
+    const reeCost = add(E("rt1_up_cost"), E("rt2_up_cost"), E("rtr_up_cost"), E("rtr_down_cost")).map((x, i) => x - (E("rt1_down_cost")[i] || 0) - (E("rt2_down_cost")[i] || 0));
+    const cu = hourly ? "k€" : "M€/day";
+    const cv = a => hourly ? a.map((x, i) => ok(i) && x != null ? x / 1000 : null) : dailySum(a.map((x, i) => ok(i) ? x : null), nd).map(x => x == null ? null : x / 1000);
+    requestAnimationFrame(() => {
+      const rv = cv(reeCost), mv = cv(RD.cost);
+      lineChart(cHost, {
+        n: rv.length, height: 230, yTicks: 4, yUnit: cu, label: "Redispatch cost, REE vs model", endLabels: true,
+        xTicks: dayTicks(r.days, hourly, cHost.clientWidth - 110), onZoom: (a, b) => zoomFromChart(a, b, hourly),
+        series: [{ name: "REE", values: rv, color: "var(--real)", width: 1.5 }, { name: "Model", values: mv, color: "var(--model)", width: 2 }],
+        tooltip: i => `<b>${hourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i])}</b>
+          <div class="row"><i class="sw-line" style="background:var(--real)"></i>REE<span class="v">${nf(rv[i], 1)} ${cu}</span></div>
+          <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model<span class="v">${nf(mv[i], 1)} ${cu}</span></div>`,
+      });
+      renderWhy(r, { G, M, E, ok, ru, rd, rc, mu, mc, RD });
+    });
+  }
+
+  // ---------- why REE's redispatch is so much larger: by cause vs by type, and a cost bridge ----------
+  const CAUSES = [
+    ["scb", "Overloads, base case", "var(--model)", true],
+    ["sca", "Overloads after a contingency (N-1)", "var(--cat-8)", false],
+    ["ct", "Voltage control", "var(--cat-2)", false],
+    ["rtd", "Distribution grid", "var(--cat-5)", false],
+    ["rsi", "Too little upward reserve", "var(--cat-4)", false],
+    ["rbi", "Too little downward reserve", "var(--cat-6)", false],
+    ["ase", "Frequency (European area)", "var(--cat-7)", false],
+    ["otros", "Other causes", "var(--axis)", false],
+  ];
+  const REBAL = ["Rebalancing after phase I", "var(--cat-3)"];
+  const RD_TYPES = [["Pumped storage", "var(--cat-7)"], ["Hydro", "var(--cat-1)"], ["Gas", "var(--cat-2)"], ["Wind and solar", "var(--cat-3)"], ["Other", "var(--axis)"]];
+  function renderWhy(r, k) {
+    const host = $("rd-why");
+    if (!k.RD || !k.RD.up_by) { host.innerHTML = `<p class="fineprint">Publish this run again with the current publish_run.py to see the model's split.</p>`; $("rd-why-note").textContent = ""; return; }
+    const { G, E, ru, rd, rc, mu, mc, RD } = k;
+    // REE: the causes overlap a little, so each stage's cause split is scaled to that stage's total
+    const byCause = dir => {
+      const seg = Object.fromEntries(CAUSES.map(c => [c[0], 0]));
+      for (const [stage, tot] of [["rt1", G(E(`rt1_${dir}`))], ["rtr", G(E(`rtr_${dir}`))]]) {
+        const raw = CAUSES.map(c => G(E(`${stage}_${dir}_${c[0]}`) || []));
+        const s = raw.reduce((a, b) => a + b, 0);
+        CAUSES.forEach((c, i) => { seg[c[0]] += s ? tot * raw[i] / s : 0; });
+      }
+      return CAUSES.map(c => ({ name: c[1], color: c[2], v: seg[c[0]], inModel: c[3] }))
+        .concat([{ name: REBAL[0], color: REBAL[1], v: G(E(`rt2_${dir}`)), inModel: null }]).filter(s => s.v > 0.5);
+    };
+    const byType = dir => RD_TYPES.map(([n, c]) => ({ name: n, color: c, v: G(RD[dir === "up" ? "up_by" : "down_by"][n]) })).filter(s => s.v > 0.5);
+    const rows = [["REE, turned up", byCause("up")], ["Model, turned up", byType("up")], null,
+                  ["REE, turned down", byCause("down")], ["Model, turned down", byType("down")]];
+    const W = Math.max(320, host.clientWidth), lab = 128, bw = W - lab - 70, bh = 24, gap = 12;
+    const max = Math.max(ru, rd, mu, 1);
+    let y = 6, svgParts = [];
+    for (const row of rows) {
+      if (!row) { y += 14; continue; }
+      const [name, segs] = row, total = segs.reduce((a, s) => a + s.v, 0);
+      svgParts.push(`<text x="${lab - 8}" y="${y + bh / 2 + 4}" text-anchor="end" class="why-lab">${name}</text>`);
+      let x = lab;
+      for (const s of segs) {
+        const w = bw * s.v / max;
+        const tick = s.inModel === true ? " (the model sees this)" : s.inModel === false ? " (not in the model)" : "";
+        svgParts.push(`<rect x="${x}" y="${y}" width="${Math.max(w, 0.5)}" height="${bh}" fill="${s.color}" stroke="var(--surface)" stroke-width="1"><title>${s.name}${tick}: ${nf(s.v, 0)} GWh (${nf(100 * s.v / total, 0)} %)</title></rect>`);
+        { const short = s.name.split(" (")[0].split(",")[0]; if (w > short.length * 6.3 + 10) svgParts.push(`<text x="${x + 5}" y="${y + bh / 2 + 4}" class="why-in">${short}</text>`); }
+        x += w;
+      }
+      svgParts.push(`<text x="${x + 6}" y="${y + bh / 2 + 4}" class="why-val">${nf(total, 0)} GWh</text>`);
+      y += bh + gap;
+    }
+    // cost bridge: REE's extra cost -> at the model's volume -> the model's extra cost
+    const pR = ru ? rc / ru : 0;              // M€ per GWh = k€/MWh
+    const atModelVolume = mu * pR;
+    const steps = [["REE extra cost", rc, "abs"], ["REE moves more energy", atModelVolume - rc, "step"],
+                   ["Marginal cost instead of bids and start-ups; pumped storage almost free", mc - atModelVolume, "step"], ["Model extra cost", mc, "abs"]];
+    const by = y + 26, bH = 150, vals = [0, rc, atModelVolume, mc];
+    const lo = Math.min(0, ...vals), hi = Math.max(...vals, 1);
+    const Y = v => by + bH - (v - lo) / (hi - lo) * bH;
+    const cw = Math.min(150, (W - lab) / 4.4);
+    let level = 0;
+    svgParts.push(`<text x="0" y="${by - 10}" class="why-h">The cost, step by step (M€)</text>`);
+    svgParts.push(`<line x1="${lab}" x2="${W - 8}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--axis)"/>`);
+    steps.forEach(([name, v, kind], i) => {
+      const x = lab + i * (cw * 1.1);
+      const a = kind === "abs" ? 0 : level, b = kind === "abs" ? v : level + v;
+      const col = kind === "abs" ? (i === 0 ? "var(--real)" : "var(--model)") : (v < 0 ? "var(--cat-3)" : "var(--critical)");
+      svgParts.push(`<rect x="${x}" y="${Math.min(Y(a), Y(b))}" width="${cw}" height="${Math.max(1, Math.abs(Y(a) - Y(b)))}" fill="${col}" rx="2"><title>${name}: ${nf(v, 1)} M€</title></rect>`);
+      svgParts.push(`<text x="${x + cw / 2}" y="${Math.min(Y(a), Y(b)) - 5}" text-anchor="middle" class="why-val">${kind === "step" && v > 0 ? "+" : ""}${nf(v, 1)}</text>`);
+      const words = name.split(" "), lines = [];
+      for (const wd of words) { const l = lines.length ? lines[lines.length - 1] : null; if (l != null && (l + " " + wd).length <= Math.floor(cw / 6.2)) lines[lines.length - 1] = l + " " + wd; else lines.push(wd); }
+      lines.slice(0, 4).forEach((l, j) => svgParts.push(`<text x="${x + cw / 2}" y="${by + bH + 16 + j * 13}" text-anchor="middle" class="why-cap">${l}</text>`));
+      level = kind === "abs" ? v : level + v;
+    });
+    const H = by + bH + 16 + 4 * 13 + 6;
+    host.innerHTML = `<svg width="${W}" height="${H}" role="img" aria-label="Redispatch volume by cause (REE) and by type (model), and the cost from REE to the model, step by step">${svgParts.join("")}</svg>`
+      + `<div class="legend why-legend"><span class="why-key">REE causes:</span>${CAUSES.map(c => `<span><i class="sw-box" style="background:${c[2]}"></i>${c[1]}${c[3] ? " ✔" : ""}</span>`).join("")}<span><i class="sw-box" style="background:${REBAL[1]}"></i>${REBAL[0]}</span></div>`
+      + `<div class="legend why-legend"><span class="why-key">Model types:</span>${RD_TYPES.map(([n, c]) => `<span><i class="sw-box" style="background:${c}"></i>${n}</span>`).join("")}</div>`;
+    // the main reasons in words, with this period's numbers
+    const up = byCause("up"), share = n => { const s = up.find(x => x.name === n); return s ? 100 * s.v / ru : 0; };
+    const ps = G(RD.up_by["Pumped storage"]), gasDown = G(RD.down_by["Gas"]);
+    $("rd-why-note").innerHTML = `<b>Why:</b> ${nf(share("Voltage control"), 0)} % of what REE turned up was for <b>voltage control</b> and ${nf(share("Overloads after a contingency (N-1)"), 0)} % for <b>overloads after a contingency</b>; the model has neither. Only ${nf(share("Overloads, base case"), 1)} % was for overloads in the base case, the one cause the model's AC grid sees (✔). REE paid ${nf(1000 * pR, 0)} €/MWh above the market for what it turned up (bids with start-up costs); the model values its changes at marginal cost, and in its hour-by-hour redispatch pumped storage has no energy limit and costs almost nothing: it turned pumped storage up by ${nf(ps, 0)} GWh and gas down by ${nf(gasDown, 0)} GWh. REE's causes overlap a little; each stage's split is scaled to its total.`;
   }
 
   function renderStatus(r) {

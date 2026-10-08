@@ -115,7 +115,13 @@
         <div class="legend" id="rd-legend"></div>
         <div id="rd-charts"></div>
         <div class="table-wrap pv-gap"><table id="rd-table"></table></div>
-        <p class="fineprint">REE: technical constraints after the day-ahead market (phase I adds energy where the grid needs it, phase II takes about the same amount out elsewhere) plus real-time constraints, Spanish peninsula, from e·sios (indicators 701–704, 720, 721). Model: AC redispatch minus balancing, summed over the power plants on the map; CHP, waste and mini-hydro blocks and the border are left out, and failed AC hours have no value.</p>
+        <p class="fineprint" id="rd-cost-note"></p>
+        <h4 class="rd-h4">Extra cost of redispatch</h4>
+        <div class="chart" id="rd-cost-chart"></div>
+        <h4 class="rd-h4">Why the difference?</h4>
+        <div id="rd-why"></div>
+        <p class="fineprint" id="rd-why-note"></p>
+        <p class="fineprint">Pooled to match the model's single redispatch stage: REE's technical constraints after the day-ahead market (phase I turns plants up or down for grid security, phase II rebalances) plus real-time constraints, Spanish peninsula, from e·sios (volumes 701–704, 720, 721; costs 1373–1376, 1723, 1724). REE pays what goes up its own bid including start-up costs, and refunds what goes down at its bid or the day-ahead price (P.O. 3.2, P.O. 14.4); the cost is the extra cost over the market, paid by consumers. Model: AC redispatch minus balancing over all units except the border flows, valued at the model's marginal costs; it includes grid losses, and failed AC hours have no value.</p>
       </section>
 
       <section class="card" id="sec-bal" role="tabpanel" data-tabs="esios">
