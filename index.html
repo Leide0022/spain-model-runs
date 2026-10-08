@@ -36,7 +36,7 @@
         <div class="sec-head">
           <div>
             <h3>Price: model vs real</h3>
-            <p>Spanish marginal price for each hour. "Real" is OMIE's day-ahead price. Red marks below the chart are hours where the AC redispatch failed.</p>
+            <p>Spanish marginal price for each hour. "Real" is OMIE's day-ahead price, or for ID2, ID3 and CID the real intraday price of that market. Red marks below the chart are hours where the AC redispatch failed.</p>
           </div>
           <div class="controls">
             <div class="seg" role="group" aria-label="Model market stage" id="price-stage"></div>
@@ -45,6 +45,7 @@
         </div>
         <div class="legend" id="price-legend"></div>
         <div class="chart" id="price-chart"></div>
+        <p class="fineprint" id="price-note"></p>
       </section>
 
       <section class="card" id="sec-mix" role="tabpanel" data-tabs="overview mix">
@@ -206,7 +207,7 @@
         <div class="sec-head">
           <div>
             <h3 class="pv-title">Market stages: the model next to the PowerVision paper</h3>
-            <p>The overview the PowerVision paper (Koks et al., 2026) gives for Norway, filled in for this model of Spain. Each figure and table keeps the paper's number, so they can be read side by side. These facts are the same for every run.</p>
+            <p>The overview the PowerVision paper (Koks et al., 2026) gives for Norway, filled in for this model of Spain. Each figure and table keeps the paper's number, so they can be read side by side. These facts are the same for every run, except the traded volume at the end, which follows the run and the days shown.</p>
           </div>
         </div>
         <div class="pv-block">
@@ -229,6 +230,10 @@
           <h4>Line and transformer assumptions</h4>
           <figure class="pv-fig"><div class="table-wrap"><table id="pv-lines" class="pv-book"></table></div>
             <div class="table-wrap pv-gap"><table id="pv-trafos" class="pv-book"></table></div><figcaption id="pv-lines-cap"></figcaption></figure>
+        </div>
+        <div class="pv-block">
+          <h4>Traded volume per stage</h4>
+          <figure class="pv-fig"><div class="table-wrap"><table id="pv-traded" class="pv-book"></table></div><figcaption id="pv-traded-cap"></figcaption></figure>
         </div>
       </section>
 

@@ -1,4 +1,4 @@
-"""Build reference/esios_2024.js: REE's real balancing and redispatch per hour, for the viewer.
+"""Build reference/esios_2024.js: REE's real balancing, redispatch and intraday prices per hour, for the viewer.
 
 Reads the hourly files that the model repo's esios_download/fetch_esios.py writes to
 ../esios_download/hourly/ (outside both repos; the download needs an e·sios token):
@@ -42,7 +42,19 @@ SERIES = {
     "rt2_up_cost": (["1375_rt2_up_cost_eur"], "eur"), "rt2_down_cost": (["1376_rt2_down_cost_eur"], "eur"),
     "rtr_cost": (["724_rtr_cost_eur"], "eur"),
     "rtr_up_cost": (["1723_rtr_up_cost_eur"], "eur"), "rtr_down_cost": (["1724_rtr_down_cost_eur"], "eur"),
+    # intraday market prices, Spanish zone; 0 and negative prices are real here ("market" kind).
+    # e·sios keeps the ids when the six MIBEL sessions became the European auctions: 613 is IDA2 and
+    # 614 IDA3 (hours 12-23) from delivery day IDA_START, MI2/MI3 before, so those days are left out
+    "ida2": (["613_id_s2_price"], "market"), "ida3": (["614_id_s3_price"], "market"),
+    "cid": (["1727_cid_price"], "market"),
+    # traded volume, MWh per hour (energy assigned, one side; OMIE via e·sios), same numbering:
+    # 606 IDA2 and 607 IDA3 from IDA_START. Missing where e·sios has no data ("net" kind)
+    "ida2_mwh": (["606_id_s2_mwh"], "net"), "ida3_mwh": (["607_id_s3_mwh"], "net"),
+    "cid_mwh": (["1442_cid_mwh"], "net"),
 }
+# first delivery day of the European intraday auctions (IDA1-3); e·sios has MI sessions until 13/06
+IDA_START = f"{YEAR}-06-14"
+IDA_KEYS = ("ida2", "ida3", "ida2_mwh", "ida3_mwh")
 # redispatch volume by cause (SCB overloads in the base case, SCA after a contingency, CT voltage
 # control, RTD distribution grid, RSI/RBI too little reserve up/down, ASE frequency, Otros other);
 # a series e·sios has no data for is missing from ../esios_download/hourly and counts as 0
@@ -82,7 +94,7 @@ def series(files, kind, slots, days):
         got = {}
         for d, h, v in zip(df.date, df.hour, df.value):
             k = (d, int(h))
-            if k in got and d != FALL_BACK and kind != "price":
+            if k in got and d != FALL_BACK and kind not in ("price", "market"):
                 got[k][0] += float(v)                 # two parts of one hour: add them
             elif k in got and d != FALL_BACK:
                 continue                              # a price: keep the first
@@ -102,8 +114,8 @@ def series(files, kind, slots, days):
         x = v[n] if n < len(v) else None
         if kind in ("mwh", "eur"):
             x = round(x or 0.0)
-        elif kind == "net":
-            x = None if x is None else round(x)
+        elif kind in ("net", "market"):
+            x = None if x is None else round(x, 1 if kind == "market" else None)
         else:
             x = None if x is None or x == 0 else round(x, 1)
         per_day.setdefault(d, []).append(x)
@@ -117,11 +129,13 @@ def main():
     slots = local_hours()
     days = sorted({d for d, _ in slots})
     data = {k: series(files, kind, slots, days) for k, (files, kind) in SERIES.items()}
+    for k in IDA_KEYS:                          # the MI sessions before the switch are a different market
+        data[k] = [None if days[i // 24] < IDA_START else x for i, x in enumerate(data[k])]
     OUT.write_text("// REE e·sios balancing and redispatch per hour, 2024. Built by tools/build_esios.py.\n"
                    "window.ESIOS = " + json.dumps(dict(year=YEAR, days=days, series=data), separators=(",", ":"))
                    + ";\n", encoding="utf-8")
     print(f"wrote {OUT.relative_to(REPO)} ({OUT.stat().st_size / 1e3:.0f} kB), {len(days)} days")
-    for k in ("rt1_up", "rt2_down", "rtr_up", "rr_price", "mfrr_up_price", "rt_cost", "rtr_cost"):
+    for k in ("rt1_up", "rt2_down", "rtr_up", "rr_price", "mfrr_up_price", "rt_cost", "rtr_cost", "ida2", "ida3", "cid", "ida2_mwh", "ida3_mwh", "cid_mwh"):
         v = [x for x in data[k] if x is not None]
         print(f"  {k}: mean {sum(v) / len(v):.0f}, {len(v)} hours")
 

@@ -50,6 +50,9 @@
     corr: ["Correlation", "How well the model follows the ups and downs of the real price, from −1 to 1. 1 means the same shape (even if the level is off), 0 means no relation."],
     shed: ["Load shed", "Demand the redispatch could not supply, summed over the solved hours shown. It should be 0."],
     real_price: ["Real price", "OMIE's day-ahead marginal price for the Spanish zone (the marginalpdbc files)."],
+    real_ida2: ["Real IDA2 price", "The second European intraday auction (closes 22:00 the day before, all 24 hours), Spanish zone, from e·sios (indicator 613). It replaced the MIBEL intraday sessions on 14 June 2024; earlier days are left out because they were a different market."],
+    real_ida3: ["Real IDA3 price", "The third European intraday auction (closes 10:00 on the day, hours 12–23 only), Spanish zone, from e·sios (indicator 614). It replaced the MIBEL intraday sessions on 14 June 2024; earlier days are left out because they were a different market."],
+    real_cid: ["Real continuous intraday price", "REE's reference price for the continuous intraday market: the weighted average of all trades for each hour with a buyer or seller in Spain, from e·sios (indicator 1727)."],
     real_bal: ["Real balancing price", "REE's price for replacement reserve (RR), the hourly balancing energy market, from e·sios. The closest real counterpart of the model's balancing (BAL) price; Spain has no single balancing price."],
     ree_rd: ["REE redispatch", "What REE changed after the market for grid security, from e·sios: technical constraints after the day-ahead (phase I adds energy where the grid needs it, phase II takes about the same amount out elsewhere) and real-time constraints."],
     model_bal: ["Model balancing", "What the model's balancing stage moved compared with the continuous intraday schedule, summed up and down over the plants that respond (wind, solar and the fixed cross-border flows left out: their forecast change is what has to be balanced)."],
@@ -146,6 +149,7 @@
       real_mix: each(r.real_mix, sl), mix: each(r.mix, m => each(m, sl)),
       real_phys: each(r.real_phys, sl), mix_phys: each(r.mix_phys, m => each(m, sl)),
       balancing: r.balancing ? each(r.balancing, sl) : null,
+      traded: r.traded ? each(r.traded, sl) : null,
       redispatch: r.redispatch ? Object.fromEntries(Object.entries(r.redispatch).map(([k, v]) => [k, Array.isArray(v) ? sl(v) : each(v, sl)])) : null,
     };
   }
@@ -1329,15 +1333,30 @@
     $("kpis").innerHTML = tiles.map(([l, v, s]) => `<div class="kpi"><span class="k-label">${l}</span><span class="k-value">${v}</span><span class="k-sub">${s}</span></div>`).join("");
   }
 
+  // the real price shown next to each model stage: the intraday stages have their own market price
+  // (the auctions only from 14 June 2024, see build_esios.py); DA and BAL are compared with OMIE's DA
+  const REAL_FOR_STAGE = {
+    ID2: ["ida2", "Real (IDA2)", "real_ida2"], ID3: ["ida3", "Real (IDA3)", "real_ida3"],
+    CID: ["cid", "Real (continuous intraday)", "real_cid"],
+  };
+
   function renderPrice(r) {
     seg($("price-stage"), PRICE_STAGES.map(s => [s, s, s]), state.priceStage, v => { state.priceStage = v; renderPrice(view()); });
     seg($("price-res"), [["hour", "Hourly"], ["day", "Daily mean"]], state.priceRes, v => { state.priceRes = v; renderPrice(view()); });
-    $("price-legend").innerHTML = `<span><i class="sw-line" style="background:var(--real)"></i>${term("Real (OMIE day-ahead)", "real_price")}</span>
+    const [rKey, rName, rTerm] = REAL_FOR_STAGE[state.priceStage] || [null, "Real (OMIE day-ahead)", "real_price"];
+    $("price-legend").innerHTML = `<span><i class="sw-line" style="background:var(--real)"></i>${term(rName, rTerm)}</span>
       <span><i class="sw-line" style="background:var(--model)"></i>${term(`Model (${state.priceStage})`, state.priceStage)}</span>
       <span><i class="sw-box" style="background:var(--critical)"></i>${term("AC redispatch failed", "failed")}</span>`;
     const host = $("price-chart");
     const nd = r.days.length, hourly = state.priceRes === "hour";
-    const model = r.price[state.priceStage], real = r.real_price;
+    const model = r.price[state.priceStage];
+    const real = rKey ? (esiosFor(r, rKey) || model.map(() => null)) : r.real_price;
+    const nReal = real.filter(x => x != null).length;
+    $("price-note").textContent = !rKey ? ""
+      : !window.ESIOS ? "reference/esios_2024.js is missing, so there is no real intraday price. Run tools/build_esios.py."
+      : rKey === "cid" ? "Real: REE's continuous intraday reference price, the weighted average of the trades for each hour (e·sios 1727)."
+      : (nReal ? `Real: the European intraday auction ${rKey === "ida2" ? "IDA2 (all 24 hours)" : "IDA3 (hours 12–23 only, like the model's ID3)"} from e·sios. Only from 14 June 2024, when the auctions replaced the MIBEL intraday sessions.`
+        : "No real price for these days: the European intraday auctions started on 14 June 2024. Before that Spain had six MIBEL intraday sessions, a different market, which are left out for now.");
     const failed = r.status.map(s => 1 - s);
     const mv = hourly ? model : dailyMean(model, nd);
     const rv = hourly ? real : dailyMean(real, nd);
@@ -1359,7 +1378,7 @@
           ? (failed[i] ? `<span style="color:var(--critical)">AC failed</span>` : "AC solved")
           : `${Math.round(band[i] * 24)} of 24 hours failed`;
         return `<b>${when}</b>
-          <div class="row"><i class="sw-line" style="background:var(--real)"></i>Real<span class="v">${nf(a)} €/MWh</span></div>
+          <div class="row"><i class="sw-line" style="background:var(--real)"></i>${rName}<span class="v">${nf(a)} €/MWh</span></div>
           <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model ${state.priceStage}<span class="v">${nf(b)} €/MWh</span></div>
           <div class="row">Difference<span class="v">${a != null && b != null ? signed(b - a) : "–"}</span></div>
           <div class="row">${st}</div>`;
@@ -1815,9 +1834,43 @@
     $("pv-lines-cap").innerHTML = cap("Table 3, Spanish version.", `Line and transformer assumptions. Every line of one voltage level has the same current limit and values per km: standard line types, not the real rating of each line, which is not public. The 400 kV and 320 kV reactances (0.246 and 0.265 Ω/km) are the values the paper uses. Transformers are sized by a rule (a number of standard units), with ${F.trafo_x.map(x => Math.round(x * 100)).join("–")} % reactance. Example: the Arkale transformer at the French border is 3 × 100 MVA here but a 550 MVA phase-shifter in reality (REE, 2017). The 320 kV link to France is modelled as four AC lines; the one DC line is the 250 kV link to the Balearic Islands. The paper compares three line-type cases; this model has one.`, "PowerVision paper, Table 3");
   }
 
+  // Table 4: traded volume per stage, model vs real Spain, GWh/day (one side: what is sold)
+  function renderTraded(r) {
+    const host = $("pv-traded");
+    if (!host) return;
+    const n0 = x => Number(x).toLocaleString("en-GB");
+    const E = k => esiosFor(r, k), nd = r.days.length;
+    const add = (...as) => as[0].map((_, i) => as.reduce((s, a) => (a[i] == null ? s : s + a[i]), 0));
+    const B = r.balancing;
+    const cols = [
+      ["IDA2", "ID2", r.traded && r.traded.ID2, E("ida2_mwh")],
+      ["IDA3", "ID3", r.traded && r.traded.ID3, E("ida3_mwh")],
+      ["CID", "CID", r.traded && r.traded.CID, E("cid_mwh")],
+      ["BE", "BAL", B && add(B.up, B.down), window.ESIOS && add(...["afrr_up", "afrr_down", "mfrr_up", "mfrr_down", "rr_up", "rr_down"].map(E))],
+    ];
+    // average over the days both sides have data for that stage
+    const hasDay = (a, d) => a && a.slice(d * 24, d * 24 + 24).some(x => x != null);
+    const daySum = (a, d) => a.slice(d * 24, d * 24 + 24).reduce((s, x) => s + (x || 0), 0);
+    const res = cols.map(([real, model, m, e]) => {
+      // (only the real side's days when this package has no model volume yet)
+      const days = [...Array(nd).keys()].filter(d => (!m || hasDay(m, d)) && hasDay(e, d));
+      const avg = a => days.length ? days.reduce((s, d) => s + daySum(a, d), 0) / days.length / 1000 : null;
+      return { real, model, n: days.length, m: m ? avg(m) : null, e: avg(e) };
+    });
+    const v = x => x == null ? "–" : nf(x, 1);
+    host.innerHTML = `<thead><tr><th>GWh/day, one side</th>${res.map(c => `<th>${c.real}<div class="sub">model: ${c.model}</div></th>`).join("")}</tr></thead><tbody>`
+      + `<tr><td>Model (this run)</td>${res.map(c => `<td>${v(c.m)}</td>`).join("")}</tr>`
+      + `<tr><td>Real Spain (OMIE, REE via e·sios)</td>${res.map(c => `<td>${v(c.e)}</td>`).join("")}</tr>`
+      + `<tr><td class="pv-muted-txt">Model as % of real</td>${res.map(c => `<td class="pv-muted-txt">${c.m == null || !c.e ? "–" : nf(100 * c.m / c.e, 0) + " %"}</td>`).join("")}</tr>`
+      + `<tr><td class="pv-muted-txt">Days compared</td>${res.map(c => `<td class="pv-muted-txt">${n0(c.n)}</td>`).join("")}</tr></tbody>`;
+    const none = !r.traded ? " This run's package has no intraday volumes yet; publish it again with the current publish_run.py." : "";
+    const early = res[0].n === 0 && r.traded ? " These days are before 14 June 2024, when the European intraday auctions started, so there is no real IDA2/IDA3 volume to compare with." : "";
+    $("pv-traded-cap").innerHTML = `<b>Table 4, Spanish version.</b> Average volume traded per stage over the days shown, in GWh per day, counting one side of each trade (what is sold, which equals what is bought). Model: in ID2, ID3 and CID, the sum of all position increases from the previous stage, over every plant and the consumers (a higher load forecast is a purchase); ID3 trades hours 12–23 only. In BE, what the balancing plants moved up plus down. Real: energy assigned in IDA2 (e·sios 606) and IDA3 (607) from 14 June 2024, and in the continuous market (1442), all from OMIE; BE is REE's activated aFRR, mFRR and RR, up plus down. Each column averages only over days with data on both sides.${early}${none} <span class="pv-ref">PowerVision paper, Table 4 (which counts buy + sell, twice our numbers)</span>`;
+  }
+
   function renderAll() {
     const v = view();
-    renderRunList(); renderHead(run()); renderTabs(v); renderPeriod(); renderKpis(v); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderStages();
+    renderRunList(); renderHead(run()); renderTabs(v); renderPeriod(); renderKpis(v); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderStages(); renderTraded(v);
   }
 
   // ---------- loading runs ----------
