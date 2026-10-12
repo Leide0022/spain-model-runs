@@ -2,6 +2,96 @@
 window.RUN_MANIFEST = [
  {
   "schema": 1,
+  "id": "2024-01-01_2024-offered",
+  "name": "2024, offered solar/wind",
+  "note": "Full year 2024 (1 Jan - 29 Dec). Day-ahead solar and wind = OMIE's accepted programme plus what was offered in the auction but not accepted (res_input = offered, no bid-price limit). Otherwise identical to 2024, accepted solar/wind.",
+  "published": "2026-10-12T16:45:12+02:00",
+  "published_by": "Lars Erik Eide",
+  "first_day": "2024-01-01",
+  "last_day": "2024-12-29",
+  "n_days": 364,
+  "ac_solved": 8732,
+  "ac_total": 8736,
+  "months": [
+   "2024-01",
+   "2024-02",
+   "2024-03",
+   "2024-04",
+   "2024-05",
+   "2024-06",
+   "2024-07",
+   "2024-08",
+   "2024-09",
+   "2024-10",
+   "2024-11",
+   "2024-12"
+  ],
+  "size_mb": 44.9,
+  "info": {
+   "ran_by": "Lars Erik Eide",
+   "branch": "re-total-bids",
+   "commit": "539be8c",
+   "commit_message": "solstorm_start_weeks.sh: background lanes with setsid/nohup (compute nodes have no screen)",
+   "uncommitted_files": [
+    "Manifest.toml",
+    "Project.toml"
+   ],
+   "started": "2026-10-12 15:12:55",
+   "finished": "2026-10-12 16:05:24",
+   "runtime_min": 52.5,
+   "power_flow": "AC",
+   "linear_solver": "ma57",
+   "label": "2024",
+   "reconstructed": false
+  }
+ },
+ {
+  "schema": 1,
+  "id": "2024-01-01_2024-accepted",
+  "name": "2024, accepted solar/wind",
+  "note": "Full year 2024 (1 Jan - 29 Dec). Day-ahead solar and wind = OMIE's accepted programme (res_input = accepted, same as main). Run as 52 one-week runs, joined. Twin of the offered run: same code, solver and days.",
+  "published": "2026-10-12T16:41:31+02:00",
+  "published_by": "Lars Erik Eide",
+  "first_day": "2024-01-01",
+  "last_day": "2024-12-29",
+  "n_days": 364,
+  "ac_solved": 8732,
+  "ac_total": 8736,
+  "months": [
+   "2024-01",
+   "2024-02",
+   "2024-03",
+   "2024-04",
+   "2024-05",
+   "2024-06",
+   "2024-07",
+   "2024-08",
+   "2024-09",
+   "2024-10",
+   "2024-11",
+   "2024-12"
+  ],
+  "size_mb": 44.9,
+  "info": {
+   "ran_by": "Lars Erik Eide",
+   "branch": "re-total-bids",
+   "commit": "539be8c",
+   "commit_message": "solstorm_start_weeks.sh: background lanes with setsid/nohup (compute nodes have no screen)",
+   "uncommitted_files": [
+    "Manifest.toml",
+    "Project.toml"
+   ],
+   "started": "2026-10-12 15:12:47",
+   "finished": "2026-10-12 16:04:12",
+   "runtime_min": 51.4,
+   "power_flow": "AC",
+   "linear_solver": "ma57",
+   "label": "2024",
+   "reconstructed": false
+  }
+ },
+ {
+  "schema": 1,
   "id": "2024-05-01_may-1-7-offered-solar-wind",
   "name": "1-7 May 2024, offered solar/wind",
   "note": "Solar and wind = OMIE's accepted day-ahead amount plus what was offered in the auction but not accepted (res_input = offered, no bid-price limit), so the model can curtail them itself. Everything else as the May free-France-split run. Wind is curtailed first (0.18 vs 0.00 EUR/MWh); with no price limit, 1 May falls to about 0 all day.",
