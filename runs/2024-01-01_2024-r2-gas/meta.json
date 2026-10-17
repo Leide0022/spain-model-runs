@@ -1,0 +1,45 @@
+{
+ "schema": 1,
+ "id": "2024-01-01_2024-r2-gas",
+ "name": "2024 run 2: gas and coal costs",
+ "note": "As run 1, but each gas plant has its own cost (daily MIBGAS gas and EU ETS CO2 price, efficiency by build year), coal from quarterly import prices, closed coal plants removed, coal can be redispatched. Markets run as one chain over the year, so plants' on/off state carries over.",
+ "published": "2026-10-17T10:32:58+02:00",
+ "published_by": "Lars Erik Eide",
+ "first_day": "2024-01-01",
+ "last_day": "2024-12-29",
+ "n_days": 364,
+ "ac_solved": 8721,
+ "ac_total": 8736,
+ "months": [
+  "2024-01",
+  "2024-02",
+  "2024-03",
+  "2024-04",
+  "2024-05",
+  "2024-06",
+  "2024-07",
+  "2024-08",
+  "2024-09",
+  "2024-10",
+  "2024-11",
+  "2024-12"
+ ],
+ "size_mb": 44.9,
+ "info": {
+  "ran_by": "Lars Erik Eide",
+  "branch": "day-by-day-chain",
+  "commit": "be7db1a",
+  "commit_message": "GAS=on: coal redispatchable and Ceuta removed",
+  "uncommitted_files": [
+   "Manifest.toml",
+   "Project.toml"
+  ],
+  "started": "2026-10-16 14:19:04",
+  "finished": "2026-10-16 23:54:45",
+  "runtime_min": 575.7,
+  "power_flow": "AC",
+  "linear_solver": "ma57",
+  "label": "2024",
+  "reconstructed": false
+ }
+}
