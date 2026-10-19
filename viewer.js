@@ -1940,14 +1940,17 @@
   // best plan is found exactly by dynamic programming over the hours and the (whole-MWh) state of
   // charge: with integer power and size the LP optimum is integral, so nothing is lost by that.
   const FLEX_ASSETS = {
-    tes: { name: "Soto de Ribera TES", h: 8, eff: 40, note: "electric heater into a molten-salt tank, back out through the existing steam cycle; size and efficiency are placeholders (vault: 35–45 %, open)" },
-    battery: { name: "Battery", h: 4, eff: 88, note: "a 4-hour lithium-ion battery, for comparison" },
+    // TES: 42 % round trip and 8 h as PNNL 2022's molten salt + single steam cycle (Lundy 2020); 824 MW of
+    // heaters give 0.42 × 824 = 346 MW out, the size of Soto de Ribera 3
+    tes: { name: "Soto de Ribera TES", h: 8, eff: 42, mw: 824, note: "electric heater into a molten-salt tank, back out through the existing steam cycle; 42 % round trip and 8 h as in PNNL's 2022 cost report for molten salt with a steam cycle; 824 MW of heaters give 346 MW out, the size of Soto de Ribera 3" },
+    battery: { name: "Battery", h: 4, eff: 88, mw: 100, note: "a 4-hour lithium-ion battery, for comparison" },
   };
-  try { const sv = JSON.parse(localStorage.getItem("runviewer.flex") || "null"); if (sv && FLEX_ASSETS[sv.asset]) { state.flexAsset = sv.asset; for (const k in FLEX_ASSETS) if (sv[k]) Object.assign(FLEX_ASSETS[k], { h: +sv[k].h || FLEX_ASSETS[k].h, eff: +sv[k].eff || FLEX_ASSETS[k].eff }); } } catch (e) {}
+  // "flex2": defaults changed on 2026-10-19 (sourced TES), so settings saved under the old key are not reused
+  try { const sv = JSON.parse(localStorage.getItem("runviewer.flex2") || "null"); if (sv && FLEX_ASSETS[sv.asset]) { state.flexAsset = sv.asset; for (const k in FLEX_ASSETS) if (sv[k]) Object.assign(FLEX_ASSETS[k], { h: +sv[k].h || FLEX_ASSETS[k].h, eff: +sv[k].eff || FLEX_ASSETS[k].eff, mw: +sv[k].mw || FLEX_ASSETS[k].mw }); } } catch (e) {}
   state.flexAsset = state.flexAsset || "tes";
-  state.flexMW = 100;   // charging power of the plant the totals are for (MW); per-MW figures do not depend on it
-  try { const sv = JSON.parse(localStorage.getItem("runviewer.flex") || "null"); if (sv && +sv.mw > 0) state.flexMW = +sv.mw; } catch (e) {}
-  function saveFlex() { try { localStorage.setItem("runviewer.flex", JSON.stringify({ asset: state.flexAsset, mw: state.flexMW, tes: FLEX_ASSETS.tes, battery: FLEX_ASSETS.battery })); } catch (e) {} }
+  state.flexMW = FLEX_ASSETS[state.flexAsset].mw;   // charging power of the unit picked (MW); per-MW figures do not depend on it
+  function saveFlex() { try { localStorage.setItem("runviewer.flex2", JSON.stringify({ asset: state.flexAsset, tes: FLEX_ASSETS.tes, battery: FLEX_ASSETS.battery })); } catch (e) {} }
+  function pickFlexAsset(v) { state.flexAsset = v; state.flexMW = FLEX_ASSETS[v].mw; saveFlex(); }
   function arbitrageDay(p, h, eff) {
     // V[t][s]: best earnings from hour t on with s MWh stored; must end at 0
     const T = p.length, NEG = -1e18;
@@ -2067,14 +2070,23 @@
     $("flex-terms").innerHTML = `<div>${s1}</div><div>${s2}<p class="fx-note">So selling must pay at least <b>${nf(100 / a.eff, 2)} ×</b> the buying price just to break even.</p></div><div class="fx-wide">${s3}</div>`;
   }
   // ---------- investment check (NPV) on top of the trading margin ----------
-  // Placeholder costs, only to show how the check works: NOT sourced, replace before using.
+  // TES costs from PNNL's 2022 storage cost report (PNNL-33283, 2021 dollars, × 0.924 €/$ = ECB 2024 average),
+  // molten salt with a single steam cycle (Lundy 2020), the turbine not bought since it exists:
+  //   heater   $114/kW direct (Capp 2021) × 1.3 (EPC 10 % + project development 20 %)          → 137 €/kW
+  //   tank     storage block + balance of system 58–104 $/kWh_e, mid 81, × 1.3, × 0.42 to heat → 41 €/kWh
+  //   fixed O&M 2 % of direct capital per year, counted on heater + tank + a new steam block of the
+  //            same size (mid 1,338 $/kW_e), since the old turbine must also be kept running     → 18 €/kW·yr
+  //   all O&M is fixed in PNNL → variable 0; real WACC 6.52 % → 6.5; calendar life 35 years
+  // Not included: refurbishing the 1980s turbine (fixed sum 0, open). Check: Project Alba (AES Andes, Chile,
+  // 560 MW coal → molten salt, US$450 M, 2022) is about 2/3 of this per kW out. Battery: still placeholders.
   const INV_DEFAULT = {
-    tes: { capKW: 150, capKWh: 30, capFix: 20, opexKW: 10, opexMWh: 2, rate: 7, life: 25, growth: 0 },
+    tes: { capKW: 137, capKWh: 41, capFix: 0, opexKW: 18, opexMWh: 0, rate: 6.5, life: 35, growth: 0 },
     battery: { capKW: 150, capKWh: 200, capFix: 0, opexKW: 8, opexMWh: 0, rate: 7, life: 15, growth: 0 },
   };
   const INV = JSON.parse(JSON.stringify(INV_DEFAULT));
-  try { const sv = JSON.parse(localStorage.getItem("runviewer.inv") || "null"); if (sv) for (const k in INV) Object.assign(INV[k], sv[k] || {}); } catch (e) {}
-  const saveInv = () => { try { localStorage.setItem("runviewer.inv", JSON.stringify(INV)); } catch (e) {} };
+  // "inv2": defaults changed on 2026-10-19, so costs saved under the old key are not reused
+  try { const sv = JSON.parse(localStorage.getItem("runviewer.inv2") || "null"); if (sv) for (const k in INV) Object.assign(INV[k], sv[k] || {}); } catch (e) {}
+  const saveInv = () => { try { localStorage.setItem("runviewer.inv2", JSON.stringify(INV)); } catch (e) {} };
   function renderFlexNPV(a, M, nd, MW) {
     const key = state.flexAsset, c = INV[key];
     const kW = MW * 1000, kWh = MW * a.h * 1000;
@@ -2115,7 +2127,7 @@
         ${item("rate", 0.5, "% per year", "Discount rate", `Money later is worth less than money now. At ${c.rate} %, 100 € in a year is worth ${nf(100 / (1 + c.rate / 100), 0)} € today.`, "")}
         ${item("life", 1, "years", "Lifetime", "How many years the plant runs and earns.", "")}
         ${item("growth", 0.5, "% per year", "Margin change", "Lets the trading margin grow (or shrink) each year. 0 = every year like this run's year.", "")}
-        <button type="button" class="npv-reset" id="npv-reset">Reset to placeholders</button></div>`;
+        <button type="button" class="npv-reset" id="npv-reset">Reset to defaults</button></div>`;
     $("npv-inputs").querySelectorAll("input").forEach(el => el.addEventListener("change", () => {
       const v = +el.value; if (Number.isFinite(v)) { c[el.dataset.k] = v; saveInv(); renderFlexNPV(a, M, nd, MW); }
     }));
@@ -2191,7 +2203,7 @@
   function renderInvest(r) {
     if ($("sec-invest").hidden) return;
     const a = FLEX_ASSETS[state.flexAsset], nd = r.days.length, MW = state.flexMW;
-    seg($("invest-asset"), Object.entries(FLEX_ASSETS).map(([k, v]) => [k, v.name]), state.flexAsset, v => { state.flexAsset = v; saveFlex(); renderInvest(view()); });
+    seg($("invest-asset"), Object.entries(FLEX_ASSETS).map(([k, v]) => [k, v.name]), state.flexAsset, v => { pickFlexAsset(v); renderInvest(view()); });
     flexPriceSeg("invest-prices", () => renderInvest(view()));
     const M = flexStats(flexPrices(r), nd, a.h, a.eff / 100);
     const margin = M.days.reduce((t, d) => t + d.value, 0) * MW * 365 / nd;
@@ -2204,13 +2216,13 @@
   function renderFlex(r) {
     if ($("sec-flex").hidden) return;
     const a = FLEX_ASSETS[state.flexAsset];
-    seg($("flex-asset"), Object.entries(FLEX_ASSETS).map(([k, v]) => [k, v.name]), state.flexAsset, v => { state.flexAsset = v; saveFlex(); renderFlex(view()); });
+    seg($("flex-asset"), Object.entries(FLEX_ASSETS).map(([k, v]) => [k, v.name]), state.flexAsset, v => { pickFlexAsset(v); renderFlex(view()); });
     $("flex-params").innerHTML = `<label>Plant size <input type="number" id="flex-mw" min="1" max="5000" step="10" value="${state.flexMW}"> MW of charging power</label>
       <label>Storage size <input type="number" id="flex-h" min="1" max="24" step="1" value="${a.h}"> hours of charging</label>
       <span class="flex-energy" id="flex-energy"></span>
       <label>Round-trip efficiency <input type="number" id="flex-eff" min="5" max="100" step="1" value="${a.eff}"> %</label>
       <span class="fineprint">${esc(a.note)}.</span>`;
-    const upd = () => { a.h = Math.max(1, Math.min(24, Math.round(+$("flex-h").value || a.h))); a.eff = Math.max(5, Math.min(100, +$("flex-eff").value || a.eff)); state.flexMW = Math.max(1, Math.min(5000, +$("flex-mw").value || state.flexMW)); saveFlex(); renderFlex(view()); };
+    const upd = () => { a.h = Math.max(1, Math.min(24, Math.round(+$("flex-h").value || a.h))); a.eff = Math.max(5, Math.min(100, +$("flex-eff").value || a.eff)); state.flexMW = a.mw = Math.max(1, Math.min(5000, +$("flex-mw").value || state.flexMW)); saveFlex(); renderFlex(view()); };
     $("flex-h").addEventListener("change", upd); $("flex-eff").addEventListener("change", upd); $("flex-mw").addEventListener("change", upd);
     // energy it can hold = plant size × hours, updated while typing
     const showEnergy = () => { const mw = +$("flex-mw").value || 0, hrs = +$("flex-h").value || 0;
@@ -2347,7 +2359,7 @@
     const spread = p => meanOf(Array.from({ length: nd }, (_, d) => { const q = p.slice(d * 24, d * 24 + 24).filter(z => z != null); return q.length ? Math.max(...q) - Math.min(...q) : null; }));
     const solved = (st, idx) => 100 * idx.filter(i => st[i] === 1).length / idx.length;
     const twh = (r, idx, cat) => (r.mix.DA[cat] ? idx.reduce((s, i) => s + (r.mix.DA[cat][i] || 0), 0) / 1e6 : null);
-    const flexYr = (p, key) => { const f = FLEX_ASSETS[key]; return flexStats(p, nd, f.h, f.eff / 100).days.reduce((s, d) => s + d.value, 0) * state.flexMW * 365 / nd; };
+    const flexYr = (p, key) => { const f = FLEX_ASSETS[key]; return flexStats(p, nd, f.h, f.eff / 100).days.reduce((s, d) => s + d.value, 0) * f.mw * 365 / nd; };
 
     // what differs between the two runs
     const fa = (A.meta && A.meta.features) || {}, fb = (B.meta && B.meta.features) || {};
@@ -2363,8 +2375,8 @@
       ["Daily price spread", spread(pa), spread(pb), "€/MWh", 1, null, spread(real)],
       ["AC hours solved", solved(v.status, ia), solved(B.status, ib), "%", 1, "high", null],
       ...D.categories.map(c => [`${c} (day-ahead)`, twh(v, ia, c), twh(B, ib, c), "TWh", 2, null, null]),
-      [`TES trading margin (${FLEX_ASSETS.tes.h} h, ${FLEX_ASSETS.tes.eff} %, ${nf(state.flexMW, 0)} MW)`, flexYr(pa, "tes"), flexYr(pb, "tes"), "€/yr", 0, null, null],
-      [`Battery trading margin (${FLEX_ASSETS.battery.h} h, ${FLEX_ASSETS.battery.eff} %, ${nf(state.flexMW, 0)} MW)`, flexYr(pa, "battery"), flexYr(pb, "battery"), "€/yr", 0, null, null],
+      [`TES trading margin (${FLEX_ASSETS.tes.h} h, ${FLEX_ASSETS.tes.eff} %, ${nf(FLEX_ASSETS.tes.mw, 0)} MW)`, flexYr(pa, "tes"), flexYr(pb, "tes"), "€/yr", 0, null, null],
+      [`Battery trading margin (${FLEX_ASSETS.battery.h} h, ${FLEX_ASSETS.battery.eff} %, ${nf(FLEX_ASSETS.battery.mw, 0)} MW)`, flexYr(pa, "battery"), flexYr(pb, "battery"), "€/yr", 0, null, null],
     ];
     const fmt = (x, dgt) => x == null ? "–" : dgt === 0 ? Math.round(x).toLocaleString("en-GB").replace("-", "−") : nf(x, dgt);
     const tbl = `<table id="cmp-table"><thead><tr><th>Measure</th><th>Unit</th><th class="cmp-ha">A</th><th class="cmp-hb">B</th><th>B − A</th><th>Real</th></tr></thead><tbody>${rows.map(([l, a, b, u, dg, better, re]) => {
