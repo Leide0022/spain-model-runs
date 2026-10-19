@@ -6,7 +6,7 @@
 <title>Spain 2024 Run Viewer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Nunito+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="viewer.css">
 </head>
 <body>
@@ -18,6 +18,10 @@
 
   <div class="layout">
     <nav class="runs" aria-label="Runs">
+      <details class="run-filters" id="run-filters" open>
+        <summary><span>Filter by model version</span><span class="rf-active" id="rf-active"></span></summary>
+        <div class="rf-body" id="rf-body"></div>
+      </details>
       <h2>Published runs · <span id="run-count"></span></h2>
       <div class="run-list" id="run-list"></div>
       <p class="hint">Runs are added with <span class="mono">scripts/publish_run.py</span> in the model repo. Get the newest ones with <span class="mono">git pull</span>.</p>
@@ -84,15 +88,12 @@
       <section class="card" id="sec-status" role="tabpanel" data-tabs="overview status">
         <div class="sec-head">
           <div>
-            <h3>AC redispatch: solved and failed hours</h3>
-            <p>One row per day, one cell per hour. A dot means a combined-cycle gas plant was running at the balancing stage.</p>
+            <h3>AC redispatch: hours that did not solve</h3>
+            <p>Every hour where the AC redispatch found no solution, with why it stopped and what the market looked like in that hour. Click a row to see the grid in that hour.</p>
           </div>
         </div>
         <div class="status-grid">
-          <div>
-            <div class="legend" id="status-legend"></div>
-            <div class="chart" id="status-chart"></div>
-          </div>
+          <div id="fail-list"></div>
           <div class="rate-list" id="rates"></div>
         </div>
       </section>
@@ -203,16 +204,83 @@
         <p class="fineprint">Real vs model uses ENTSO-E's measured output per unit, matched to the model's plants in <code>entsoe_unit_crosswalk.csv</code>; plants ENTSO-E reports only in part are left out. Output and change are from the AC redispatch; "Redispatch change" is redispatch output minus balancing output, so it shows what the grid stage changed. Hydro includes pumped storage (pumping is not counted as output). Not shown: the model's industrial CHP, waste and mini-hydro blocks (spread over 100 substations, so not at real locations) and load shedding. Failed AC hours are left out of averages.</p>
       </section>
 
+      <section class="card" id="sec-flex" role="tabpanel" data-tabs="flex">
+        <div class="sec-head">
+          <div>
+            <h3>Trading margin: what a storage unit could earn on this run's prices</h3>
+            <p>For every day, the best plan for one storage unit that charges in the cheapest hours and discharges in the most expensive ones, worked out on this run's model day-ahead price or, if you pick it, OMIE's real one for the same days. It is an upper bound for that price: the unit knows the whole day's prices in advance, does not move the price and trades the day-ahead only. Whether that margin pays for building the unit is on the Investment case tab.</p>
+          </div>
+          <div class="controls">
+            <div class="seg" role="group" aria-label="Prices" id="flex-prices"></div>
+            <div class="seg" role="group" aria-label="Storage unit" id="flex-asset"></div>
+          </div>
+        </div>
+        <div class="flex-params" id="flex-params"></div>
+        <div class="kpis flex-kpis" id="flex-kpis"></div>
+        <p class="flex-margin" id="flex-margin"></p>
+        <h4 class="flex-h4" id="flex-price-h">Model price and when the unit trades</h4>
+        <div class="legend" id="flex-price-legend"></div>
+        <div class="chart" id="flex-price-chart"></div>
+        <h4 class="flex-h4">Trading margin per day</h4>
+        <div class="legend" id="flex-legend"></div>
+        <div class="chart" id="flex-chart"></div>
+        <h4 class="flex-h4">When it charges and discharges</h4>
+        <p class="fineprint flex-sub">Share of days the unit charges (below the line) or discharges (above) in each hour of the day.</p>
+        <div class="flex-profiles" id="flex-profiles"></div>
+        <h4 class="flex-h4">Per month</h4>
+        <div class="table-wrap"><table id="flex-table"></table></div>
+        <h4 class="flex-h4">How it decides</h4>
+        <div class="flex-explain" id="flex-explain"></div>
+        <h4 class="flex-h4">What the settings mean</h4>
+        <div class="flex-terms" id="flex-terms"></div>
+        <p class="fineprint" id="flex-note"></p>
+      </section>
+
+      <section class="card" id="sec-invest" role="tabpanel" data-tabs="invest">
+        <div class="sec-head">
+          <div>
+            <h3>Investment case: does the trading margin pay for building it?</h3>
+            <p>The trading margin from the Trading margin tab, set against what the unit costs to build (CAPEX) and to run (OPEX) over its lifetime.</p>
+          </div>
+          <div class="controls">
+            <div class="seg" role="group" aria-label="Prices" id="invest-prices"></div>
+            <div class="seg" role="group" aria-label="Storage unit" id="invest-asset"></div>
+          </div>
+        </div>
+        <p class="invest-unit" id="invest-unit"></p>
+        <p class="flex-margin"><b>Only to show how it works:</b> all costs below are made-up placeholders, not sourced. The trading margin of this run's year is assumed to repeat every year of the lifetime (changed by "Margin change" if set).</p>
+        <div id="npv-plant"></div>
+        <div class="npv-inputs" id="npv-inputs"></div>
+        <div class="kpis npv-kpis" id="npv-kpis"></div>
+        <p class="npv-cash" id="npv-cash"></p>
+        <p class="fineprint flex-sub">Money in or out so far, discounted to today: the investment in year 0, then each year's cash (trading margin − fixed OPEX − variable OPEX). Where it crosses zero, the investment is paid back.</p>
+        <div id="npv-chart"></div>
+      </section>
+
+      <section class="card" id="sec-compare" role="tabpanel" data-tabs="compare">
+        <div class="sec-head">
+          <div>
+            <h3>Compare two runs</h3>
+            <p>The run you are viewing (A) next to a second run (B) of your choice, on the days both have. Use the period bar above to look at fewer days.</p>
+          </div>
+        </div>
+        <div class="cmp-pick" id="cmp-pick"></div>
+        <div id="cmp-body"></div>
+      </section>
+
       <section class="card" id="sec-stages" role="tabpanel" data-tabs="stages">
         <div class="sec-head">
           <div>
             <h3 class="pv-title">Market stages: the model next to the PowerVision paper</h3>
-            <p>The overview the PowerVision paper (Koks et al., 2026) gives for Norway, filled in for this model of Spain. Each figure and table keeps the paper's number, so they can be read side by side. These facts are the same for every run, except the traded volume at the end, which follows the run and the days shown.</p>
+            <p>The overview the PowerVision paper (Koks et al., 2026) gives for Norway, filled in for this model of Spain. Each figure and table keeps the paper's number, so they can be read side by side. These facts are the same for every run, except the order of the market stages and the model version under Model structure, which follow the run you picked, and the traded volume at the end, which follows the run and the days shown.</p>
           </div>
         </div>
         <div class="pv-block">
           <h4>Model structure</h4>
           <figure class="pv-fig"><div class="pv-svg-wrap" id="pv-structure"></div><figcaption id="pv-structure-cap"></figcaption></figure>
+          <h4 class="pv-gap">Order of the market stages: stage by stage or day by day</h4>
+          <figure class="pv-fig"><div class="pv-svg-wrap" id="pv-order"></div><figcaption id="pv-order-cap"></figcaption></figure>
+          <dl class="facts pv-gap" id="pv-version"></dl>
         </div>
         <div class="pv-block">
           <h4>Market stages and gate closure</h4>

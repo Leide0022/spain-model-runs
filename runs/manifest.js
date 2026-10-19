@@ -4,7 +4,7 @@ window.RUN_MANIFEST = [
   "schema": 1,
   "id": "2024-01-01_2024-r4-hydro-offered",
   "name": "2024 run 4: + hydro planning (offered)",
-  "note": "As run 3 (offered solar/wind), plus Magnus's hydro planning (variant aligned_rc_observed): real starting reservoir level, seasonal limits, monthly inflow.",
+  "note": "As run 3 (offered solar/wind), plus improved hydro planning (variant aligned_rc_observed): real starting reservoir level, seasonal limits, monthly inflow.",
   "published": "2026-10-18T12:25:16+02:00",
   "published_by": "Lars Erik Eide",
   "first_day": "2024-01-01",
@@ -43,6 +43,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "offered",
+   "xb": true,
+   "gas": true,
+   "markup": true,
+   "hydro": true,
+   "chain": "day"
   }
  },
  {
@@ -88,6 +96,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "offered",
+   "xb": true,
+   "gas": true,
+   "markup": true,
+   "hydro": false,
+   "chain": "day"
   }
  },
  {
@@ -133,6 +149,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "offered",
+   "xb": true,
+   "gas": true,
+   "markup": false,
+   "hydro": false,
+   "chain": "day"
   }
  },
  {
@@ -178,13 +202,21 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "offered",
+   "xb": true,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "day"
   }
  },
  {
   "schema": 1,
   "id": "2024-01-01_2024-r4-hydro",
   "name": "2024 run 4: + hydro planning",
-  "note": "As run 3, plus Magnus's hydro planning (variant aligned_rc_observed): real starting reservoir level, seasonal limits, monthly inflow.",
+  "note": "As run 3, plus improved hydro planning (variant aligned_rc_observed): real starting reservoir level, seasonal limits, monthly inflow.",
   "published": "2026-10-17T10:33:57+02:00",
   "published_by": "Lars Erik Eide",
   "first_day": "2024-01-01",
@@ -223,6 +255,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "accepted",
+   "xb": true,
+   "gas": true,
+   "markup": true,
+   "hydro": true,
+   "chain": "day"
   }
  },
  {
@@ -268,6 +308,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "accepted",
+   "xb": true,
+   "gas": true,
+   "markup": true,
+   "hydro": false,
+   "chain": "day"
   }
  },
  {
@@ -313,6 +361,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "accepted",
+   "xb": true,
+   "gas": true,
+   "markup": false,
+   "hydro": false,
+   "chain": "day"
   }
  },
  {
@@ -358,6 +414,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "accepted",
+   "xb": true,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "day"
   }
  },
  {
@@ -403,6 +467,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "offered",
+   "xb": true,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "stage"
   }
  },
  {
@@ -448,6 +520,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "accepted",
+   "xb": true,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "stage"
   }
  },
  {
@@ -481,6 +561,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "offered",
+   "xb": true,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "stage"
   }
  },
  {
@@ -514,6 +602,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "accepted",
+   "xb": true,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "stage"
   }
  },
  {
@@ -545,6 +641,14 @@ window.RUN_MANIFEST = [
    "linear_solver": null,
    "label": null,
    "reconstructed": true
+  },
+  "features": {
+   "res": "accepted",
+   "xb": false,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "stage"
   }
  },
  {
@@ -580,6 +684,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "accepted",
+   "xb": true,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "stage"
   }
  },
  {
@@ -611,6 +723,14 @@ window.RUN_MANIFEST = [
    "linear_solver": null,
    "label": null,
    "reconstructed": true
+  },
+  "features": {
+   "res": "accepted",
+   "xb": false,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "stage"
   }
  },
  {
@@ -642,6 +762,14 @@ window.RUN_MANIFEST = [
    "linear_solver": null,
    "label": null,
    "reconstructed": true
+  },
+  "features": {
+   "res": "accepted",
+   "xb": false,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "stage"
   }
  },
  {
@@ -673,6 +801,14 @@ window.RUN_MANIFEST = [
    "linear_solver": null,
    "label": null,
    "reconstructed": true
+  },
+  "features": {
+   "res": "accepted",
+   "xb": false,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "stage"
   }
  },
  {
@@ -706,6 +842,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "accepted",
+   "xb": true,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "stage"
   }
  },
  {
@@ -739,6 +883,14 @@ window.RUN_MANIFEST = [
    "linear_solver": "ma57",
    "label": "2024",
    "reconstructed": false
+  },
+  "features": {
+   "res": "accepted",
+   "xb": true,
+   "gas": false,
+   "markup": false,
+   "hydro": false,
+   "chain": "stage"
   }
  }
 ];

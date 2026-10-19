@@ -27,5 +27,13 @@
   "linear_solver": null,
   "label": null,
   "reconstructed": true
+ },
+ "features": {
+  "res": "accepted",
+  "xb": false,
+  "gas": false,
+  "markup": false,
+  "hydro": false,
+  "chain": "stage"
  }
 }

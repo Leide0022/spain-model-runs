@@ -41,5 +41,13 @@
   "linear_solver": "ma57",
   "label": "2024",
   "reconstructed": false
+ },
+ "features": {
+  "res": "accepted",
+  "xb": true,
+  "gas": false,
+  "markup": false,
+  "hydro": false,
+  "chain": "day"
  }
 }

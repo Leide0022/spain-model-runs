@@ -16,7 +16,7 @@
 
   const state = { run: MANIFEST.length ? MANIFEST[0].id : null, priceStage: "DA", priceRes: "hour", mixStage: "DA", mixRes: "hour", mixRef: "omie", zoom: null, tab: "overview", gridMode: "max", gridHour: null, gridSel: null, mapStyle: "terrain", plantSize: "cap", plantTime: "period", plantHour: null, plantSel: null, plantHidden: [], playSpeed: 2,
     gridLayers: ["hv", "lv", "trafo", "border"], gridSort: ["max", -1], gridQuery: "", gridAll: false };
-  const TABS = [["overview", "Overview"], ["price", "Price"], ["mix", "Generation mix"], ["status", "AC redispatch"], ["grid", "Grid"], ["plants", "Power plants"], ["stages", "Market stages"], ["esios", "REE (e·sios)"]];
+  const TABS = [["overview", "Overview"], ["price", "Price"], ["mix", "Generation mix"], ["flex", "Trading margin"], ["invest", "Investment case"], ["status", "AC redispatch"], ["grid", "Grid"], ["plants", "Power plants"], ["stages", "Market stages"], ["esios", "REE (e·sios)"], ["compare", "Compare runs"]];
   try { const saved = localStorage.getItem("runviewer.tab"); if (TABS.some(x => x[0] === saved)) state.tab = saved; } catch (e) {}
   try { const ms = localStorage.getItem("runviewer.mapStyle"); if (["plain", "political", "terrain", "dark"].includes(ms)) state.mapStyle = ms; } catch (e) {}
   const CAT_COLOR = { Hydro: "var(--cat-1)", CCGT: "var(--cat-2)", Wind: "var(--cat-3)", Solar: "var(--cat-4)",
@@ -112,6 +112,14 @@
     g_nlim: ["Hours at limit", "Solved AC hours in the period where this line or transformer carried its full limit (100 % loading). Failed hours are not counted."],
     g_limit: ["At limit", "The line carries its full limit. The AC redispatch does not let a line go over its limit, so 100 % means the limit is binding."],
     gas_dot: ["CCGT running", "A combined-cycle gas plant produced more than 1 MW at the balancing stage in that hour."],
+    f_chain: ["Market stage order", "Stage by stage: each market stage is solved for all days before the next stage (DA for every day, then ID2 for every day, …). Day by day: each day runs DA → ID2 → ID3 → CID → BAL before the next day starts, as in reality, so a day can hand on which plants are running at midnight (model change §16). See the Market stages tab."],
+    f_res: ["Solar/wind input", "Accepted: OMIE's accepted day-ahead solar and wind. Offered: also what was offered in the auction but not accepted, so the model can curtail it (model change §12)."],
+    f_xb: ["Cross-border split", "The redispatch chooses how the exchange with France and Portugal is split over the border lines, instead of a fixed split by line rating (§11). Removed most failed AC hours."],
+    f_gas: ["Gas and coal", "Each gas plant has its own cost (daily gas and CO₂ price, efficiency by build year) and on/off rules; coal cost from import prices; closed coal plants removed; island plants out of the market; day-by-day market chain (§13, §14, §16)."],
+    f_markup: ["Tax and mark-ups", "Spain's generation tax (IVPEE, by quarter) and mark-ups on gas and coal bids; the gas mark-up is higher in tight hours (§17)."],
+    f_hydro: ["Improved hydro planning", "Improved hydro planning: real starting reservoir level (REE), seasonal limits (rule curves) and monthly inflow (§15)."],
+    f_margin: ["Trading margin", "Money from selling electricity minus money paid for the electricity it bought. Not profit: the investment (heater, tank or battery), staff, maintenance, insurance, wear, grid charges and taxes still have to be paid out of it. Here it is also a best case: perfect knowledge of the day's prices, day-ahead market only."],
+    f_len: ["Period", "Length of the run: a full year, about a month, or a week or less."],
   };
   const term = (label, key) => `<span class="term" tabindex="0" data-tip="${key}">${label}</span>`;
   const gloss = document.createElement("div");
@@ -283,6 +291,11 @@
         pen = true;
       });
       svg("path", { d, fill: "none", stroke: ser.color, "stroke-width": ser.width || 1.75, "stroke-linejoin": "round", "stroke-linecap": "round" }, s);
+    }
+    // optional dots on the first series, e.g. the hours a storage unit charges or discharges
+    for (const pt of o.points || []) for (const i of pt.idx) {
+      const v = o.series[0].values[i];
+      if (v != null) svg("circle", { cx: x(i), cy: y(v), r: pt.r || 3, fill: pt.color, stroke: "var(--surface)", "stroke-width": 1, "pointer-events": "none" }, s);
     }
 
     if (o.endLabels) {
@@ -493,22 +506,75 @@
     }
   }
 
+  // ---------- run filters: which model changes a run used ----------
+  // meta.features in runs/manifest.js: res ("accepted"/"offered") and true/false for the rest;
+  // a run without features only shows when that filter is on "Any".
+  const ON_OFF = [["any", "Any"], ["on", "On"], ["off", "Off"]];
+  const FEATS = [
+    ["chain", "Market stage order", "f_chain", [["any", "Any"], ["stage", "Stage"], ["day", "Day by day"]], "day by day"],
+    ["res", "Solar/wind", "f_res", [["any", "Any"], ["accepted", "Accepted"], ["offered", "Offered"]], "offered"],
+    ["xb", "Cross-border split", "f_xb", ON_OFF, "cross-border"],
+    ["gas", "Gas and coal", "f_gas", ON_OFF, "gas & coal"],
+    ["markup", "Tax and mark-ups", "f_markup", ON_OFF, "mark-ups"],
+    ["hydro", "Improved hydro planning", "f_hydro", ON_OFF, "hydro"],
+    ["len", "Period", "f_len", [["any", "Any"], ["year", "Year"], ["month", "Month"], ["week", "≤ Week"]], null],
+  ];
+  const filters = Object.fromEntries(FEATS.map(f => [f[0], "any"]));
+  try { const sf = JSON.parse(localStorage.getItem("runviewer.filters") || "{}"); for (const [k, opts] of FEATS.map(f => [f[0], f[3]])) if (opts.some(o => o[0] === sf[k])) filters[k] = sf[k]; } catch (e) {}
+  function featValue(m, key) {
+    if (key === "len") return m.n_days >= 300 ? "year" : m.n_days >= 20 ? "month" : "week";
+    const v = (m.features || {})[key];
+    return v == null ? null : typeof v === "boolean" ? (v ? "on" : "off") : v;
+  }
+  const runMatches = (m, skip) => FEATS.every(([k]) => k === skip || filters[k] === "any" || featValue(m, k) === filters[k]);
+  function renderRunFilters() {
+    const host = $("rf-body"); host.innerHTML = "";
+    for (const [key, label, tip, opts] of FEATS) {
+      const row = document.createElement("div"); row.className = "rf-row";
+      row.innerHTML = `<span class="rf-label">${term(label, tip)}</span>`;
+      const g = document.createElement("div"); g.className = "seg rf-seg"; g.setAttribute("role", "group"); g.setAttribute("aria-label", label);
+      for (const [val, txt] of opts) {
+        // how many runs this choice would leave, given the other filters
+        const n = MANIFEST.filter(m => runMatches(m, key) && (val === "any" || featValue(m, key) === val)).length;
+        const b = document.createElement("button");
+        b.type = "button"; b.setAttribute("aria-pressed", String(filters[key] === val));
+        b.innerHTML = `${esc(txt)}<span class="rf-n">${n}</span>`;
+        b.disabled = n === 0 && filters[key] !== val;
+        b.addEventListener("click", () => { filters[key] = val; saveFilters(); renderRunList(); });
+        g.appendChild(b);
+      }
+      row.appendChild(g); host.appendChild(row);
+    }
+    const nActive = FEATS.filter(f => filters[f[0]] !== "any").length;
+    $("rf-active").innerHTML = nActive ? `${nActive} on · <button type="button" class="rf-clear" id="rf-clear">Clear</button>` : "";
+    if (nActive) $("rf-clear").addEventListener("click", ev => { ev.preventDefault(); FEATS.forEach(f => { filters[f[0]] = "any"; }); saveFilters(); renderRunList(); });
+  }
+  function saveFilters() { try { localStorage.setItem("runviewer.filters", JSON.stringify(filters)); } catch (e) {} }
+
   // ---------- sections ----------
   function renderRunList() {
+    renderRunFilters();
     const host = $("run-list"); host.innerHTML = "";
-    for (const m of MANIFEST) {
+    const shown = MANIFEST.filter(m => runMatches(m));
+    for (const m of shown) {
       const pct = m.ac_total ? 100 * m.ac_solved / m.ac_total : 0, i = m.info || {};
+      const tagOn = { res: "offered", chain: "day" };
+      const tags = m.features ? FEATS.filter(f => f[4] && featValue(m, f[0]) === (tagOn[f[0]] || "on")).map(f => f[4]) : [];
+      if (m.features && m.features.res === "accepted") tags.unshift("accepted");
       const b = document.createElement("button");
       b.type = "button"; b.className = "run-item";
       b.setAttribute("aria-current", String(m.id === state.run));
       b.innerHTML = `<span class="ri-name">${esc(m.name)}</span>
         <span class="ri-meta"><span>${period([m.first_day, m.last_day])}</span><span class="mono">${esc(i.commit || "–")}</span><span>${esc(i.ran_by || "–")}</span></span>
+        ${tags.length ? `<span class="ri-tags">${tags.map(t => `<span class="ri-tag">${esc(t)}</span>`).join("")}</span>` : ""}
         <span class="ri-meta"><span>${nf(pct, 0)} % of hours solved</span></span>
         <span class="meter" aria-hidden="true"><span style="width:${pct}%"></span></span>`;
       b.addEventListener("click", () => { if (m.id !== state.run || !run()) selectRun(m.id); });
       host.appendChild(b);
     }
-    $("run-count").textContent = String(MANIFEST.length);
+    if (!shown.length) host.innerHTML = `<p class="rf-empty">No run has this combination of model changes.</p>`;
+    else if (!shown.some(m => m.id === state.run)) host.insertAdjacentHTML("afterbegin", `<p class="rf-empty">The run you are viewing is hidden by the filters.</p>`);
+    $("run-count").textContent = shown.length === MANIFEST.length ? String(MANIFEST.length) : `${shown.length} of ${MANIFEST.length}`;
   }
 
   function renderHead(r) {
@@ -559,7 +625,7 @@
     const v = view();
     renderTabs(v);
     // sections that were hidden have no width yet, so draw them now that they are visible
-    renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v);
+    renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v);
     // if the page was scrolled down, jump back to the top of the new tab's content
     const headBottom = $("run-head").getBoundingClientRect().bottom;
     if (headBottom < 0) window.scrollTo({ top: window.scrollY + headBottom + 16 });
@@ -887,6 +953,7 @@
     const F = G.frame;
     if (!mapVBs[key]) mapVBs[key] = F.slice();
     host.innerHTML = "";
+    (host.closest(".grid-wrap") || host).style.setProperty("--map-ar", F[2] / F[3]);
     const s = svg("svg", { viewBox: mapVBs[key].join(" "), role: "img", "aria-label": label, preserveAspectRatio: "xMidYMid meet" }, host);
     s.style.aspectRatio = `${F[2]} / ${F[3]}`;
     const ML = window.MAP_LAYERS, st = state.mapStyle, plain = st === "plain", terrain = st === "terrain";
@@ -1306,7 +1373,7 @@
       <button type="button" id="p-prev" aria-label="Show the previous ${len} days" ${z[0] === 0 || !state.zoom ? "disabled" : ""}>← Earlier</button>
       <button type="button" id="p-next" aria-label="Show the next ${len} days" ${z[1] === nd - 1 || !state.zoom ? "disabled" : ""}>Later →</button>
       <button type="button" id="p-reset" ${state.zoom ? "" : "disabled"}>Show all days</button>
-      <span class="p-hint">Drag across a chart to zoom in, or click a day in the solve grid.</span>`;
+      <span class="p-hint">Drag across a chart to zoom in.</span>`;
     $("p-from").onchange = e => { const a = +e.target.value; setZoom(a, Math.max(a, z[1])); };
     $("p-to").onchange = e => { const b = +e.target.value; setZoom(Math.min(z[0], b), b); };
     $("p-prev").onclick = () => { const a = Math.max(0, z[0] - len); setZoom(a, a + len - 1); };
@@ -1680,46 +1747,45 @@
     $("rd-why-note").innerHTML = `<b>Why:</b> ${nf(share("Voltage control"), 0)} % of what REE turned up was for <b>voltage control</b> and ${nf(share("Overloads after a contingency (N-1)"), 0)} % for <b>overloads after a contingency</b>; the model has neither. Only ${nf(share("Overloads, base case"), 1)} % was for overloads in the base case, the one cause the model's AC grid sees (✔). REE paid ${nf(1000 * pR, 0)} €/MWh above the market for what it turned up (bids with start-up costs); the model values its changes at marginal cost, and in its hour-by-hour redispatch pumped storage has no energy limit and costs almost nothing: it turned pumped storage up by ${nf(ps, 0)} GWh and gas down by ${nf(gasDown, 0)} GWh. REE's causes overlap a little; each stage's split is scaled to its total.`;
   }
 
+  // Ipopt's verdict for a failed hour (summary.csv `status`), in plain words
+  const FAIL_WORDS = {
+    LOCALLY_INFEASIBLE: "No feasible point: Ipopt converged to a point that breaks some limits",
+    INFEASIBLE: "Infeasible",
+    ITERATION_LIMIT: "Stopped at Ipopt's iteration limit",
+    TIME_LIMIT: "Stopped at the time limit",
+    NUMERICAL_ERROR: "Numerical trouble (Ipopt's restoration phase failed)",
+    OTHER_ERROR: "Ipopt stopped with an error",
+    SLOW_PROGRESS: "Stopped: no more progress",
+    ALMOST_LOCALLY_SOLVED: "Almost solved (tolerance not met)",
+  };
   function renderStatus(r) {
-    const host = $("status-chart"); host.innerHTML = "";
-    const nd = r.days.length;
-    const ccgt = r.mix.BAL.CCGT;
-    $("status-legend").innerHTML = `<span><i class="sw-box" style="background:var(--cell-ok)"></i>${term("Solved", "okhour")}</span>
-      <span><i class="sw-box" style="background:var(--critical)"></i>${term("Failed", "failed")}</span>
-      <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="2.5" fill="var(--ink-2)"/></svg>${term("CCGT running", "gas_dot")}</span>`;
-    const W = Math.max(260, host.clientWidth);
-    const lab = 52, gap = 2;
-    const big = state.tab === "status";
-    const cw = Math.min(big ? 34 : 22, (W - lab) / 24);
-    const ch = Math.min(big ? 22 : 16, Math.max(10, cw * 0.7));
-    const H = 18 + nd * ch;
-    const s = svg("svg", { width: lab + 24 * cw, height: H, role: "img", "aria-label": "Solved and failed AC hours per day" }, host);
-    for (const h of [0, 6, 12, 18, 23]) { const t = svg("text", { x: lab + h * cw + cw / 2, y: 11, "text-anchor": "middle" }, s); t.textContent = hh(h).slice(0, 2); }
-    const tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; host.appendChild(tip);
-    r.days.forEach((d, di) => {
-      const yy = 18 + di * ch;
-      const t = svg("text", { x: lab - 6, y: yy + ch / 2 + 4, "text-anchor": "end", class: "day-link" }, s); t.textContent = dayLabel(d);
-      if (r.days.length > 1) {
-        const tt = svg("title", {}, t); tt.textContent = "Show only " + dayLabel(d);
-        t.addEventListener("click", () => setZoom(r.offset + di, r.offset + di));
-      } else t.removeAttribute("class");
-      for (let h = 0; h < 24; h++) {
-        const i = di * 24 + h, ok = r.status[i] === 1, gas = (ccgt[i] || 0) > 1;
-        const cell = svg("rect", { x: lab + h * cw + gap / 2, y: yy + gap / 2, width: cw - gap, height: ch - gap, rx: 2, fill: ok ? "var(--cell-ok)" : "var(--critical)" }, s);
-        if (gas) svg("circle", { cx: lab + h * cw + cw / 2, cy: yy + ch / 2, r: Math.min(2.5, ch / 5), fill: ok ? "var(--ink-2)" : "#fff", "pointer-events": "none" }, s);
-        cell.addEventListener("pointerenter", () => {
-          tip.innerHTML = `<b>${dayLabel(d)}, ${hh(h)}</b><div class="row">${ok ? "Solved" : '<span style="color:var(--critical)">Failed</span>'}</div>
-            <div class="row">CCGT at balancing<span class="v">${nf(ccgt[i] || 0, 0)} MW</span></div>
-            <div class="row">Model DA price<span class="v">${nf(r.price.DA[i])} €/MWh</span></div>
-            <div class="row">Real price<span class="v">${nf(r.real_price[i])} €/MWh</span></div>`;
-          tip.hidden = false;
-          const tw = tip.offsetWidth;
-          let left = lab + (h + 1) * cw + 6; if (left + tw > W) left = lab + h * cw - tw - 6;
-          tip.style.left = Math.max(0, left) + "px"; tip.style.top = Math.max(0, yy - 10) + "px";
-        });
-        cell.addEventListener("pointerleave", () => { tip.hidden = true; });
-      }
-    });
+    const host = $("fail-list");
+    const ccgt = r.mix.BAL.CCGT, mixBal = r.mix.BAL;
+    const h0 = r.offset * 24, info = r.fail_info || null;
+    const failed = []; r.status.forEach((s, i) => { if (s !== 1) failed.push(i); });
+    if (!failed.length) {
+      host.innerHTML = `<p class="fail-none">${icon("good")} All ${r.status.length.toLocaleString("en-GB")} hours in this period solved.</p>`;
+    } else {
+      const reasons = {};
+      for (const i of failed) { const k = info && info[h0 + i] ? info[h0 + i].status : "not recorded"; reasons[k] = (reasons[k] || 0) + 1; }
+      const mw = (k, i) => mixBal[k] ? nf(mixBal[k][i] || 0, 0) : "–";
+      const rows = failed.map(i => {
+        const d = r.days[Math.floor(i / 24)], f = info && info[h0 + i];
+        const why = f ? `<span class="mono">${esc(f.status)}</span>${FAIL_WORDS[f.status] ? `<span class="fail-why">${esc(FAIL_WORDS[f.status])}</span>` : ""}${f.where ? `<span class="fail-where">${esc(f.where)}</span>` : ""}${f.ipopt ? `<span class="fail-why">Ipopt: ${esc(f.ipopt)}</span>` : ""}` : `<span class="fail-why">not recorded</span>`;
+        return `<tr data-h="${h0 + i}" tabindex="0"><td>${dayLabel(d)}</td><td>${hh(i % 24)}</td><td class="fail-reason">${why}</td>
+          <td>${mw("Imports", i)}</td><td>${mw("Wind", i)}</td><td>${mw("Solar", i)}</td><td>${nf(ccgt[i] || 0, 0)}</td><td>${nf(r.price.DA[i])}</td></tr>`;
+      }).join("");
+      host.innerHTML = `<div class="fail-sum">${Object.entries(reasons).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<span class="ri-tag">${esc(k)} · ${n}</span>`).join("")}</div>
+        <div class="gt-scroll fail-scroll"><table id="fail-table"><thead><tr><th>Day</th><th>Hour</th><th>Why it stopped</th>
+        <th>Imports<br>MW</th><th>Wind<br>MW</th><th>Solar<br>MW</th><th>CCGT<br>MW</th><th>DA price<br>€/MWh</th></tr></thead><tbody>${rows}</tbody></table></div>
+        ${info ? "" : `<p class="fineprint">This run was published before the reason was recorded. Republish it with the newest <span class="mono">scripts/publish_run.py</span> to fill in "Why it stopped".</p>`}
+        <p class="fineprint">Imports, wind, solar and CCGT are the balancing-stage values the redispatch started from.</p>`;
+      const open = h => { stopPlay("gh"); state.gridMode = "hour"; state.gridHour = h; if (state.tab === "grid") renderGrid(view()); else pickTab("grid"); };
+      host.querySelectorAll("tr[data-h]").forEach(tr => {
+        tr.addEventListener("click", () => open(+tr.dataset.h));
+        tr.addEventListener("keydown", ev => { if (ev.key === "Enter") open(+tr.dataset.h); });
+      });
+    }
 
     const grp = on => { let n = 0, f = 0; r.status.forEach((sv, i) => { if (((ccgt[i] || 0) > 1) === on) { n++; if (!sv) f++; } }); return { n, f }; };
     const g1 = grp(true), g0 = grp(false), all = { n: r.status.length, f: r.status.filter(x => !x).length };
@@ -1868,9 +1934,564 @@
     $("pv-traded-cap").innerHTML = `<b>Table 4, Spanish version.</b> Average volume traded per stage over the days shown, in GWh per day, counting one side of each trade (what is sold, which equals what is bought). Model: in ID2, ID3 and CID, the sum of all position increases from the previous stage, over every plant and the consumers (a higher load forecast is a purchase); ID3 trades hours 12–23 only. In BE, what the balancing plants moved up plus down. Real: energy assigned in IDA2 (e·sios 606) and IDA3 (607) from 14 June 2024, and in the continuous market (1442), all from OMIE; BE is REE's activated aFRR, mFRR and RR, up plus down. Each column averages only over days with data on both sides.${early}${none} <span class="pv-ref">PowerVision paper, Table 4 (which counts buy + sell, twice our numbers)</span>`;
   }
 
+  // ---------- flexibility value: daily storage arbitrage on model vs real day-ahead prices ----------
+  // One unit with 1 MW charging power and room for `h` hours of charging; each MWh stored gives back
+  // `eff` MWh when discharged (discharge power = eff MW). Every day starts and ends empty, and the
+  // best plan is found exactly by dynamic programming over the hours and the (whole-MWh) state of
+  // charge: with integer power and size the LP optimum is integral, so nothing is lost by that.
+  const FLEX_ASSETS = {
+    tes: { name: "Soto de Ribera TES", h: 8, eff: 40, note: "electric heater into a molten-salt tank, back out through the existing steam cycle; size and efficiency are placeholders (vault: 35–45 %, open)" },
+    battery: { name: "Battery", h: 4, eff: 88, note: "a 4-hour lithium-ion battery, for comparison" },
+  };
+  try { const sv = JSON.parse(localStorage.getItem("runviewer.flex") || "null"); if (sv && FLEX_ASSETS[sv.asset]) { state.flexAsset = sv.asset; for (const k in FLEX_ASSETS) if (sv[k]) Object.assign(FLEX_ASSETS[k], { h: +sv[k].h || FLEX_ASSETS[k].h, eff: +sv[k].eff || FLEX_ASSETS[k].eff }); } } catch (e) {}
+  state.flexAsset = state.flexAsset || "tes";
+  state.flexMW = 100;   // charging power of the plant the totals are for (MW); per-MW figures do not depend on it
+  try { const sv = JSON.parse(localStorage.getItem("runviewer.flex") || "null"); if (sv && +sv.mw > 0) state.flexMW = +sv.mw; } catch (e) {}
+  function saveFlex() { try { localStorage.setItem("runviewer.flex", JSON.stringify({ asset: state.flexAsset, mw: state.flexMW, tes: FLEX_ASSETS.tes, battery: FLEX_ASSETS.battery })); } catch (e) {} }
+  function arbitrageDay(p, h, eff) {
+    // V[t][s]: best earnings from hour t on with s MWh stored; must end at 0
+    const T = p.length, NEG = -1e18;
+    const V = Array.from({ length: T + 1 }, () => new Float64Array(h + 1).fill(NEG));
+    const A = Array.from({ length: T }, () => new Int8Array(h + 1));
+    V[T][0] = 0;
+    for (let t = T - 1; t >= 0; t--) for (let s = 0; s <= h; s++) {
+      let best = V[t + 1][s], act = 0;                               // idle
+      if (p[t] != null) {
+        if (s < h && V[t + 1][s + 1] - p[t] > best + 1e-9) { best = V[t + 1][s + 1] - p[t]; act = 1; }         // charge 1 MWh
+        if (s > 0 && V[t + 1][s - 1] + eff * p[t] > best + 1e-9) { best = V[t + 1][s - 1] + eff * p[t]; act = -1; } // discharge
+      }
+      V[t][s] = best; A[t][s] = act;
+    }
+    const act = []; let s = 0;
+    for (let t = 0; t < T; t++) { act.push(A[t][s]); s += A[t][s]; }
+    return { value: V[0][0], act };
+  }
+  function flexStats(prices, nd, h, eff) {
+    const days = [], acts = [], chg = new Array(24).fill(0), dis = new Array(24).fill(0);
+    for (let d = 0; d < nd; d++) {
+      const p = prices.slice(d * 24, d * 24 + 24).map(x => x == null || Number.isNaN(x) ? null : x);
+      const ok = p.filter(x => x != null);
+      const { value, act } = arbitrageDay(p, h, eff);
+      acts.push(...act);
+      let buyMWh = 0, buyEur = 0, sellMWh = 0, sellEur = 0;
+      act.forEach((a, k) => {
+        if (a === 1) { chg[k]++; buyMWh += 1; buyEur += p[k]; }
+        else if (a === -1) { dis[k]++; sellMWh += eff; sellEur += eff * p[k]; }
+      });
+      days.push({ value, spread: ok.length ? Math.max(...ok) - Math.min(...ok) : null, runs: value > 0.005, buyMWh, buyEur, sellMWh, sellEur });
+    }
+    return { days, acts, chg: chg.map(c => c / nd), dis: dis.map(c => c / nd) };
+  }
+  // How the unit decides, on one made-up day with a typical solar-shaped price: the same
+  // calculation as for the run (arbitrageDay), with the unit's size and efficiency.
+  const FLEX_EXAMPLE_DAY = [62, 58, 55, 53, 54, 60, 72, 85, 80, 62, 40, 22, 12, 8, 6, 9, 18, 40, 75, 98, 112, 108, 90, 72];
+  function renderFlexExplain(a) {
+    const p = FLEX_EXAMPLE_DAY, eff = a.eff / 100, { value, act } = arbitrageDay(p, a.h, eff);
+    const W = 520, l = 44, pw = W - l - 10, bw = pw / 24, top = 26, ph = 130, lvlTop = top + ph + 50, lh = 54, H = lvlTop + lh + 10;
+    const yP = v => top + ph - v / 120 * ph;
+    let g = `<svg viewBox="0 0 ${W} ${H}" class="flex-ex" role="img" aria-label="Example day: the unit charges in the cheapest hours and discharges in the most expensive ones">
+      <text x="${l}" y="14" class="fx-h">Made-up example day: price per hour (€/MWh)</text>`;
+    for (const v of [0, 40, 80, 120]) g += `<line x1="${l}" x2="${l + pw}" y1="${yP(v)}" y2="${yP(v)}" class="fp-grid"/><text x="${l - 5}" y="${yP(v) + 3}" text-anchor="end" class="fp-ax">${v}</text>`;
+    let s = 0; const lvl = [];
+    act.forEach((x, k) => {
+      const cls = x === 1 ? "fp-chg" : x === -1 ? "fp-dis" : "fx-idle";
+      g += `<rect x="${l + k * bw + 1.5}" y="${yP(p[k])}" width="${bw - 3}" height="${yP(0) - yP(p[k])}" rx="2" class="${cls}"><title>${hh(k)}: ${p[k]} €/MWh, ${x === 1 ? "charges" : x === -1 ? "discharges" : "waits"}</title></rect>`;
+      s += x; lvl.push(s);
+      if (k % 3 === 0) g += `<text x="${l + k * bw + bw / 2}" y="${top + ph + 14}" text-anchor="middle" class="fp-ax">${hh(k)}</text>`;
+    });
+    // stored energy through the day
+    const yL = v => lvlTop + lh - v / a.h * lh;
+    let d = `M${l},${yL(0)}`;
+    lvl.forEach((v, k) => { d += `L${l + k * bw},${yL(v)}L${l + (k + 1) * bw},${yL(v)}`; });
+    d += `L${l + pw},${yL(0)}Z`;
+    g += `<text x="${l}" y="${lvlTop - 8}" class="fx-h">Stored energy</text>
+      <line x1="${l}" x2="${l + pw}" y1="${yL(0)}" y2="${yL(0)}" class="fp-axis"/><line x1="${l}" x2="${l + pw}" y1="${yL(a.h)}" y2="${yL(a.h)}" class="fp-grid"/>
+      <text x="${l - 5}" y="${yL(a.h) + 3}" text-anchor="end" class="fp-ax">full</text><text x="${l - 5}" y="${yL(0) + 3}" text-anchor="end" class="fp-ax">empty</text>
+      <path d="${d}" class="fx-lvl"/></svg>`;
+    const buys = act.map((x, k) => x === 1 ? p[k] : null).filter(x => x != null), sells = act.map((x, k) => x === -1 ? p[k] : null).filter(x => x != null);
+    const mean = v => v.reduce((x, y) => x + y, 0) / v.length;
+    const res = buys.length
+      ? `Example day: buys at about <b>${nf(mean(buys), 0)}</b>, sells at about <b>${nf(mean(sells), 0)} €/MWh</b> → trading margin <b>${nf(value, 0)} € per MW</b>.`
+      : `Example day: nothing pays, so it waits.`;
+    $("flex-explain").innerHTML = `${g}
+      <div class="fx-text">
+        <ol>
+          <li><b>Buys</b> <i class="sw-box" style="background:var(--model)"></i> in the day's cheapest hours and <b>sells</b> <i class="sw-box" style="background:var(--soto)"></i> in the most expensive.</li>
+          <li><b>Only if it pays:</b> 1 MWh in gives ${nf(eff, 2)} MWh back, so it sells only at <b>${nf(100 / a.eff, 2)} ×</b> the buying price or more.</li>
+          <li><b>Empty</b> at the start and end of every day; holds up to ${a.h} hours of charging.</li>
+        </ol>
+        <p>${res}</p>
+      </div>`;
+  }
+  // Storage size and round-trip efficiency, drawn for the unit picked
+  function renderFlexTerms(a) {
+    const eff = a.eff / 100, MW = state.flexMW, tes = state.flexAsset === "tes";
+    // storage size: one block per hour of charging at 1 MW
+    const W1 = 480, bw = Math.min(40, 400 / a.h), x0 = 20, y0 = 34, bh = 46;
+    let s1 = `<svg viewBox="0 0 ${W1} 150" class="flex-ex" role="img" aria-label="Storage size: ${a.h} hours of charging at 1 MW is ${a.h} MWh">
+      <text x="${x0}" y="16" class="fx-h">Storage size: ${a.h} hours of charging</text>
+      <rect x="${x0 - 3}" y="${y0 - 3}" width="${a.h * bw + 6}" height="${bh + 6}" rx="6" class="fx-tank"/>`;
+    for (let k = 0; k < a.h; k++) s1 += `<rect x="${x0 + k * bw + 1.5}" y="${y0}" width="${bw - 3}" height="${bh}" rx="3" class="fp-chg"/>`
+      + (bw >= 28 ? `<text x="${x0 + k * bw + bw / 2}" y="${y0 + bh / 2 + 4}" text-anchor="middle" class="fx-in">${k + 1} h</text>` : "");
+    s1 += `<text x="${x0}" y="${y0 + bh + 26}" class="fx-t">Charging 1 MW for ${a.h} hours fills it: <tspan class="fx-b">${a.h} MWh per MW</tspan>.</text>
+      <text x="${x0}" y="${y0 + bh + 46}" class="fx-t">A ${nf(MW, 0)} MW plant stores ${nf(a.h * MW, 0)} MWh.</text></svg>`;
+    // round-trip efficiency: 1 MWh in, eff back out, the rest lost
+    const W2 = 480, L = 20, BW = 400, y1 = 40, y2 = 104, hb = 26;
+    const s2 = `<svg viewBox="0 0 ${W2} 150" class="flex-ex" role="img" aria-label="Round-trip efficiency: 1 MWh bought gives ${nf(eff, 2)} MWh back">
+      <text x="${L}" y="16" class="fx-h">Round-trip efficiency: ${a.eff} %</text>
+      <rect x="${L}" y="${y1}" width="${BW}" height="${hb}" rx="4" class="fp-chg"/>
+      <text x="${L + 8}" y="${y1 + 17}" class="fx-in">Bought: 1 MWh</text>
+      <text x="${L + BW / 2}" y="${y1 + hb + 22}" text-anchor="middle" class="fx-t">↓ ${tes ? "heater → salt tank → steam turbine" : "into the battery and back out"} ↓</text>
+      <rect x="${L}" y="${y2}" width="${BW * eff}" height="${hb}" rx="4" class="fp-dis"/>
+      <rect x="${L + BW * eff + 2}" y="${y2}" width="${Math.max(0, BW * (1 - eff) - 2)}" height="${hb}" rx="4" class="fx-loss"/>
+      <text x="${L + 8}" y="${y2 + 17}" class="fx-in">${BW * eff > 110 ? `Sold: ${nf(eff, 2)} MWh` : nf(eff, 2)}</text>
+      ${eff < 0.97 ? `<text x="${L + BW * eff + 10}" y="${y2 + 17}" class="fx-t">${BW * (1 - eff) > 120 ? `Lost: ${nf(1 - eff, 2)} MWh${tes ? " (heat)" : ""}` : "lost"}</text>` : ""}
+    </svg>`;
+    // trading margin vs profit, on the made-up example day
+    const ex = arbitrageDay(FLEX_EXAMPLE_DAY, a.h, eff);
+    const sales = ex.act.reduce((t, x, k) => t + (x === -1 ? eff * FLEX_EXAMPLE_DAY[k] : 0), 0);
+    const bought = ex.act.reduce((t, x, k) => t + (x === 1 ? FLEX_EXAMPLE_DAY[k] : 0), 0);
+    const W3 = 980, X0 = 200, SW = 560, sx = v => v / Math.max(sales, 1) * SW, rh3 = 30;
+    const row = (k, label, x, w, cls, val) => `<text x="${X0 - 10}" y="${34 + k * (rh3 + 8) + 20}" text-anchor="end" class="fx-t">${label}</text>`
+      + `<rect x="${X0 + x}" y="${34 + k * (rh3 + 8)}" width="${Math.max(w, 2)}" height="${rh3}" rx="4" class="${cls}"/>`
+      + `<text x="${X0 + x + Math.max(w, 2) + 8}" y="${34 + k * (rh3 + 8) + 20}" class="fx-t">${val}</text>`;
+    const s3 = `<svg viewBox="0 0 ${W3} 210" class="flex-ex" role="img" aria-label="From sales to profit on the example day">
+      <text x="20" y="16" class="fx-h">Trading margin is not profit (example day, per MW)</text>
+      ${row(0, "Money from selling", 0, sx(sales), "fp-dis", `${nf(sales, 0)} €`)}
+      ${row(1, "− electricity bought", sx(sales - bought), sx(bought), "fp-chg", `−${nf(bought, 0)} €`)}
+      ${row(2, "= trading margin", 0, sx(sales - bought), "fx-margin", `<tspan class="fx-b">${nf(sales - bought, 0)} €</tspan>  ← what this tab shows`)}
+      ${row(3, "− other costs", 0, sx(sales - bought), "fx-unknown", "investment, staff, maintenance, wear, grid charges: not included")}
+      <text x="${X0 - 10}" y="${34 + 4 * (rh3 + 8) + 14}" text-anchor="end" class="fx-t">= profit</text>
+      <text x="${X0}" y="${34 + 4 * (rh3 + 8) + 14}" class="fx-t">unknown here: the margin minus the other costs</text>
+    </svg>`;
+    $("flex-terms").innerHTML = `<div>${s1}</div><div>${s2}<p class="fx-note">So selling must pay at least <b>${nf(100 / a.eff, 2)} ×</b> the buying price just to break even.</p></div><div class="fx-wide">${s3}</div>`;
+  }
+  // ---------- investment check (NPV) on top of the trading margin ----------
+  // Placeholder costs, only to show how the check works: NOT sourced, replace before using.
+  const INV_DEFAULT = {
+    tes: { capKW: 150, capKWh: 30, capFix: 20, opexKW: 10, opexMWh: 2, rate: 7, life: 25, growth: 0 },
+    battery: { capKW: 150, capKWh: 200, capFix: 0, opexKW: 8, opexMWh: 0, rate: 7, life: 15, growth: 0 },
+  };
+  const INV = JSON.parse(JSON.stringify(INV_DEFAULT));
+  try { const sv = JSON.parse(localStorage.getItem("runviewer.inv") || "null"); if (sv) for (const k in INV) Object.assign(INV[k], sv[k] || {}); } catch (e) {}
+  const saveInv = () => { try { localStorage.setItem("runviewer.inv", JSON.stringify(INV)); } catch (e) {} };
+  function renderFlexNPV(a, M, nd, MW) {
+    const key = state.flexAsset, c = INV[key];
+    const kW = MW * 1000, kWh = MW * a.h * 1000;
+    const capex = kW * c.capKW + kWh * c.capKWh + c.capFix * 1e6;
+    const margin = M.days.reduce((t, d) => t + d.value, 0) * MW * 365 / nd;        // €/yr, year 1
+    const sold = M.days.reduce((t, d) => t + d.sellMWh, 0) * MW * 365 / nd;        // MWh/yr
+    const r = c.rate / 100, L = Math.max(1, Math.round(c.life)), g = c.growth / 100;
+    const cash = Array.from({ length: L }, (_, t) => margin * (1 + g) ** t - c.opexKW * kW - c.opexMWh * sold);
+    const pv = rr => cash.reduce((s, x, t) => s + x / (1 + rr) ** (t + 1), 0);
+    const npv = pv(r) - capex;
+    const payback = disc => {   // years until the cumulative cash covers the CAPEX (fraction of a year by interpolation)
+      let cum = -capex;
+      for (let t = 0; t < L; t++) { const x = disc ? cash[t] / (1 + r) ** (t + 1) : cash[t]; if (cum + x >= 0 && x > 0) return t + (-cum) / x; cum += x; }
+      return null;
+    };
+    let irr = null;
+    if (pv(-0.99) - capex > 0 && pv(1) - capex < 0) { let lo = -0.99, hi = 1; for (let k = 0; k < 80; k++) { const mid = (lo + hi) / 2; if (pv(mid) - capex > 0) lo = mid; else hi = mid; } irr = (lo + hi) / 2; }
+    const breakEven = pv(r);
+    const Meur = x => x == null ? "–" : `${nf(x / 1e6, Math.abs(x) < 1e7 ? 2 : 1)}`;
+    const yrs = x => x == null ? `never within ${L} years` : `${nf(x, 1)} years`;
+
+    // inputs in three columns: what it costs to build, what it costs to run, money over time
+    const tesU = key === "tes";
+    const inp = (k, st) => `<input type="number" data-k="${k}" step="${st}" value="${c[k]}">`;
+    const item = (k, st, unit, name, what, total) => `<div class="npv-item"><div class="npv-row"><b>${name}</b><span>${inp(k, st)} ${unit}</span></div>
+      <div class="npv-what">${what}</div>${total ? `<div class="npv-tot">${total}</div>` : ""}</div>`;
+    $("npv-inputs").innerHTML = `
+      <div class="npv-col"><h5><span class="npv-dot capex"></span>CAPEX: paid once, to build it</h5>
+        ${item("capKW", 10, "€ per kW", tesU ? "Heater" : "Power electronics", tesU ? "The electric heater that turns electricity into heat. Priced per kW of charging power." : "The inverter and grid connection. Priced per kW of power.", `${nf(MW, 0)} MW → ${Meur(kW * c.capKW)} M€`)}
+        ${item("capKWh", 1, "€ per kWh", tesU ? "Salt tank" : "Battery cells", tesU ? "The tanks of molten salt that hold the heat. Priced per kWh it can hold." : "The cells that hold the energy. Priced per kWh it can hold.", `${nf(MW * a.h, 0)} MWh → ${Meur(kWh * c.capKWh)} M€`)}
+        ${item("capFix", 1, "M€", "Fixed sum", tesU ? "One-off costs that do not depend on size: adapting the existing steam turbine, connecting the tank, planning." : "One-off costs that do not depend on size: planning, permits, site work.", "")}
+        <div class="npv-sum">Total CAPEX <b>${Meur(capex)} M€</b></div></div>
+      <div class="npv-col"><h5><span class="npv-dot opex"></span>OPEX: paid every year, to run it</h5>
+        ${item("opexKW", 1, "€ per kW per year", "Fixed", "Staff, maintenance, insurance. Paid every year, even if the plant never runs.", `${Meur(c.opexKW * kW)} M€ per year`)}
+        ${item("opexMWh", 0.5, "€ per MWh sold", "Variable", tesU ? "Wear and starting the steam turbine. Paid for each MWh it sells, so only when it runs." : "Wear on the cells. Paid for each MWh it sells, so only when it runs.", `${nf(sold, 0)} MWh sold → ${Meur(c.opexMWh * sold)} M€ per year`)}
+        <div class="npv-sum">Total OPEX <b>${Meur(c.opexKW * kW + c.opexMWh * sold)} M€</b> per year</div></div>
+      <div class="npv-col"><h5><span class="npv-dot time"></span>Money over time</h5>
+        ${item("rate", 0.5, "% per year", "Discount rate", `Money later is worth less than money now. At ${c.rate} %, 100 € in a year is worth ${nf(100 / (1 + c.rate / 100), 0)} € today.`, "")}
+        ${item("life", 1, "years", "Lifetime", "How many years the plant runs and earns.", "")}
+        ${item("growth", 0.5, "% per year", "Margin change", "Lets the trading margin grow (or shrink) each year. 0 = every year like this run's year.", "")}
+        <button type="button" class="npv-reset" id="npv-reset">Reset to placeholders</button></div>`;
+    $("npv-inputs").querySelectorAll("input").forEach(el => el.addEventListener("change", () => {
+      const v = +el.value; if (Number.isFinite(v)) { c[el.dataset.k] = v; saveInv(); renderFlexNPV(a, M, nd, MW); }
+    }));
+    $("npv-reset").onclick = () => { INV[key] = { ...INV_DEFAULT[key] }; saveInv(); renderFlexNPV(a, M, nd, MW); };
+
+    // the plant, with what each part costs: CAPEX on the parts, OPEX on the running plant
+    const parts = tesU
+      ? [["Grid", "buys electricity", null], ["Heater", `${nf(MW, 0)} MW`, `${Meur(kW * c.capKW)} M€`], ["Salt tank", `${nf(MW * a.h, 0)} MWh`, `${Meur(kWh * c.capKWh)} M€`], ["Steam turbine", "existing, adapted", `${Meur(c.capFix * 1e6)} M€`], ["Grid", "sells electricity", null]]
+      : [["Grid", "buys electricity", null], ["Inverter", `${nf(MW, 0)} MW`, `${Meur(kW * c.capKW)} M€`], ["Battery cells", `${nf(MW * a.h, 0)} MWh`, `${Meur(kWh * c.capKWh)} M€`], ["Inverter", "same one, back out", c.capFix ? `${Meur(c.capFix * 1e6)} M€ other` : null], ["Grid", "sells electricity", null]];
+    const PW = 980, pbw = 150, pgap = (PW - 40 - 5 * pbw) / 4, pbx = k => 20 + k * (pbw + pgap);
+    let pl = `<svg viewBox="0 0 ${PW} 200" class="npv-plant" role="img" aria-label="The plant and what each part costs">
+      <defs><marker id="npv-head" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="np-hd"/></marker></defs>`;
+    parts.forEach(([n, sub, cost], k) => {
+      const grid = n === "Grid";
+      pl += `<rect x="${pbx(k)}" y="20" width="${pbw}" height="58" rx="8" class="${grid ? "np-grid" : "np-part"}"/>
+        <text x="${pbx(k) + pbw / 2}" y="44" text-anchor="middle" class="np-n">${n}</text><text x="${pbx(k) + pbw / 2}" y="63" text-anchor="middle" class="np-s">${sub}</text>`;
+      if (cost) pl += `<text x="${pbx(k) + pbw / 2}" y="100" text-anchor="middle" class="np-cap">CAPEX ${cost}</text>`;
+      if (k < 4) pl += `<line x1="${pbx(k) + pbw + 4}" y1="49" x2="${pbx(k + 1) - 4}" y2="49" class="np-ar" marker-end="url(#npv-head)"/>`;
+    });
+    const ox = pbx(1), ow = pbx(3) + pbw - pbx(1);
+    pl += `<rect x="${ox}" y="122" width="${ow}" height="54" rx="8" class="np-opex"/>
+      <text x="${ox + ow / 2}" y="144" text-anchor="middle" class="np-n">OPEX every year: ${Meur(c.opexKW * kW + c.opexMWh * sold)} M€</text>
+      <text x="${ox + ow / 2}" y="164" text-anchor="middle" class="np-s">fixed ${Meur(c.opexKW * kW)} M€ (staff, maintenance) + variable ${Meur(c.opexMWh * sold)} M€ (wear, per MWh sold)</text>
+      <text x="${pbx(0) + pbw / 2}" y="100" text-anchor="middle" class="np-s">pays the buying price</text>
+      <text x="${pbx(4) + pbw / 2}" y="100" text-anchor="middle" class="np-s">gets the selling price</text></svg>`;
+    $("npv-plant").innerHTML = pl;
+
+    const tiles = [
+      ["NPV", `${Meur(npv)}<small>M€</small>`, npv >= 0 ? `${icon("good")} pays off at ${c.rate} %` : `does not pay off at ${c.rate} %`],
+      ["Payback", payback(false) == null ? `<span class="npv-never">never</span>` : `${nf(payback(false), 1)}<small>years</small>`, `with discounting: ${yrs(payback(true))}`],
+      ["IRR", irr == null ? "–" : `${nf(100 * irr, 1)}<small>%</small>`, irr == null ? "no rate makes it pay" : `return per year; compare with ${c.rate} %`],
+      ["Break-even CAPEX", breakEven > 0 ? `${Meur(breakEven)}<small>M€</small>` : "0", breakEven > 0 ? `the most it may cost (now ${Meur(capex)} M€)` : "running costs eat the whole margin"],
+    ];
+    $("npv-kpis").innerHTML = tiles.map(([l, v, s]) => `<div class="kpi"><span class="k-label">${l}</span><span class="k-value">${v}</span><span class="k-sub">${s}</span></div>`).join("");
+    // when every year loses money, no CAPEX can pay off: say so plainly
+    const runCost = c.opexKW * kW + c.opexMWh * sold;
+    const warn = cash[0] <= 0
+      ? `<span class="npv-warn"><b>It loses money every year</b>: the running costs (${Meur(runCost)} M€ per year) are bigger than the trading margin (${Meur(margin)} M€ per year), so it can never pay off, whatever it costs to build. It needs a bigger trading margin (prices that swing more, or another unit) or lower OPEX: fixed OPEX would have to be below ${nf(Math.max(0, margin - c.opexMWh * sold) / kW, 2)} € per kW per year just to break even each year.</span><br>`
+      : "";
+    $("npv-cash").innerHTML = warn + `CAPEX <b>${Meur(capex)} M€</b> (${nf(MW, 0)} MW × ${c.capKW} €/kW + ${nf(MW * a.h, 0)} MWh × ${c.capKWh} €/kWh + ${c.capFix} M€) ·
+      year 1: trading margin <b>${Meur(margin)} M€</b> − fixed OPEX ${Meur(c.opexKW * kW)} M€ − variable OPEX ${Meur(c.opexMWh * sold)} M€ = <b>${Meur(cash[0])} M€</b> cash`;
+
+    // cumulative discounted cash, year 0 (the investment) to the end of the lifetime
+    const cum = [-capex]; cash.forEach((x, t) => cum.push(cum[t] + x / (1 + r) ** (t + 1)));
+    const W = 900, H = 260, l = 64, b = 26, t0 = 14, pw = W - l - 10, ph = H - t0 - b;
+    const lo = Math.min(0, ...cum), hi = Math.max(0, ...cum), span = hi - lo || 1;
+    const y = v => t0 + (hi - v) / span * ph, bw = pw / cum.length;
+    let s = `<svg viewBox="0 0 ${W} ${H}" class="npv-chart" role="img" aria-label="Cumulative discounted cash flow over the lifetime">`;
+    for (const v of niceTicks(lo, hi, 4)) if (v >= lo - 1e-6 && v <= hi + 1e-6) s += `<line x1="${l}" x2="${l + pw}" y1="${y(v)}" y2="${y(v)}" class="fp-grid"/><text x="${l - 6}" y="${y(v) + 4}" text-anchor="end" class="fp-ax">${nf(v / 1e6, Math.abs(span) < 2e7 ? 1 : 0)}</text>`;
+    s += `<text x="0" y="10" class="fp-ax">M€</text>`;
+    cum.forEach((v, k) => {
+      const x = l + k * bw + 2, w = Math.max(2, bw - 4);
+      s += `<rect x="${x}" y="${Math.min(y(v), y(0))}" width="${w}" height="${Math.max(1, Math.abs(y(v) - y(0)))}" rx="2" class="${v >= 0 ? "npv-pos" : "npv-neg"}"><title>Year ${k}: ${nf(v / 1e6, 2)} M€ so far (discounted)</title></rect>`;
+      if (k % Math.ceil(cum.length / 13) === 0 || k === cum.length - 1) s += `<text x="${x + w / 2}" y="${H - 8}" text-anchor="middle" class="fp-ax">${k}</text>`;
+    });
+    s += `<line x1="${l}" x2="${l + pw}" y1="${y(0)}" y2="${y(0)}" class="fp-axis"/>`;
+    const pb = payback(true);
+    if (pb != null) { const xp = l + (pb + 0.5) * bw; s += `<line x1="${xp}" x2="${xp}" y1="${t0}" y2="${t0 + ph}" class="npv-pb"/><text x="${xp + 4}" y="${t0 + 10}" class="fp-ax">paid back after ${nf(pb, 1)} years</text>`; }
+    $("npv-chart").innerHTML = s + `<text x="${l + pw}" y="${H - 8}" text-anchor="end" class="fp-ax">year</text></svg>`;
+  }
+
+  // Which prices the storage unit trades on: the run's model DA price, or OMIE's real day-ahead price
+  // for the same days. Shared by the Trading margin and Investment case tabs.
+  state.flexPrice = "model";
+  try { const fp = localStorage.getItem("runviewer.flexPrice"); if (fp === "model" || fp === "real") state.flexPrice = fp; } catch (e) {}
+  const FLEX_PRICE = { model: ["Model prices", "the model's day-ahead price", "Model DA price"], real: ["Real prices", "OMIE's real day-ahead price", "Real DA price (OMIE)"] };
+  const flexPrices = r => state.flexPrice === "real" ? r.real_price : r.price.DA;
+  function flexPriceSeg(id, redraw) {
+    seg($(id), [["model", "Model prices"], ["real", "Real prices (OMIE)"]], state.flexPrice, v => {
+      state.flexPrice = v; try { localStorage.setItem("runviewer.flexPrice", v); } catch (e) {} redraw(); });
+  }
+  // Investment case tab: the same unit and trading margin as the Trading margin tab, then CAPEX/OPEX
+  function renderInvest(r) {
+    if ($("sec-invest").hidden) return;
+    const a = FLEX_ASSETS[state.flexAsset], nd = r.days.length, MW = state.flexMW;
+    seg($("invest-asset"), Object.entries(FLEX_ASSETS).map(([k, v]) => [k, v.name]), state.flexAsset, v => { state.flexAsset = v; saveFlex(); renderInvest(view()); });
+    flexPriceSeg("invest-prices", () => renderInvest(view()));
+    const M = flexStats(flexPrices(r), nd, a.h, a.eff / 100);
+    const margin = M.days.reduce((t, d) => t + d.value, 0) * MW * 365 / nd;
+    $("invest-unit").innerHTML = `<b>${esc(a.name)}</b>: ${nf(MW, 0)} MW, holds ${nf(MW * a.h, 0)} MWh (${a.h} h), ${a.eff} % round-trip ·
+      trading margin <b>${Math.round(margin).toLocaleString("en-GB")} € per year</b> on ${FLEX_PRICE[state.flexPrice][1]}${nd < 360 ? ` (scaled up from ${nd} days)` : ""} ·
+      <button type="button" class="invest-link" id="invest-link">change size or efficiency on the Trading margin tab</button>`;
+    $("invest-link").onclick = () => pickTab("flex");
+    renderFlexNPV(a, M, nd, MW);
+  }
+  function renderFlex(r) {
+    if ($("sec-flex").hidden) return;
+    const a = FLEX_ASSETS[state.flexAsset];
+    seg($("flex-asset"), Object.entries(FLEX_ASSETS).map(([k, v]) => [k, v.name]), state.flexAsset, v => { state.flexAsset = v; saveFlex(); renderFlex(view()); });
+    $("flex-params").innerHTML = `<label>Plant size <input type="number" id="flex-mw" min="1" max="5000" step="10" value="${state.flexMW}"> MW of charging power</label>
+      <label>Storage size <input type="number" id="flex-h" min="1" max="24" step="1" value="${a.h}"> hours of charging</label>
+      <span class="flex-energy" id="flex-energy"></span>
+      <label>Round-trip efficiency <input type="number" id="flex-eff" min="5" max="100" step="1" value="${a.eff}"> %</label>
+      <span class="fineprint">${esc(a.note)}.</span>`;
+    const upd = () => { a.h = Math.max(1, Math.min(24, Math.round(+$("flex-h").value || a.h))); a.eff = Math.max(5, Math.min(100, +$("flex-eff").value || a.eff)); state.flexMW = Math.max(1, Math.min(5000, +$("flex-mw").value || state.flexMW)); saveFlex(); renderFlex(view()); };
+    $("flex-h").addEventListener("change", upd); $("flex-eff").addEventListener("change", upd); $("flex-mw").addEventListener("change", upd);
+    // energy it can hold = plant size × hours, updated while typing
+    const showEnergy = () => { const mw = +$("flex-mw").value || 0, hrs = +$("flex-h").value || 0;
+      $("flex-energy").innerHTML = `= holds <b>${nf(mw * hrs, 0)} MWh</b> <span class="fe-sub">(${nf(mw, 0)} MW × ${nf(hrs, 0)} h)</span>`; };
+    $("flex-mw").addEventListener("input", showEnergy); $("flex-h").addEventListener("input", showEnergy); showEnergy();
+
+    renderFlexExplain(a);
+    renderFlexTerms(a);
+    const nd = r.days.length, eff = a.eff / 100, MW = state.flexMW;
+    flexPriceSeg("flex-prices", () => renderFlex(view()));
+    const P = flexPrices(r), PL = FLEX_PRICE[state.flexPrice];
+    $("flex-price-h").textContent = `${state.flexPrice === "real" ? "Real" : "Model"} price and when the unit trades`;
+    const M = flexStats(P, nd, a.h, eff);
+    const tot = (idx, k) => idx.reduce((t, i) => t + M.days[i][k], 0);
+    const all = r.days.map((_, i) => i);
+    const eur = x => x == null || !isFinite(x) ? "–" : Math.round(x).toLocaleString("en-GB");
+    const avg = (idx, eurK, mwhK) => { const m = tot(idx, mwhK); return m > 0 ? tot(idx, eurK) / m : null; };
+    const meanSpread = idx => { const v = idx.map(i => M.days[i].spread).filter(x => x != null); return v.length ? v.reduce((x, y) => x + y, 0) / v.length : null; };
+    const sum = tot(all, "value"), nRun = M.days.filter(d => d.runs).length;
+    const buy = avg(all, "buyEur", "buyMWh"), sell = avg(all, "sellEur", "sellMWh");
+    const tiles = [
+      [term("Trading margin per year", "f_margin"), `${eur(sum * MW * 365 / nd)}<small>€/yr</small>`, `sales − electricity bought, before all other costs · ${nf(MW, 0)} MW · ${eur(sum * 365 / nd)} €/MW·yr${nd < 360 ? ` · scaled up from ${nd} days` : ""}`],
+      ["Days worth running", `${nRun}<small>of ${nd}</small>`, `${nf(100 * nRun / nd, 0)} % of days earn anything`],
+      ["Average buying price", `${nf(buy, 1)}<small>€/MWh</small>`, "price paid for the electricity it charges"],
+      ["Average selling price", `${nf(sell, 1)}<small>€/MWh</small>`, `needs at least ${nf(100 / a.eff, 2)} × the buying price to earn`],
+      ["Daily price spread", `${nf(meanSpread(all), 0)}<small>€/MWh</small>`, "highest − lowest hour, average over the days"],
+    ];
+    $("flex-kpis").innerHTML = tiles.map(([l, v, s]) => `<div class="kpi"><span class="k-label">${l}</span><span class="k-value">${v}</span><span class="k-sub">${s}</span></div>`).join("");
+    $("flex-margin").innerHTML = `<b>Trading margin is not profit.</b> It is the money from selling minus the money paid for the electricity it bought. The investment, staff, maintenance, wear and grid charges are not subtracted; they all have to be paid out of this. See the picture at the bottom.`;
+
+    // model price with the hours the unit trades
+    $("flex-price-legend").innerHTML = `<span><i class="sw-line" style="background:var(--ink-2)"></i>${PL[2]}</span>
+      <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--model)"/></svg>Charges (buys)</span>
+      <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--soto)"/></svg>Discharges (sells)</span>`;
+    const ph = $("flex-price-chart"), idxOf = v => M.acts.reduce((o, x, i) => (x === v && o.push(i), o), []);
+    lineChart(ph, {
+      n: nd * 24, height: 320, label: `${PL[2]} with the hours the storage unit charges and discharges`, endLabels: false, yUnit: "€/MWh",
+      onZoom: (x0, x1) => zoomFromChart(x0, x1, true),
+      xTicks: dayTicks(r.days, true, ph.clientWidth - 60),
+      series: [{ name: PL[2], values: P, color: "var(--ink-2)", width: 1.25 }],
+      points: [{ idx: idxOf(1), color: "var(--model)" }, { idx: idxOf(-1), color: "var(--soto)" }],
+      tooltip: i => `<b>${dayLabel(r.days[Math.floor(i / 24)])}, ${hh(i % 24)}</b>
+        <div class="row">${PL[2]}<span class="v">${nf(P[i])} €/MWh</span></div>
+        <div class="row">${M.acts[i] === 1 ? "Charges (buys)" : M.acts[i] === -1 ? "Discharges (sells)" : "Waits"}</div>`,
+    });
+
+    $("flex-legend").innerHTML = `<span><i class="sw-line" style="background:var(--model)"></i>Trading margin per day, ${nf(MW, 0)} MW plant</span>`;
+    const host = $("flex-chart");
+    lineChart(host, {
+      n: nd, height: 300, label: "Storage trading margin per day on the model's day-ahead price", endLabels: false, yUnit: `€ per day (${nf(MW, 0)} MW)`,
+      onZoom: (x0, x1) => zoomFromChart(x0, x1, false),
+      xTicks: dayTicks(r.days, false, host.clientWidth - 60),
+      series: [{ name: "Trading margin", values: M.days.map(d => d.value * MW), color: "var(--model)", width: 2 }],
+      tooltip: i => {
+        const d = M.days[i];
+        return `<b>${dayLabel(r.days[i])}</b>
+        <div class="row">Trading margin<span class="v">${eur(d.value * MW)} € (${nf(d.value, 0)} €/MW)</span></div>
+        <div class="row">Price spread<span class="v">${nf(d.spread, 0)} €/MWh</span></div>
+        ${d.runs ? `<div class="row">Buys at / sells at<span class="v">${nf(d.buyEur / d.buyMWh, 0)} / ${nf(d.sellEur / d.sellMWh, 0)} €/MWh</span></div>` : `<div class="row">Not worth running</div>`}`;
+      },
+    });
+
+    // charge/discharge profile by hour of day
+    const W = 720, H = 220, l = 40, b = 22, t = 12, pw = W - l - 8, half = (H - t - b) / 2, mid = t + half, bw = pw / 24;
+    // axis top: the smallest of 10/25/50/100 % that fits the busiest hour
+    const top = [0.1, 0.25, 0.5, 1].find(v => v >= Math.max(...M.dis, ...M.chg, 0.01)) || 1, sc = half / top;
+    let g = `<svg viewBox="0 0 ${W} ${H}" class="flex-prof" role="img" aria-label="Share of days the unit charges and discharges in each hour of the day">`;
+    for (const v of [1, 0.5, -0.5, -1]) g += `<line x1="${l}" x2="${l + pw}" y1="${mid - v * half}" y2="${mid - v * half}" class="fp-grid"/><text x="${l - 5}" y="${mid - v * half + 3}" text-anchor="end" class="fp-ax">${nf(Math.abs(v) * top * 100, Math.abs(v) * top * 100 % 1 ? 1 : 0)} %</text>`;
+    for (let k = 0; k < 24; k++) {
+      const x = l + k * bw + 1.5, w = bw - 3;
+      if (M.dis[k] > 0) g += `<rect x="${x}" y="${mid - M.dis[k] * sc}" width="${w}" height="${M.dis[k] * sc}" rx="2" class="fp-dis"><title>${hh(k)}: discharges on ${nf(100 * M.dis[k], 0)} % of days</title></rect>`;
+      if (M.chg[k] > 0) g += `<rect x="${x}" y="${mid}" width="${w}" height="${M.chg[k] * sc}" rx="2" class="fp-chg"><title>${hh(k)}: charges on ${nf(100 * M.chg[k], 0)} % of days</title></rect>`;
+      if (k % 2 === 0) g += `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle" class="fp-ax">${hh(k)}</text>`;
+    }
+    g += `<line x1="${l}" x2="${l + pw}" y1="${mid}" y2="${mid}" class="fp-axis"/>`
+      + `<text x="${l + 6}" y="${t + 12}" class="fp-ax">discharges ↑</text><text x="${l + 6}" y="${H - b - 6}" class="fp-ax">charges ↓</text></svg>`;
+    $("flex-profiles").innerHTML = `<div class="legend"><span><i class="sw-box" style="background:var(--soto)"></i>Discharges (sells)</span><span><i class="sw-box" style="background:var(--model)"></i>Charges (buys)</span></div>${g}`;
+
+    // per month
+    const months = {};
+    r.days.forEach((d, i) => { const k = d.slice(0, 7); (months[k] = months[k] || []).push(i); });
+    const rowsM = Object.entries(months).map(([k, idx]) => {
+      const n = idx.filter(i => M.days[i].runs).length;
+      return `<tr><td>${MON[+k.slice(5) - 1]} ${k.slice(0, 4)}</td><td>${nf(meanSpread(idx), 0)}</td><td>${n} of ${idx.length}</td><td>${nf(avg(idx, "buyEur", "buyMWh"), 1)}</td><td>${nf(avg(idx, "sellEur", "sellMWh"), 1)}</td><td>${eur(tot(idx, "value") * MW)}</td></tr>`;
+    }).join("");
+    $("flex-table").innerHTML = `<thead><tr><th>Month</th><th>Price spread<br>€/MWh</th><th>Days worth running</th><th>Buys at<br>€/MWh</th><th>Sells at<br>€/MWh</th><th>Trading margin<br>€, ${nf(MW, 0)} MW</th></tr></thead><tbody>${rowsM}</tbody>`;
+    $("flex-note").innerHTML = `How it is worked out: each day on its own, starting and ending empty; in each hour the unit charges 1 MW, discharges or waits, and the plan with the highest trading margin (discharge price × efficiency − charge price) is chosen, knowing the whole day's prices. Prices: ${PL[1]}${state.flexPrice === "real" ? " (hours without a real price, the daylight-saving hour, are skipped)" : ""}. Totals are for the plant size above (earnings grow in proportion to it); per year scales the period to 365 days. Not included: intraday and balancing markets, grid limits, wear, heat losses in the tank, start-up of the steam cycle, carrying energy over to the next day. The unit does not move the price (price-taker).`;
+  }
+
+  // ---------- compare: the run you are viewing (A) next to a second run (B) ----------
+  // Only the days both runs have (and the days shown in the period bar) are compared.
+  // B is loaded the first time it is picked, like any run.
+  const FEAT_LABEL = { chain: ["Market stage order", v => v === "day" ? "day by day" : "stage by stage"], res: ["Solar/wind", v => v],
+    xb: ["Cross-border split", v => v ? "on" : "off"], gas: ["Gas and coal", v => v ? "on" : "off"],
+    markup: ["Tax and mark-ups", v => v ? "on" : "off"], hydro: ["Improved hydro planning", v => v ? "on" : "off"] };
+  state.cmpRes = "day";
+  function defaultB(a) {
+    const others = MANIFEST.filter(m => m.id !== a.id && m.last_day >= a.first_day && m.first_day <= a.last_day);
+    // the twin (same run with the other solar/wind input), else the run published just before
+    const twin = others.find(m => m.id === a.id.replace(/-offered$/, "") || m.id === a.id + "-offered");
+    return (twin || others[0] || {}).id || null;
+  }
+  function renderCompare(v) {
+    if ($("sec-compare").hidden) return;
+    const A = run(), aMeta = A.meta || {};
+    const options = MANIFEST.filter(m => m.id !== A.id && m.last_day >= v.days[0] && m.first_day <= v.days[v.days.length - 1]);
+    if (!options.some(m => m.id === state.cmpB)) state.cmpB = defaultB(aMeta.id ? aMeta : { id: A.id, first_day: A.days[0], last_day: A.days[A.days.length - 1] });
+    $("cmp-pick").innerHTML = `<span class="cmp-a"><i class="sw-line" style="background:var(--model)"></i><b>A</b> ${esc(A.name)}</span>
+      <label class="cmp-b"><i class="sw-line" style="background:var(--cat-2)"></i><b>B</b>
+        <select id="cmp-select">${options.map(m => `<option value="${esc(m.id)}"${m.id === state.cmpB ? " selected" : ""}>${esc(m.name)} · ${period([m.first_day, m.last_day])}</option>`).join("")}</select></label>`;
+    $("cmp-select").addEventListener("change", ev => { state.cmpB = ev.target.value; renderCompare(view()); });
+    const body = $("cmp-body");
+    if (!state.cmpB) { body.innerHTML = `<p class="fineprint">No other run shares days with this one.</p>`; return; }
+    const B = D.runs.find(r => r.id === state.cmpB);
+    if (!B) {
+      body.innerHTML = `<p class="fineprint">Loading run B …</p>`;
+      const want = state.cmpB;
+      loadRun(want).then(() => { if (state.cmpB === want) renderCompare(view()); })
+        .catch(e => { body.innerHTML = `<p class="fineprint">${esc(e.message)}. Is this run in your copy of runs/? Try git pull.</p>`; });
+      return;
+    }
+
+    // hours both runs have, within the days shown
+    const bDay = new Map(B.days.map((d, i) => [d, i]));
+    const days = [], ia = [], ib = [];
+    v.days.forEach((d, di) => { if (!bDay.has(d)) return; days.push(d); for (let h = 0; h < 24; h++) { ia.push(di * 24 + h); ib.push(bDay.get(d) * 24 + h); } });
+    if (!days.length) { body.innerHTML = `<p class="fineprint">The two runs share no days in the period shown.</p>`; return; }
+    const pick = (arr, idx) => idx.map(i => arr[i]);
+    const real = pick(v.real_price, ia), pa = pick(v.price.DA, ia), pb = pick(B.price.DA, ib);
+    const nd = days.length;
+    const meanOf = x => { const y = x.filter(z => z != null && !Number.isNaN(z)); return y.length ? y.reduce((s, z) => s + z, 0) / y.length : null; };
+    const mae = (m, idx) => meanOf(idx.map(i => m[i] != null && real[i] != null ? Math.abs(m[i] - real[i]) : null));
+    const all = real.map((_, i) => i);
+    const spread = p => meanOf(Array.from({ length: nd }, (_, d) => { const q = p.slice(d * 24, d * 24 + 24).filter(z => z != null); return q.length ? Math.max(...q) - Math.min(...q) : null; }));
+    const solved = (st, idx) => 100 * idx.filter(i => st[i] === 1).length / idx.length;
+    const twh = (r, idx, cat) => (r.mix.DA[cat] ? idx.reduce((s, i) => s + (r.mix.DA[cat][i] || 0), 0) / 1e6 : null);
+    const flexYr = (p, key) => { const f = FLEX_ASSETS[key]; return flexStats(p, nd, f.h, f.eff / 100).days.reduce((s, d) => s + d.value, 0) * state.flexMW * 365 / nd; };
+
+    // what differs between the two runs
+    const fa = (A.meta && A.meta.features) || {}, fb = (B.meta && B.meta.features) || {};
+    const diffs = Object.keys(FEAT_LABEL).filter(k => fa[k] !== undefined && fb[k] !== undefined && fa[k] !== fb[k])
+      .map(k => `<li><b>${FEAT_LABEL[k][0]}</b>: A ${FEAT_LABEL[k][1](fa[k])}, B ${FEAT_LABEL[k][1](fb[k])}</li>`);
+    const diffHtml = !A.meta?.features || !B.meta?.features ? `<p class="fineprint">The model changes are not recorded for one of the runs.</p>`
+      : diffs.length ? `<ul class="cmp-diff">${diffs.join("")}</ul>` : `<p class="fineprint">Same model changes; they differ in code version (${esc(A.info.commit)} vs ${esc(B.info.commit)}) or settings.</p>`;
+
+    // key numbers: [label, A, B, unit, digits, better ("low"/"high"/null), real]
+    const rows = [
+      ["Price error vs OMIE (MAE)", mae(pa, all), mae(pb, all), "€/MWh", 1, "low", null],
+      ["Average day-ahead price", meanOf(pa), meanOf(pb), "€/MWh", 1, null, meanOf(real)],
+      ["Daily price spread", spread(pa), spread(pb), "€/MWh", 1, null, spread(real)],
+      ["AC hours solved", solved(v.status, ia), solved(B.status, ib), "%", 1, "high", null],
+      ...D.categories.map(c => [`${c} (day-ahead)`, twh(v, ia, c), twh(B, ib, c), "TWh", 2, null, null]),
+      [`TES trading margin (${FLEX_ASSETS.tes.h} h, ${FLEX_ASSETS.tes.eff} %, ${nf(state.flexMW, 0)} MW)`, flexYr(pa, "tes"), flexYr(pb, "tes"), "€/yr", 0, null, null],
+      [`Battery trading margin (${FLEX_ASSETS.battery.h} h, ${FLEX_ASSETS.battery.eff} %, ${nf(state.flexMW, 0)} MW)`, flexYr(pa, "battery"), flexYr(pb, "battery"), "€/yr", 0, null, null],
+    ];
+    const fmt = (x, dgt) => x == null ? "–" : dgt === 0 ? Math.round(x).toLocaleString("en-GB").replace("-", "−") : nf(x, dgt);
+    const tbl = `<table id="cmp-table"><thead><tr><th>Measure</th><th>Unit</th><th class="cmp-ha">A</th><th class="cmp-hb">B</th><th>B − A</th><th>Real</th></tr></thead><tbody>${rows.map(([l, a, b, u, dg, better, re]) => {
+      const win = better && a != null && b != null && Math.abs(a - b) > 1e-9 ? ((better === "low") === (b < a) ? "b" : "a") : null;
+      return `<tr><td>${l}</td><td class="cmp-u">${u}</td><td class="${win === "a" ? "cmp-win" : ""}">${fmt(a, dg)}</td><td class="${win === "b" ? "cmp-win" : ""}">${fmt(b, dg)}</td><td>${a == null || b == null ? "–" : (b - a > 0 ? "+" : "") + fmt(b - a, dg)}</td><td class="cmp-real">${re == null ? "" : fmt(re, dg)}</td></tr>`;
+    }).join("")}</tbody></table>`;
+
+    body.innerHTML = `
+      <div class="cmp-what"><h4 class="flex-h4">What differs</h4>${diffHtml}
+        <p class="fineprint">${nd} day${nd === 1 ? "" : "s"} compared (${period(days)}): the days both runs have, within the period shown above.</p></div>
+      <h4 class="flex-h4">Key numbers</h4>
+      <div class="table-wrap">${tbl}</div>
+      <p class="fineprint">Bold = closer to reality (price error) or more hours solved. Generation is the day-ahead stage. Trading margin = sales − electricity bought, before investment and running costs, with the settings on the Trading margin tab.</p>
+      <div class="cmp-head"><h4 class="flex-h4">Price</h4><div class="seg" role="group" aria-label="Time resolution" id="cmp-res"></div></div>
+      <div class="legend"><span><i class="sw-line" style="background:var(--model)"></i>A</span><span><i class="sw-line" style="background:var(--cat-2)"></i>B</span><span><i class="sw-line" style="background:var(--axis)"></i>Real (OMIE)</span></div>
+      <div class="chart" id="cmp-chart"></div>
+      <h4 class="flex-h4">Generation: how much more or less B produces than A</h4>
+      <div id="cmp-mix"></div>
+      <h4 class="flex-h4">Per month</h4>
+      <div class="table-wrap"><table id="cmp-month"></table></div>`;
+
+    // price chart
+    seg($("cmp-res"), [["day", "Daily mean"], ["hour", "Hourly"]], state.cmpRes, x => { state.cmpRes = x; renderCompare(view()); });
+    const hourly = state.cmpRes === "hour", dm = a => hourly ? a : dailyMean(a, nd);
+    const host = $("cmp-chart");
+    lineChart(host, {
+      n: hourly ? nd * 24 : nd, height: 340, label: "Day-ahead price, run A vs run B", endLabels: true, yUnit: "€/MWh",
+      xTicks: dayTicks(days, hourly, host.clientWidth - 110),
+      series: [
+        { name: "Real", values: dm(real), color: "var(--axis)", width: 1 },
+        { name: "A", values: dm(pa), color: "var(--model)", width: 2 },
+        { name: "B", values: dm(pb), color: "var(--cat-2)", width: 2 },
+      ],
+      tooltip: i => { const a = dm(pa)[i], b = dm(pb)[i], re = dm(real)[i];
+        return `<b>${hourly ? dayLabel(days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(days[i]) + " (daily mean)"}</b>
+          <div class="row"><i class="sw-line" style="background:var(--model)"></i>A<span class="v">${nf(a)} €/MWh</span></div>
+          <div class="row"><i class="sw-line" style="background:var(--cat-2)"></i>B<span class="v">${nf(b)} €/MWh</span></div>
+          <div class="row"><i class="sw-line" style="background:var(--axis)"></i>Real<span class="v">${nf(re)} €/MWh</span></div>`; },
+    });
+
+    // generation difference per technology, B − A, TWh
+    const dif = D.categories.map(c => [c, (twh(B, ib, c) ?? 0) - (twh(v, ia, c) ?? 0)]);
+    const mx = Math.max(0.01, ...dif.map(d => Math.abs(d[1])));
+    const W = 760, lab = 120, mid = lab + (W - lab - 70) / 2, half = (W - lab - 70) / 2, rh = 26;
+    let g = `<svg viewBox="0 0 ${W} ${dif.length * rh + 28}" class="cmp-bars" role="img" aria-label="Generation difference per technology, B minus A">
+      <text x="${mid - half}" y="14" class="cb-ax">A produces more ←</text><text x="${mid + half}" y="14" text-anchor="end" class="cb-ax">→ B produces more</text>
+      <line x1="${mid}" x2="${mid}" y1="20" y2="${dif.length * rh + 24}" class="cb-axis"/>`;
+    dif.forEach(([c, d], k) => {
+      const y = 24 + k * rh, w = Math.abs(d) / mx * (half - 80);   // room left for the value label
+      g += `<text x="${lab - 8}" y="${y + 15}" text-anchor="end" class="cb-lab">${c}</text>
+        <rect x="${d >= 0 ? mid : mid - w}" y="${y + 4}" width="${Math.max(w, 1)}" height="${rh - 8}" rx="3" fill="${d >= 0 ? "var(--cat-2)" : "var(--model)"}"><title>${c}: B ${d >= 0 ? "+" : ""}${nf(d, 2)} TWh vs A</title></rect>
+        <text x="${d >= 0 ? mid + w + 6 : mid - w - 6}" y="${y + 15}" text-anchor="${d >= 0 ? "start" : "end"}" class="cb-val">${d >= 0 ? "+" : "−"}${nf(Math.abs(d), 2)} TWh</text>`;
+    });
+    $("cmp-mix").innerHTML = g + `</svg>`;
+
+    // per month
+    const months = {};
+    days.forEach((d, i) => { const k = d.slice(0, 7); (months[k] = months[k] || []).push(i); });
+    $("cmp-month").innerHTML = `<thead><tr><th>Month</th><th>Real<br>€/MWh</th><th class="cmp-ha">A<br>€/MWh</th><th class="cmp-hb">B<br>€/MWh</th><th>Error A<br>€/MWh</th><th>Error B<br>€/MWh</th></tr></thead><tbody>`
+      + Object.entries(months).map(([k, dl]) => {
+        const idx = dl.flatMap(d => Array.from({ length: 24 }, (_, h) => d * 24 + h));
+        const ea = mae(pa, idx), eb = mae(pb, idx);
+        return `<tr><td>${MON[+k.slice(5) - 1]} ${k.slice(0, 4)}</td><td>${nf(meanOf(idx.map(i => real[i])))}</td><td>${nf(meanOf(idx.map(i => pa[i])))}</td><td>${nf(meanOf(idx.map(i => pb[i])))}</td>
+          <td class="${ea != null && eb != null && ea < eb ? "cmp-win" : ""}">${nf(ea)}</td><td class="${ea != null && eb != null && eb < ea ? "cmp-win" : ""}">${nf(eb)}</td></tr>`;
+      }).join("") + `</tbody>`;
+  }
+
+  // Order of the market stages, old (stage by stage) next to new (day by day), with the
+  // panel of the picked run highlighted, and that run's model version (meta.features).
+  function renderStageOrder(r) {
+    const f = (r.meta && r.meta.features) || null, chain = f && f.chain, carry = !!(f && f.gas);
+    const STG = ["DA", "ID2", "ID3", "CID", "BAL"], DAYS = ["Day 1", "Day 2", "Day 3"];
+    const cx = (x0, c) => x0 + 128 + c * 112, cy = rI => 84 + rI * 42, CW = 80, CH = 28;
+    const arr = (d, cls = "") => `<path d="${d}" class="ar ${cls}" marker-end="url(#pv-head2)"/>`;
+    function panel(x0, kind) {
+      const on = chain === kind, dayKind = kind === "day";
+      let s = `<rect x="${x0}" y="6" width="456" height="312" rx="10" class="pnl${on ? " on" : ""}"/>
+        <text x="${x0 + 16}" y="32" class="ti">${dayKind ? "Day by day (new)" : "Stage by stage (old)"}</text>
+        ${on ? `<text x="${x0 + 440}" y="32" class="tag" text-anchor="end">this run</text>` : ""}
+        <text x="${x0 + 16}" y="50" class="sm">${dayKind ? "branch day-by-day-chain, from 15 Oct 2026" : "all runs before 15 Oct 2026"}</text>`;
+      DAYS.forEach((d, c) => { s += `<text x="${cx(x0, c)}" y="74" class="hd2" text-anchor="middle">${d}</text>`; });
+      STG.forEach((st, rI) => {
+        DAYS.forEach((_, c) => {
+          const n = dayKind ? c * 5 + rI + 1 : rI * 3 + c + 1, x = cx(x0, c) - CW / 2, y = cy(rI);
+          s += `<rect x="${x}" y="${y}" width="${CW}" height="${CH}" rx="5" class="st"/>
+            <text x="${x + 10}" y="${y + 19}" class="lb">${st}</text><text x="${x + CW - 8}" y="${y + 18}" class="ord" text-anchor="end">${n}</text>`;
+        });
+      });
+      if (!dayKind) {
+        // along each row, then back to the first day for the next stage
+        STG.forEach((_, rI) => {
+          for (let c = 0; c < 2; c++) s += arr(`M${cx(x0, c) + CW / 2 + 2},${cy(rI) + CH / 2} H${cx(x0, c + 1) - CW / 2 - 3}`);
+          if (rI < 4) s += arr(`M${cx(x0, 2)},${cy(rI) + CH + 1} V${cy(rI) + CH + 7} H${cx(x0, 0)} V${cy(rI + 1) - 3}`, "back");
+        });
+      } else {
+        DAYS.forEach((_, c) => {
+          for (let rI = 0; rI < 4; rI++) s += arr(`M${cx(x0, c)},${cy(rI) + CH + 1} V${cy(rI + 1) - 3}`);
+          if (c < 2) {
+            const mx = cx(x0, c) + 56;
+            s += arr(`M${cx(x0, c) + CW / 2 + 2},${cy(4) + CH / 2} H${mx} V${cy(0) + CH / 2} H${cx(x0, c + 1) - CW / 2 - 3}`, carry || chain !== "day" ? "carry" : "carry off");
+          }
+        });
+        s += `<text x="${cx(x0, 0) + 56}" y="${cy(4) + CH + 22}" class="sm" text-anchor="middle">${chain === "day" && !carry ? "on/off state: not used in this run" : "on/off state at midnight"}</text>`;
+      }
+      return s;
+    }
+    $("pv-order").innerHTML = `<svg class="pv-svg" viewBox="0 0 960 372" role="img" aria-label="Order in which the model solves the market stages: stage by stage (old) or day by day (new)">
+      <defs><marker id="pv-head2" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="hd"/></marker></defs>
+      ${panel(12, "stage")}${panel(492, "day")}
+      <rect x="12" y="330" width="936" height="34" rx="6" class="gr"/>
+      <text x="480" y="352" class="lb" text-anchor="middle">Then the AC redispatch on the grid: each hour on its own, after the market stages (hours can run in parallel)</text>
+    </svg>`;
+    $("pv-order-cap").innerHTML = `<b>Numbers = the order the model solves them.</b> Stage by stage: the DA is cleared for every day, then ID2 for every day, and so on. Each stage of a day only reads that day's earlier stages, so nothing passes from one day to the next. Day by day: each day runs its whole chain DA → ID2 → ID3 → CID → BAL before the next day starts. That is the real calendar: the DA for day D+1 clears at 12:00 on D, after D's IDA3 at 10:00. A day can then hand on which gas and coal plants are running at midnight (the arrow), so a plant started late on Day 1 stays on into Day 2 (minimum up/down time, start costs). Without on/off rules nothing is handed on, and both orders give the same prices (tested, model change §16). Full-year runs with the hand-over are run as split runs: the market chunks one after another, then the redispatch in parallel.`;
+    const yes = b => b ? `${icon("good")} on` : "off";
+    $("pv-version").innerHTML = !f ? `<div><dt>This run's model version</dt><dd>Not recorded for this run.</dd></div>` : `
+      <div><dt>${term("Market stage order", "f_chain")}</dt><dd>${f.chain === "day" ? "Day by day" : f.chain === "stage" ? "Stage by stage" : "–"}</dd></div>
+      <div><dt>On/off state passed to the next day</dt><dd>${f.chain === "day" ? yes(f.gas) : "no (stage by stage)"}</dd></div>
+      <div><dt>${term("Solar/wind", "f_res")}</dt><dd>${f.res === "offered" ? "Offered" : "Accepted"}</dd></div>
+      <div><dt>${term("Cross-border split", "f_xb")}</dt><dd>${yes(f.xb)}</dd></div>
+      <div><dt>${term("Gas and coal", "f_gas")}</dt><dd>${yes(f.gas)}</dd></div>
+      <div><dt>${term("Tax and mark-ups", "f_markup")}</dt><dd>${yes(f.markup)}</dd></div>
+      <div><dt>${term("Improved hydro planning", "f_hydro")}</dt><dd>${yes(f.hydro)}</dd></div>`;
+  }
+
   function renderAll() {
     const v = view();
-    renderRunList(); renderHead(run()); renderTabs(v); renderPeriod(); renderKpis(v); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderStages(); renderTraded(v);
+    renderRunList(); renderHead(run()); renderTabs(v); renderPeriod(); renderKpis(v); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); renderStages(); renderStageOrder(run()); renderTraded(v);
   }
 
   // ---------- loading runs ----------
@@ -1961,7 +2582,7 @@
   start();
   // Redraw the charts whenever the report column changes width (also covers the frame
   // settling to its final size after the first render, and late web-font loads).
-  const redraw = () => { if (!run()) return; const v = view(); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); };
+  const redraw = () => { if (!run()) return; const v = view(); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); };
   let rt, lastW = $("report").clientWidth;
   new ResizeObserver(() => {
     const w = $("report").clientWidth;
