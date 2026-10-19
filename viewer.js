@@ -48,7 +48,6 @@
     bias: ["Price bias", "Model mean minus real mean. Negative means the model price is too low on average. Errors up and down can cancel out here, so read it together with MAE."],
     mae: ["MAE (mean absolute error)", "The average size of the hourly price error, ignoring the sign. 0 is perfect. 20 €/MWh means the model is off by 20 €/MWh in a typical hour."],
     corr: ["Correlation", "How well the model follows the ups and downs of the real price, from −1 to 1. 1 means the same shape (even if the level is off), 0 means no relation."],
-    shed: ["Load shed", "Demand the redispatch could not supply, summed over the solved hours shown. It should be 0."],
     real_price: ["Real price", "OMIE's day-ahead marginal price for the Spanish zone (the marginalpdbc files)."],
     real_ida2: ["Real IDA2 price", "The second European intraday auction (closes 22:00 the day before, all 24 hours), Spanish zone, from e·sios (indicator 613). It replaced the MIBEL intraday sessions on 14 June 2024; earlier days are left out because they were a different market."],
     real_ida3: ["Real IDA3 price", "The third European intraday auction (closes 10:00 on the day, hours 12–23 only), Spanish zone, from e·sios (indicator 614). It replaced the MIBEL intraday sessions on 14 June 2024; earlier days are left out because they were a different market."],
@@ -153,7 +152,7 @@
     const each = (o, f) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, f(v)]));
     return {
       ...r, offset: z[0], days: r.days.slice(z[0], z[1] + 1),
-      price: each(r.price, sl), real_price: sl(r.real_price), status: sl(r.status), shed: sl(r.shed),
+      price: each(r.price, sl), real_price: sl(r.real_price), status: sl(r.status),
       real_mix: each(r.real_mix, sl), mix: each(r.mix, m => each(m, sl)),
       real_phys: each(r.real_phys, sl), mix_phys: each(r.mix_phys, m => each(m, sl)),
       balancing: r.balancing ? each(r.balancing, sl) : null,
@@ -1389,7 +1388,6 @@
     const mm = mean(p.map(q => q[0])), mr = mean(p.map(q => q[1]));
     const mae = mean(p.map(q => Math.abs(q[0] - q[1])));
     const c = corr(p);
-    const shed = r.shed.reduce((a, x) => a + Math.abs(x || 0), 0);
     const [k, word] = solveStatus(pct);
     const tiles = [
       [term("AC hours solved", "solved"), `${nf(pct, 0)}<small>%</small>`, `<span class="status">${icon(k)} ${word}</span> · ${solved} of ${N} hours`],
@@ -1397,7 +1395,6 @@
       [term("Price bias", "bias"), `${signed(mm - mr)}<small>€/MWh</small>`, mm < mr ? "Model below real" : "Model above real"],
       [term("Price error (MAE)", "mae"), `${nf(mae)}<small>€/MWh</small>`, "Typical size of the hourly error"],
       [term("Price correlation", "corr"), `${nf(c, 2)}`, "Hourly, model vs real (1 = same shape)"],
-      [term("Load shed", "shed"), `${nf(shed / 1000, 1)}<small>GWh</small>`, "In the solved redispatch hours"],
     ];
     $("kpis").innerHTML = tiles.map(([l, v, s]) => `<div class="kpi"><span class="k-label">${l}</span><span class="k-value">${v}</span><span class="k-sub">${s}</span></div>`).join("");
   }
