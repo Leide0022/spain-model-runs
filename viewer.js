@@ -246,13 +246,15 @@
     host.innerHTML = "";
     const W = Math.max(260, host.clientWidth);
     const H = o.height;
-    const m = { l: 40, r: o.endLabels ? 66 : 8, t: o.yUnit ? 22 : 8, b: (o.band ? 34 : 0) + 22 };
-    const pw = W - m.l - m.r, ph = H - m.t - m.b;
-    const n = o.n;
     const all = o.series.flatMap(s => s.values.filter(v => v != null));
     let lo = Math.min(0, ...all), hi = Math.max(...all, 1);
     const ticks = niceTicks(lo, hi, o.yTicks || 4);
     lo = ticks[0]; hi = ticks[ticks.length - 1];
+    // left margin wide enough for the longest axis number (e.g. 1,200,000 €)
+    const tickW = Math.max(...ticks.map(t => t.toLocaleString("en-GB").length)) * 6.6 + 12;
+    const m = { l: Math.max(40, tickW), r: o.endLabels ? 66 : 8, t: o.yUnit ? 26 : 8, b: (o.band ? 34 : 0) + 22 };
+    const pw = W - m.l - m.r, ph = H - m.t - m.b;
+    const n = o.n;
     const x = i => m.l + (n === 1 ? pw / 2 : (i / (n - 1)) * pw);
     const y = v => m.t + ph - ((v - lo) / (hi - lo)) * ph;
     const s = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": o.label }, host);
@@ -262,7 +264,7 @@
       const tx = svg("text", { x: m.l - 6, y: y(t) + 4, "text-anchor": "end" }, s);
       tx.textContent = t.toLocaleString("en-GB");
     }
-    if (o.yUnit) { const u = svg("text", { x: 0, y: 11, "text-anchor": "start" }, s); u.textContent = o.yUnit; }
+    if (o.yUnit) { const u = svg("text", { x: 0, y: 15, "text-anchor": "start", class: "y-unit" }, s); u.textContent = o.yUnit; }
     const xb = m.t + ph;
     for (const t of o.xTicks) {
       svg("line", { x1: x(t.i), x2: x(t.i), y1: xb, y2: xb + 4, stroke: "var(--axis)" }, s);
@@ -369,9 +371,9 @@
   function stackChart(host, o) {
     host.innerHTML = "";
     const W = Math.max(260, host.clientWidth), H = o.height;
-    const m = { l: 48, r: 8, t: 22, b: 22 };
-    const pw = W - m.l - m.r, ph = H - m.t - m.b, n = o.n;
     const ticks = niceTicks(0, o.yMax, 4), hi = ticks[ticks.length - 1];
+    const m = { l: Math.max(48, Math.max(...ticks.map(t => t.toLocaleString("en-GB").length)) * 6.6 + 12), r: 8, t: 26, b: 22 };
+    const pw = W - m.l - m.r, ph = H - m.t - m.b, n = o.n;
     const x = i => m.l + (n === 1 ? pw / 2 : (i / (n - 1)) * pw);
     const y = v => m.t + ph - (v / hi) * ph;
     const s = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": o.label }, host);
@@ -379,7 +381,7 @@
       svg("line", { x1: m.l, x2: m.l + pw, y1: y(tk), y2: y(tk), stroke: tk === 0 ? "var(--axis)" : "var(--grid)" }, s);
       const tx = svg("text", { x: m.l - 6, y: y(tk) + 4, "text-anchor": "end" }, s); tx.textContent = tk.toLocaleString("en-GB");
     }
-    const u = svg("text", { x: 0, y: 11 }, s); u.textContent = o.yUnit;
+    const u = svg("text", { x: 0, y: 15, class: "y-unit" }, s); u.textContent = o.yUnit;
     const valid = Array.from({ length: n }, (_, i) => o.layers.every(L => L.values[i] != null));
     let base = new Array(n).fill(0);
     for (const L of o.layers) {
@@ -1637,20 +1639,20 @@
     const perMWh = (c, v) => c == null || !v ? "–" : nf(1e6 * c / (1000 * v), 1);
     const solved = r.status.reduce((a, b) => a + b, 0);
     const pctOf = (a, b) => b ? ` <span class="pv-muted-txt">(${nf(100 * a / b, 0)} %)</span>` : "";
-    $("rd-table").innerHTML = `<thead><tr><th>Over the ${solved} solved hours</th><th>Up, GWh</th><th>Down, GWh</th><th>${term("Extra cost", "rd_cost")}, M€</th><th>€ per MWh up</th></tr></thead><tbody>`
-      + rows.map(([l, u, d, c]) => `<tr><td>${l}</td><td>${nf(u, 0)}</td><td>${nf(d, 0)}</td><td>${nf(c, 1)}</td><td>${perMWh(c, u)}</td></tr>`).join("")
-      + `<tr class="total-row"><td>REE, total</td><td>${nf(ru, 0)}</td><td>${nf(rd, 0)}</td><td>${nf(rc, 1)}</td><td>${perMWh(rc, ru)}</td></tr>`
-      + `<tr class="total-row"><td>Model, AC redispatch</td><td>${nf(mu, 0)}${pctOf(mu, ru)}</td><td>${nf(md, 0)}${pctOf(md, rd)}</td><td>${mc == null ? "–" : nf(mc, 1) + pctOf(mc, rc)}</td><td>${perMWh(mc, mu)}</td></tr>`
+    $("rd-table").innerHTML = `<thead><tr><th>Over the ${solved} solved hours</th><th>Up, GWh</th><th>Down, GWh</th><th>${term("Extra cost", "rd_cost")}, €</th><th>€ per MWh up</th></tr></thead><tbody>`
+      + rows.map(([l, u, d, c]) => `<tr><td>${l}</td><td>${nf(u, 0)}</td><td>${nf(d, 0)}</td><td>${nf(c * 1e6, 0)}</td><td>${perMWh(c, u)}</td></tr>`).join("")
+      + `<tr class="total-row"><td>REE, total</td><td>${nf(ru, 0)}</td><td>${nf(rd, 0)}</td><td>${nf(rc * 1e6, 0)}</td><td>${perMWh(rc, ru)}</td></tr>`
+      + `<tr class="total-row"><td>Model, AC redispatch</td><td>${nf(mu, 0)}${pctOf(mu, ru)}</td><td>${nf(md, 0)}${pctOf(md, rd)}</td><td>${mc == null ? "–" : nf(mc * 1e6, 0) + pctOf(mc, rc)}</td><td>${perMWh(mc, mu)}</td></tr>`
       + (RD ? `<tr><td class="pv-muted-txt">of which grid losses in the model (the markets have none)</td><td class="pv-muted-txt">${nf(ml, 0)}</td><td></td><td></td><td></td></tr>` : "")
       + "</tbody>";
-    $("rd-cost-note").innerHTML = RD ? `REE's whole real-time cost was ${nf(M(E("rtr_cost")), 1)} M€ (indicator 724); the table uses its up and down parts (1723, 1724), which go with the volumes.`
+    $("rd-cost-note").innerHTML = RD ? `REE's whole real-time cost was ${nf(M(E("rtr_cost")) * 1e6, 0)} € (indicator 724); the table uses its up and down parts (1723, 1724), which go with the volumes.`
       : `This run's package has no model cost yet; publish it again with the current publish_run.py.`;
     // cost per day (or hour), REE vs model
     const cHost = $("rd-cost-chart");
     if (!RD) { cHost.innerHTML = ""; return; }
     const reeCost = add(E("rt1_up_cost"), E("rt2_up_cost"), E("rtr_up_cost"), E("rtr_down_cost")).map((x, i) => x - (E("rt1_down_cost")[i] || 0) - (E("rt2_down_cost")[i] || 0));
-    const cu = hourly ? "k€" : "M€/day";
-    const cv = a => hourly ? a.map((x, i) => ok(i) && x != null ? x / 1000 : null) : dailySum(a.map((x, i) => ok(i) ? x : null), nd).map(x => x == null ? null : x / 1000);
+    const cu = hourly ? "€ per hour" : "€ per day";
+    const cv = a => hourly ? a.map((x, i) => ok(i) && x != null ? x : null) : dailySum(a.map((x, i) => ok(i) ? x : null), nd).map(x => x == null ? null : x * 1000);   // dailySum divides by 1000
     requestAnimationFrame(() => {
       const rv = cv(reeCost), mv = cv(RD.cost);
       lineChart(cHost, {
@@ -1658,8 +1660,8 @@
         xTicks: dayTicks(r.days, hourly, cHost.clientWidth - 110), onZoom: (a, b) => zoomFromChart(a, b, hourly),
         series: [{ name: "REE", values: rv, color: "var(--real)", width: 1.5 }, { name: "Model", values: mv, color: "var(--model)", width: 2 }],
         tooltip: i => `<b>${hourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i])}</b>
-          <div class="row"><i class="sw-line" style="background:var(--real)"></i>REE<span class="v">${nf(rv[i], 1)} ${cu}</span></div>
-          <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model<span class="v">${nf(mv[i], 1)} ${cu}</span></div>`,
+          <div class="row"><i class="sw-line" style="background:var(--real)"></i>REE<span class="v">${nf(rv[i], 0)} €</span></div>
+          <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model<span class="v">${nf(mv[i], 0)} €</span></div>`,
       });
       renderWhy(r, { G, M, E, ok, ru, rd, rc, mu, mc, RD });
     });
@@ -1724,14 +1726,14 @@
     const Y = v => by + bH - (v - lo) / (hi - lo) * bH;
     const cw = Math.min(150, (W - lab) / 4.4);
     let level = 0;
-    svgParts.push(`<text x="0" y="${by - 10}" class="why-h">The cost, step by step (M€)</text>`);
+    svgParts.push(`<text x="0" y="${by - 10}" class="why-h">The cost, step by step (€)</text>`);
     svgParts.push(`<line x1="${lab}" x2="${W - 8}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--axis)"/>`);
     steps.forEach(([name, v, kind], i) => {
       const x = lab + i * (cw * 1.1);
       const a = kind === "abs" ? 0 : level, b = kind === "abs" ? v : level + v;
       const col = kind === "abs" ? (i === 0 ? "var(--real)" : "var(--model)") : (v < 0 ? "var(--cat-3)" : "var(--critical)");
-      svgParts.push(`<rect x="${x}" y="${Math.min(Y(a), Y(b))}" width="${cw}" height="${Math.max(1, Math.abs(Y(a) - Y(b)))}" fill="${col}" rx="2"><title>${name}: ${nf(v, 1)} M€</title></rect>`);
-      svgParts.push(`<text x="${x + cw / 2}" y="${Math.min(Y(a), Y(b)) - 5}" text-anchor="middle" class="why-val">${kind === "step" && v > 0 ? "+" : ""}${nf(v, 1)}</text>`);
+      svgParts.push(`<rect x="${x}" y="${Math.min(Y(a), Y(b))}" width="${cw}" height="${Math.max(1, Math.abs(Y(a) - Y(b)))}" fill="${col}" rx="2"><title>${name}: ${nf(v * 1e6, 0)} €</title></rect>`);
+      svgParts.push(`<text x="${x + cw / 2}" y="${Math.min(Y(a), Y(b)) - 5}" text-anchor="middle" class="why-val">${kind === "step" && v > 0 ? "+" : ""}${nf(v * 1e6, 0)}</text>`);
       const words = name.split(" "), lines = [];
       for (const wd of words) { const l = lines.length ? lines[lines.length - 1] : null; if (l != null && (l + " " + wd).length <= Math.floor(cw / 6.2)) lines[lines.length - 1] = l + " " + wd; else lines.push(wd); }
       lines.slice(0, 4).forEach((l, j) => svgParts.push(`<text x="${x + cw / 2}" y="${by + bH + 16 + j * 13}" text-anchor="middle" class="why-cap">${l}</text>`));
@@ -1951,9 +1953,8 @@
   state.flexMW = FLEX_ASSETS[state.flexAsset].mw;   // charging power of the unit picked (MW); per-MW figures do not depend on it
   function saveFlex() { try { localStorage.setItem("runviewer.flex2", JSON.stringify({ asset: state.flexAsset, tes: FLEX_ASSETS.tes, battery: FLEX_ASSETS.battery })); } catch (e) {} }
   function pickFlexAsset(v) { state.flexAsset = v; state.flexMW = FLEX_ASSETS[v].mw; saveFlex(); }
-  // money in short form: 19.2 M€, 845 k€, 312 €
-  const eurS = x => x == null || !isFinite(x) ? "–" : Math.abs(x) >= 1e6 ? `${nf(x / 1e6, Math.abs(x) >= 1e8 ? 0 : 1)} M€`
-    : Math.abs(x) >= 1e4 ? `${nf(x / 1e3, 0)} k€` : `${nf(x, 0)} €`;
+  // money always in whole euros: 19,150,000 €
+  const eurS = x => x == null || !isFinite(x) ? "–" : `${nf(x, 0)} €`;
   // the unit's size in words: TES heat in vs electricity out, battery the same MW both ways
   const sizeText = (a, MW) => state.flexAsset === "tes"
     ? `${nf(MW, 0)} MW in (heater) → ${nf(MW * a.eff / 100, 0)} MW out (turbine), tank holds ${nf(MW * a.h, 0)} MWh of heat`
@@ -2091,13 +2092,13 @@
     battery: { capKW: 150, capKWh: 200, capFix: 0, opexKW: 8, opexMWh: 0, rate: 7, life: 15, growth: 0 },
   };
   const INV = JSON.parse(JSON.stringify(INV_DEFAULT));
-  // "inv2": defaults changed on 2026-10-19, so costs saved under the old key are not reused
-  try { const sv = JSON.parse(localStorage.getItem("runviewer.inv2") || "null"); if (sv) for (const k in INV) Object.assign(INV[k], sv[k] || {}); } catch (e) {}
-  const saveInv = () => { try { localStorage.setItem("runviewer.inv2", JSON.stringify(INV)); } catch (e) {} };
+  // "inv3": defaults changed on 2026-10-19 (sourced TES; fixed sum in € instead of M€), so costs saved under older keys are not reused
+  try { const sv = JSON.parse(localStorage.getItem("runviewer.inv3") || "null"); if (sv) for (const k in INV) Object.assign(INV[k], sv[k] || {}); } catch (e) {}
+  const saveInv = () => { try { localStorage.setItem("runviewer.inv3", JSON.stringify(INV)); } catch (e) {} };
   function renderFlexNPV(a, M, nd, MW) {
     const key = state.flexAsset, c = INV[key];
     const kW = MW * 1000, kWh = MW * a.h * 1000;
-    const capex = kW * c.capKW + kWh * c.capKWh + c.capFix * 1e6;
+    const capex = kW * c.capKW + kWh * c.capKWh + c.capFix;
     const margin = M.days.reduce((t, d) => t + d.value, 0) * MW * 365 / nd;        // €/yr, year 1
     const sold = M.days.reduce((t, d) => t + d.sellMWh, 0) * MW * 365 / nd;        // MWh/yr
     const r = c.rate / 100, L = Math.max(1, Math.round(c.life)), g = c.growth / 100;
@@ -2112,7 +2113,7 @@
     let irr = null;
     if (pv(-0.99) - capex > 0 && pv(1) - capex < 0) { let lo = -0.99, hi = 1; for (let k = 0; k < 80; k++) { const mid = (lo + hi) / 2; if (pv(mid) - capex > 0) lo = mid; else hi = mid; } irr = (lo + hi) / 2; }
     const breakEven = pv(r);
-    const Meur = x => x == null ? "–" : `${nf(x / 1e6, Math.abs(x) < 1e7 ? 2 : 1)}`;
+    const Meur = x => x == null ? "–" : nf(x, 0);   // whole euros
     const yrs = x => x == null ? `never within ${L} years` : `${nf(x, 1)} years`;
 
     // inputs in three columns: what it costs to build, what it costs to run, money over time
@@ -2122,13 +2123,13 @@
       <div class="npv-what">${what}</div>${total ? `<div class="npv-tot">${total}</div>` : ""}</div>`;
     $("npv-inputs").innerHTML = `
       <div class="npv-col"><h5><span class="npv-dot capex"></span>CAPEX: paid once, to build it</h5>
-        ${item("capKW", 10, tesU ? "€ per kW of heater" : "€ per kW", tesU ? "Heater" : "Power electronics", tesU ? `The electric heater that turns electricity into heat. ${nf(c.capKW, 0)} € per kW = ${nf(c.capKW / 1e3, 2)} M€ per MW.` : `The inverter and grid connection. ${nf(c.capKW, 0)} € per kW = ${nf(c.capKW / 1e3, 2)} M€ per MW.`, `${nf(MW, 0)} MW × ${nf(c.capKW / 1e3, 2)} M€ = ${eurS(kW * c.capKW)}`)}
-        ${item("capKWh", 1, tesU ? "€ per kWh of heat" : "€ per kWh", tesU ? "Salt tank" : "Battery cells", tesU ? `The tanks of molten salt that hold the heat. ${nf(c.capKWh, 0)} € per kWh = ${nf(c.capKWh / 1e3, 3)} M€ per MWh.` : `The cells that hold the energy. ${nf(c.capKWh, 0)} € per kWh = ${nf(c.capKWh / 1e3, 3)} M€ per MWh.`, `${nf(MW * a.h, 0)} MWh × ${nf(c.capKWh / 1e3, 3)} M€ = ${eurS(kWh * c.capKWh)}`)}
-        ${item("capFix", 1, "M€", "Fixed sum", tesU ? "One-off costs that do not depend on size: adapting the existing steam turbine, connecting the tank, planning." : "One-off costs that do not depend on size: planning, permits, site work.", "")}
+        ${item("capKW", 10, tesU ? "€ per kW of heater" : "€ per kW", tesU ? "Heater" : "Power electronics", tesU ? `The electric heater that turns electricity into heat. ${nf(c.capKW, 0)} € per kW = ${nf(c.capKW * 1e3, 0)} € per MW.` : `The inverter and grid connection. ${nf(c.capKW, 0)} € per kW = ${nf(c.capKW * 1e3, 0)} € per MW.`, `${nf(MW, 0)} MW × ${nf(c.capKW * 1e3, 0)} € = ${eurS(kW * c.capKW)}`)}
+        ${item("capKWh", 1, tesU ? "€ per kWh of heat" : "€ per kWh", tesU ? "Salt tank" : "Battery cells", tesU ? `The tanks of molten salt that hold the heat. ${nf(c.capKWh, 0)} € per kWh = ${nf(c.capKWh * 1e3, 0)} € per MWh.` : `The cells that hold the energy. ${nf(c.capKWh, 0)} € per kWh = ${nf(c.capKWh * 1e3, 0)} € per MWh.`, `${nf(MW * a.h, 0)} MWh × ${nf(c.capKWh * 1e3, 0)} € = ${eurS(kWh * c.capKWh)}`)}
+        ${item("capFix", 100000, "€", "Fixed sum", tesU ? "One-off costs that do not depend on size: adapting the existing steam turbine, connecting the tank, planning." : "One-off costs that do not depend on size: planning, permits, site work.", "")}
         <div class="npv-sum">Total CAPEX <b>${eurS(capex)}</b>${tesU ? ` = ${nf(capex / (kW * a.eff / 100), 0)} € per kW out` : ""}</div></div>
       <div class="npv-col"><h5><span class="npv-dot opex"></span>OPEX: paid every year, to run it</h5>
-        ${item("opexKW", 1, tesU ? "€ per kW of heater, per year" : "€ per kW, per year", "Fixed", "Staff, maintenance, insurance. Paid every year, even if the plant never runs.", `${nf(MW, 0)} MW × ${nf(c.opexKW, 0)} k€ = ${eurS(c.opexKW * kW)} per year`)}
-        ${item("opexMWh", 0.5, "€ per MWh sold", "Variable", tesU ? "Wear and starting the steam turbine. Paid for each MWh it sells, so only when it runs." : "Wear on the cells. Paid for each MWh it sells, so only when it runs.", `${nf(sold / 1e3, 0)} GWh sold per year → ${eurS(c.opexMWh * sold)} per year`)}
+        ${item("opexKW", 1, tesU ? "€ per kW of heater, per year" : "€ per kW, per year", "Fixed", "Staff, maintenance, insurance. Paid every year, even if the plant never runs.", `${nf(MW, 0)} MW × ${nf(c.opexKW * 1e3, 0)} € = ${eurS(c.opexKW * kW)} per year`)}
+        ${item("opexMWh", 0.5, "€ per MWh sold", "Variable", tesU ? "Wear and starting the steam turbine. Paid for each MWh it sells, so only when it runs." : "Wear on the cells. Paid for each MWh it sells, so only when it runs.", `${nf(sold, 0)} MWh sold per year → ${eurS(c.opexMWh * sold)} per year`)}
         <div class="npv-sum">Total OPEX <b>${eurS(c.opexKW * kW + c.opexMWh * sold)}</b> per year</div></div>
       <div class="npv-col"><h5><span class="npv-dot time"></span>Money over time</h5>
         ${item("rate", 0.5, "% per year", "Discount rate", `Money later is worth less than money now. At ${c.rate} %, 100 € in a year is worth ${nf(100 / (1 + c.rate / 100), 0)} € today.`, "")}
@@ -2142,8 +2143,8 @@
 
     // the plant, with what each part costs: CAPEX on the parts, OPEX on the running plant
     const parts = tesU
-      ? [["Grid", "buys electricity", null], ["Heater", `${nf(MW, 0)} MW in`, eurS(kW * c.capKW)], ["Salt tank", `${nf(MW * a.h, 0)} MWh of heat`, eurS(kWh * c.capKWh)], ["Steam turbine", `existing, ${nf(MW * a.eff / 100, 0)} MW out`, eurS(c.capFix * 1e6)], ["Grid", "sells electricity", null]]
-      : [["Grid", "buys electricity", null], ["Inverter", `${nf(MW, 0)} MW`, eurS(kW * c.capKW)], ["Battery cells", `${nf(MW * a.h, 0)} MWh`, eurS(kWh * c.capKWh)], ["Inverter", "same one, back out", c.capFix ? `${eurS(c.capFix * 1e6)} other` : null], ["Grid", "sells electricity", null]];
+      ? [["Grid", "buys electricity", null], ["Heater", `${nf(MW, 0)} MW in`, eurS(kW * c.capKW)], ["Salt tank", `${nf(MW * a.h, 0)} MWh of heat`, eurS(kWh * c.capKWh)], ["Steam turbine", `existing, ${nf(MW * a.eff / 100, 0)} MW out`, eurS(c.capFix)], ["Grid", "sells electricity", null]]
+      : [["Grid", "buys electricity", null], ["Inverter", `${nf(MW, 0)} MW`, eurS(kW * c.capKW)], ["Battery cells", `${nf(MW * a.h, 0)} MWh`, eurS(kWh * c.capKWh)], ["Inverter", "same one, back out", c.capFix ? `${eurS(c.capFix)} other` : null], ["Grid", "sells electricity", null]];
     const PW = 980, pbw = 150, pgap = (PW - 40 - 5 * pbw) / 4, pbx = k => 20 + k * (pbw + pgap);
     let pl = `<svg viewBox="0 0 ${PW} 200" class="npv-plant" role="img" aria-label="The plant and what each part costs">
       <defs><marker id="npv-head" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="np-hd"/></marker></defs>`;
@@ -2163,31 +2164,31 @@
     $("npv-plant").innerHTML = pl;
 
     const tiles = [
-      ["NPV", `${Meur(npv)}<small>M€</small>`, npv >= 0 ? `${icon("good")} pays off at ${c.rate} %` : `does not pay off at ${c.rate} %`],
+      ["NPV", `${Meur(npv)}<small>€</small>`, npv >= 0 ? `${icon("good")} pays off at ${c.rate} %` : `does not pay off at ${c.rate} %`],
       ["Payback", payback(false) == null ? `<span class="npv-never">never</span>` : `${nf(payback(false), 1)}<small>years</small>`, `with discounting: ${yrs(payback(true))}`],
       ["IRR", irr == null ? "–" : `${nf(100 * irr, 1)}<small>%</small>`, irr == null ? "no rate makes it pay" : `return per year; compare with ${c.rate} %`],
-      ["Break-even CAPEX", breakEven > 0 ? `${Meur(breakEven)}<small>M€</small>` : "0", breakEven > 0 ? `the most it may cost (now ${Meur(capex)} M€)` : "running costs eat the whole margin"],
+      ["Break-even CAPEX", breakEven > 0 ? `${Meur(breakEven)}<small>€</small>` : "0", breakEven > 0 ? `the most it may cost (now ${Meur(capex)} €)` : "running costs eat the whole margin"],
     ];
     $("npv-kpis").innerHTML = tiles.map(([l, v, s]) => `<div class="kpi"><span class="k-label">${l}</span><span class="k-value">${v}</span><span class="k-sub">${s}</span></div>`).join("");
     // when every year loses money, no CAPEX can pay off: say so plainly
     const runCost = c.opexKW * kW + c.opexMWh * sold;
     const warn = cash[0] <= 0
-      ? `<span class="npv-warn"><b>It loses money every year</b>: the running costs (${Meur(runCost)} M€ per year) are bigger than the trading margin (${Meur(margin)} M€ per year), so it can never pay off, whatever it costs to build. It needs a bigger trading margin (prices that swing more, or another unit) or lower OPEX: fixed OPEX would have to be below ${nf(Math.max(0, margin - c.opexMWh * sold) / kW, 2)} € per kW per year just to break even each year.</span><br>`
+      ? `<span class="npv-warn"><b>It loses money every year</b>: the running costs (${Meur(runCost)} € per year) are bigger than the trading margin (${Meur(margin)} € per year), so it can never pay off, whatever it costs to build. It needs a bigger trading margin (prices that swing more, or another unit) or lower OPEX: fixed OPEX would have to be below ${nf(Math.max(0, margin - c.opexMWh * sold) / kW, 2)} € per kW per year just to break even each year.</span><br>`
       : "";
-    $("npv-cash").innerHTML = warn + `CAPEX <b>${Meur(capex)} M€</b> (${nf(MW, 0)} MW × ${c.capKW} €/kW + ${nf(MW * a.h, 0)} MWh × ${c.capKWh} €/kWh + ${c.capFix} M€) ·
-      year 1: trading margin <b>${Meur(margin)} M€</b> − fixed OPEX ${Meur(c.opexKW * kW)} M€ − variable OPEX ${Meur(c.opexMWh * sold)} M€ = <b>${Meur(cash[0])} M€</b> cash`;
+    $("npv-cash").innerHTML = warn + `CAPEX <b>${Meur(capex)} €</b> (${nf(MW, 0)} MW × ${c.capKW} €/kW + ${nf(MW * a.h, 0)} MWh × ${c.capKWh} €/kWh + ${nf(c.capFix, 0)} €) ·
+      year 1: trading margin <b>${Meur(margin)} €</b> − fixed OPEX ${Meur(c.opexKW * kW)} € − variable OPEX ${Meur(c.opexMWh * sold)} € = <b>${Meur(cash[0])} €</b> cash`;
 
     // cumulative discounted cash, year 0 (the investment) to the end of the lifetime
     const cum = [-capex]; cash.forEach((x, t) => cum.push(cum[t] + x / (1 + r) ** (t + 1)));
-    const W = 900, H = 260, l = 64, b = 26, t0 = 14, pw = W - l - 10, ph = H - t0 - b;
+    const W = 900, H = 270, l = 104, b = 26, t0 = 26, pw = W - l - 10, ph = H - t0 - b;
     const lo = Math.min(0, ...cum), hi = Math.max(0, ...cum), span = hi - lo || 1;
     const y = v => t0 + (hi - v) / span * ph, bw = pw / cum.length;
     let s = `<svg viewBox="0 0 ${W} ${H}" class="npv-chart" role="img" aria-label="Cumulative discounted cash flow over the lifetime">`;
-    for (const v of niceTicks(lo, hi, 4)) if (v >= lo - 1e-6 && v <= hi + 1e-6) s += `<line x1="${l}" x2="${l + pw}" y1="${y(v)}" y2="${y(v)}" class="fp-grid"/><text x="${l - 6}" y="${y(v) + 4}" text-anchor="end" class="fp-ax">${nf(v / 1e6, Math.abs(span) < 2e7 ? 1 : 0)}</text>`;
-    s += `<text x="0" y="10" class="fp-ax">M€</text>`;
+    for (const v of niceTicks(lo, hi, 4)) if (v >= lo - 1e-6 && v <= hi + 1e-6) s += `<line x1="${l}" x2="${l + pw}" y1="${y(v)}" y2="${y(v)}" class="fp-grid"/><text x="${l - 6}" y="${y(v) + 4}" text-anchor="end" class="fp-ax">${nf(v, 0)}</text>`;
+    s += `<text x="0" y="14" class="y-unit">€ (discounted)</text>`;
     cum.forEach((v, k) => {
       const x = l + k * bw + 2, w = Math.max(2, bw - 4);
-      s += `<rect x="${x}" y="${Math.min(y(v), y(0))}" width="${w}" height="${Math.max(1, Math.abs(y(v) - y(0)))}" rx="2" class="${v >= 0 ? "npv-pos" : "npv-neg"}"><title>Year ${k}: ${nf(v / 1e6, 2)} M€ so far (discounted)</title></rect>`;
+      s += `<rect x="${x}" y="${Math.min(y(v), y(0))}" width="${w}" height="${Math.max(1, Math.abs(y(v) - y(0)))}" rx="2" class="${v >= 0 ? "npv-pos" : "npv-neg"}"><title>Year ${k}: ${nf(v, 0)} € so far (discounted)</title></rect>`;
       if (k % Math.ceil(cum.length / 13) === 0 || k === cum.length - 1) s += `<text x="${x + w / 2}" y="${H - 8}" text-anchor="middle" class="fp-ax">${k}</text>`;
     });
     s += `<line x1="${l}" x2="${l + pw}" y1="${y(0)}" y2="${y(0)}" class="fp-axis"/>`;
@@ -2252,7 +2253,7 @@
     const sum = tot(all, "value"), nRun = M.days.filter(d => d.runs).length;
     const buy = avg(all, "buyEur", "buyMWh"), sell = avg(all, "sellEur", "sellMWh");
     const tiles = [
-      [term("Trading margin per year", "f_margin"), `${eurS(sum * MW * 365 / nd).replace(/ (M€|k€|€)$/, "<small>$1 per year</small>")}`, `sales − electricity bought, before all other costs · ${nf(MW, 0)} MW in · ${eur(sum * 365 / nd)} € per MW per year${nd < 360 ? ` · scaled up from ${nd} days` : ""}`],
+      [term("Trading margin per year", "f_margin"), `${eurS(sum * MW * 365 / nd).replace(/ €$/, "<small>€ per year</small>")}`, `sales − electricity bought, before all other costs · ${nf(MW, 0)} MW in · ${eur(sum * 365 / nd)} € per MW per year${nd < 360 ? ` · scaled up from ${nd} days` : ""}`],
       ["Days worth running", `${nRun}<small>of ${nd}</small>`, `${nf(100 * nRun / nd, 0)} % of days earn anything`],
       ["Average buying price", `${nf(buy, 1)}<small>€/MWh</small>`, "price paid for the electricity it charges"],
       ["Average selling price", `${nf(sell, 1)}<small>€/MWh</small>`, `needs at least ${nf(100 / a.eff, 2)} × the buying price to earn`],
@@ -2277,13 +2278,13 @@
         <div class="row">${M.acts[i] === 1 ? "Charges (buys)" : M.acts[i] === -1 ? "Discharges (sells)" : "Waits"}</div>`,
     });
 
-    $("flex-legend").innerHTML = `<span><i class="sw-line" style="background:var(--model)"></i>Trading margin per day, ${nf(MW, 0)} MW in, in thousand € (k€)</span>`;
+    $("flex-legend").innerHTML = `<span><i class="sw-line" style="background:var(--model)"></i>Trading margin per day, ${nf(MW, 0)} MW in, in €</span>`;
     const host = $("flex-chart");
     lineChart(host, {
-      n: nd, height: 300, label: "Storage trading margin per day on the model's day-ahead price", endLabels: false, yUnit: `k€ per day`,
+      n: nd, height: 300, label: "Storage trading margin per day on the model's day-ahead price", endLabels: false, yUnit: "€ per day",
       onZoom: (x0, x1) => zoomFromChart(x0, x1, false),
       xTicks: dayTicks(r.days, false, host.clientWidth - 60),
-      series: [{ name: "Trading margin", values: M.days.map(d => d.value * MW / 1e3), color: "var(--model)", width: 2 }],
+      series: [{ name: "Trading margin", values: M.days.map(d => d.value * MW), color: "var(--model)", width: 2 }],
       tooltip: i => {
         const d = M.days[i];
         return `<b>${dayLabel(r.days[i])}</b>

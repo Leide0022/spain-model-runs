@@ -133,7 +133,7 @@ button { font: inherit; color: inherit; }
 .kpi { background: var(--surface); border: 1px solid var(--hair); border-radius: 10px; padding: 12px 14px; display: grid; gap: 2px; align-content: start; }
 .kpi .k-label { font-size: 12px; color: var(--ink-2); }
 .kpi .k-value { font-size: 26px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
-.kpi .k-value small { font-size: 13px; font-weight: 400; color: var(--ink-2); letter-spacing: 0; margin-left: 3px; }
+.kpi .k-value small { font-size: 18px; font-weight: 500; color: var(--ink-2); letter-spacing: 0; margin-left: 5px; }
 .kpi .k-sub { font-size: 12px; color: var(--muted); }
 .status { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; }
 .status svg { flex: none; }
@@ -155,6 +155,8 @@ button { font: inherit; color: inherit; }
 .chart { position: relative; width: 100%; }
 .chart svg { display: block; overflow: visible; width: 100%; height: auto; max-width: 100%; }
 .chart text { font-family: var(--font-ui); font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+/* the unit above a chart's y-axis (€/MWh, MW, € per day): larger and darker than the axis numbers */
+svg text.y-unit { font-family: var(--font-ui); font-size: 14px; font-weight: 600; fill: var(--ink-2); }
 .chart .end-label { font-size: 12px; font-weight: 500; }
 .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--hair); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); border-radius: 6px; padding: 7px 9px; font-size: 12px; line-height: 1.5; white-space: nowrap; z-index: 2; color: var(--ink); }
 .tip b { font-weight: 600; }
@@ -467,7 +469,7 @@ th.cmp-ha { color: var(--model); } th.cmp-hb { color: var(--cat-2); }
 .npv-dot.capex { background: var(--model); } .npv-dot.opex { background: var(--cat-4); } .npv-dot.time { background: var(--axis); }
 .npv-item { display: grid; gap: 2px; }
 .npv-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
-.npv-row span { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.npv-row span { font-size: 14px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
 .npv-what { font-size: 12px; color: var(--ink-2); line-height: 1.4; }
 .npv-tot { font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
 .npv-sum { border-top: 1px solid var(--hair); padding-top: 6px; font-size: 13px; }
