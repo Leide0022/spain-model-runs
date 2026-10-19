@@ -1425,7 +1425,7 @@
     seg($("price-stage"), PRICE_STAGES.map(s => [s, s, s]), state.priceStage, v => { state.priceStage = v; renderPrice(view()); });
     seg($("price-res"), [["hour", "Hourly"], ["day", "Daily mean"]], state.priceRes, v => { state.priceRes = v; renderPrice(view()); });
     const [rKey, rName, rTerm] = REAL_FOR_STAGE[state.priceStage] || [null, "Real (OMIE day-ahead)", "real_price"];
-    $("price-legend").innerHTML = `<span><i class="sw-box" style="background:var(--critical)"></i>${term("AC redispatch failed", "failed")}</span>`;
+    $("price-legend").innerHTML = "";
     const host = $("price-chart");
     const nd = r.days.length, hourly = state.priceRes === "hour";
     const model = r.price[state.priceStage];
@@ -1436,13 +1436,11 @@
       : rKey === "cid" ? "Real: REE's continuous intraday reference price, the weighted average of the trades for each hour (e·sios 1727)."
       : (nReal ? `Real: the European intraday auction ${rKey === "ida2" ? "IDA2 (all 24 hours)" : "IDA3 (hours 12–23 only, like the model's ID3)"} from e·sios. Only from 14 June 2024, when the auctions replaced the MIBEL intraday sessions.`
         : "No real price for these days: the European intraday auctions started on 14 June 2024. Before that Spain had six MIBEL intraday sessions, a different market, which are left out for now.");
-    const failed = r.status.map(s => 1 - s);
     const mv = hourly ? model : dailyMean(model, nd);
     const rv = hourly ? real : dailyMean(real, nd);
-    const band = hourly ? failed : dailyMean(failed, nd);
     const n = mv.length;
     lineChart(host, {
-      n, height: state.tab === "price" ? 440 : 310, label: "Price, model vs real", endLabels: true, band, yUnit: "€/MWh",
+      n, height: state.tab === "price" ? 440 : 310, label: "Price, model vs real", endLabels: true, yUnit: "€/MWh",
       onZoom: (a, b) => zoomFromChart(a, b, hourly),
       xTicks: dayTicks(r.days, hourly, host.clientWidth - 110),
       series: [
@@ -1453,14 +1451,10 @@
         const day = hourly ? Math.floor(i / 24) : i;
         const when = dayLabel(r.days[day]) + (hourly ? ", " + hh(i % 24) : " (daily mean)");
         const a = rv[i], b = mv[i];
-        const st = hourly
-          ? (failed[i] ? `<span style="color:var(--critical)">AC failed</span>` : "AC solved")
-          : `${Math.round(band[i] * 24)} of 24 hours failed`;
         return `<b>${when}</b>
           <div class="row"><i class="sw-line" style="background:var(--real)"></i>${rName}<span class="v">${nf(a)} €/MWh</span></div>
           <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model ${state.priceStage}<span class="v">${nf(b)} €/MWh</span></div>
-          <div class="row">Difference<span class="v">${a != null && b != null ? signed(b - a) + " €/MWh" : "–"}</span></div>
-          <div class="row">${st}</div>`;
+          <div class="row">Difference<span class="v">${a != null && b != null ? signed(b - a) + " €/MWh" : "–"}</span></div>`;
       },
     });
   }
