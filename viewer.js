@@ -292,7 +292,8 @@
         d += (pen ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1);
         pen = true;
       });
-      svg("path", { d, fill: "none", stroke: ser.color, "stroke-width": Math.max(2, ser.width || 2), "stroke-linejoin": "round", "stroke-linecap": "round" }, s);
+      const pa = svg("path", { d, fill: "none", stroke: ser.color, "stroke-width": Math.max(2, ser.width || 2), "stroke-linejoin": "round", "stroke-linecap": "round" }, s);
+      if (ser.dash) pa.setAttribute("stroke-dasharray", ser.dash);
     }
     // optional dots on the first series, e.g. the hours a storage unit charges or discharges
     for (const pt of o.points || []) for (const i of pt.idx) {
@@ -1374,21 +1375,23 @@
 
   function renderPeriod() {
     const r = run(), nd = r.days.length, z = state.zoom || [0, nd - 1], len = z[1] - z[0] + 1;
-    const opts = selI => r.days.map((d, i) => `<option value="${i}"${i === selI ? " selected" : ""}>${dayLabel(d)}</option>`).join("");
     const el = $("period");
     el.classList.toggle("zoomed", !!state.zoom);
     el.innerHTML = `<span class="p-run"><button type="button" class="runs-toggle" id="runs-toggle" aria-expanded="${runsOpen}" aria-controls="runs-nav">☰ Runs</button><b title="${esc(r.name)}">${esc(r.name)}</b></span>
       <span class="p-label">Showing</span>
-      <select id="p-from" aria-label="First day shown">${opts(z[0])}</select><span>to</span>
-      <select id="p-to" aria-label="Last day shown">${opts(z[1])}</select>
+      <label class="p-date">From <input type="date" id="p-from" min="${r.days[0]}" max="${r.days[nd - 1]}" value="${r.days[z[0]]}" aria-label="First day shown"></label>
+      <label class="p-date">to <input type="date" id="p-to" min="${r.days[0]}" max="${r.days[nd - 1]}" value="${r.days[z[1]]}" aria-label="Last day shown"></label>
       <span class="p-count">${len} of ${nd} days</span>
       <button type="button" id="p-prev" aria-label="Show the previous ${len} days" ${z[0] === 0 || !state.zoom ? "disabled" : ""}>← Earlier</button>
       <button type="button" id="p-next" aria-label="Show the next ${len} days" ${z[1] === nd - 1 || !state.zoom ? "disabled" : ""}>Later →</button>
       <button type="button" id="p-reset" ${state.zoom ? "" : "disabled"}>Show all days</button>
       <span class="p-key" aria-label="Colours"><span><i class="sw-line" style="background:var(--model)"></i>Model</span><span><i class="sw-line" style="background:var(--real)"></i>Real</span></span>`;
     $("runs-toggle").onclick = () => setRunsOpen(!runsOpen);
-    $("p-from").onchange = e => { const a = +e.target.value; setZoom(a, Math.max(a, z[1])); };
-    $("p-to").onchange = e => { const b = +e.target.value; setZoom(Math.min(z[0], b), b); };
+    // a picked date maps to the nearest run day inside the range (runs can skip days)
+    const firstFrom = iso => { const i = r.days.findIndex(d => d >= iso); return i < 0 ? nd - 1 : i; };
+    const lastTo = iso => { let i = nd - 1; while (i > 0 && r.days[i] > iso) i--; return i; };
+    $("p-from").onchange = e => { if (!e.target.value) return; const a = firstFrom(e.target.value); setZoom(a, Math.max(a, z[1])); };
+    $("p-to").onchange = e => { if (!e.target.value) return; const b = lastTo(e.target.value); setZoom(Math.min(z[0], b), b); };
     $("p-prev").onclick = () => { const a = Math.max(0, z[0] - len); setZoom(a, a + len - 1); };
     $("p-next").onclick = () => { const b = Math.min(nd - 1, z[1] + len); setZoom(b - len + 1, b); };
     $("p-reset").onclick = () => setZoom(0, nd - 1);
@@ -2269,7 +2272,7 @@
     $("flex-margin").innerHTML = `<b>Trading margin is not profit.</b> It is the money from selling minus the money paid for the electricity it bought. The investment, staff, maintenance, wear and grid charges are not subtracted; they all have to be paid out of this. See the picture at the bottom.`;
 
     // model price with the hours the unit trades
-    $("flex-price-legend").innerHTML = `<span><i class="sw-line" style="background:var(--ink-2)"></i>${PL[2]}</span>
+    $("flex-price-legend").innerHTML = `<span><i class="sw-line" style="background:${state.flexPrice === "real" ? "var(--real)" : "var(--model)"}"></i>${PL[2]}</span>
       <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--buy)"/></svg>Charges (buys)</span>
       <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--sell)"/></svg>Discharges (sells)</span>`;
     const ph = $("flex-price-chart"), idxOf = v => M.acts.reduce((o, x, i) => (x === v && o.push(i), o), []);
@@ -2277,7 +2280,7 @@
       n: nd * 24, height: 320, label: `${PL[2]} with the hours the storage unit charges and discharges`, endLabels: false, yUnit: "€/MWh",
       onZoom: (x0, x1) => zoomFromChart(x0, x1, true),
       xTicks: dayTicks(r.days, true, ph.clientWidth - 60),
-      series: [{ name: PL[2], values: P, color: "var(--ink-2)", width: 1.25 }],
+      series: [{ name: PL[2], values: P, color: state.flexPrice === "real" ? "var(--real)" : "var(--model)", width: 1.5 }],
       points: [{ idx: idxOf(1), color: "var(--buy)" }, { idx: idxOf(-1), color: "var(--sell)" }],
       tooltip: i => `<b>${dayLabel(r.days[Math.floor(i / 24)])}, ${hh(i % 24)}</b>
         <div class="row">${PL[2]}<span class="v">${nf(P[i])} €/MWh</span></div>
@@ -2346,7 +2349,7 @@
     const options = MANIFEST.filter(m => m.id !== A.id && m.last_day >= v.days[0] && m.first_day <= v.days[v.days.length - 1]);
     if (!options.some(m => m.id === state.cmpB)) state.cmpB = defaultB(aMeta.id ? aMeta : { id: A.id, first_day: A.days[0], last_day: A.days[A.days.length - 1] });
     $("cmp-pick").innerHTML = `<span class="cmp-a"><i class="sw-line" style="background:var(--model)"></i><b>A</b> ${esc(A.name)}</span>
-      <label class="cmp-b"><i class="sw-line" style="background:var(--cat-2)"></i><b>B</b>
+      <label class="cmp-b"><i class="sw-line sw-dash"></i><b>B</b>
         <select id="cmp-select">${options.map(m => `<option value="${esc(m.id)}"${m.id === state.cmpB ? " selected" : ""}>${esc(m.name)} · ${period([m.first_day, m.last_day])}</option>`).join("")}</select></label>`;
     $("cmp-select").addEventListener("change", ev => { state.cmpB = ev.target.value; renderCompare(view()); });
     const body = $("cmp-body");
@@ -2422,12 +2425,12 @@
       series: [
         { name: "Real (OMIE)", values: dm(real), color: "var(--real)", width: 2 },
         { name: "Run A", values: dm(pa), color: "var(--model)", width: 2.25 },
-        { name: "Run B", values: dm(pb), color: "var(--cat-2)", width: 2.25 },
+        { name: "Run B", values: dm(pb), color: "var(--model)", width: 2.25, dash: "7 5" },
       ],
       tooltip: i => { const a = dm(pa)[i], b = dm(pb)[i], re = dm(real)[i];
         return `<b>${hourly ? dayLabel(days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(days[i]) + " (daily mean)"}</b>
           <div class="row"><i class="sw-line" style="background:var(--model)"></i>A<span class="v">${nf(a)} €/MWh</span></div>
-          <div class="row"><i class="sw-line" style="background:var(--cat-2)"></i>B<span class="v">${nf(b)} €/MWh</span></div>
+          <div class="row"><i class="sw-line sw-dash"></i>B<span class="v">${nf(b)} €/MWh</span></div>
           <div class="row"><i class="sw-line" style="background:var(--real)"></i>Real<span class="v">${nf(re)} €/MWh</span></div>`; },
     });
 

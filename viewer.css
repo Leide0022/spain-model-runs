@@ -15,7 +15,7 @@ img { max-width: 100%; }
   --axis: #c3c2b7;
   --hair: rgba(11, 11, 11, 0.10);
   --model: #2a78d6;
-  --real: #8c6a4f;
+  --real: #8a8984;
   --critical: #d03b3b;
   --good: #0c7a0c;
   --cell-ok: #d9d8d1;
@@ -38,7 +38,7 @@ img { max-width: 100%; }
   :root:not([data-theme="light"]) {
     --page: #0f0f0e; --surface: #1a1a19; --surface-2: #262624; --ink: #f2f1ec; --ink-2: #c3c2b7;
     --muted: #a3a19a; --grid: #262624; --axis: #4a4944; --hair: rgba(255, 255, 255, 0.10);
-    --model: #3987e5; --real: #c9a98a; --critical: #d03b3b; --good: #0ca30c; --cell-ok: #34342f;
+    --model: #3987e5; --real: #9d9c95; --critical: #d03b3b; --good: #0ca30c; --cell-ok: #34342f;
     --note-bg: #33290f; --note-ink: #f0c96e; --sel-bg: #f2f1ec; --sel-ink: #141413;
     --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500;
     --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9; --cat-8: #e66767;
@@ -53,7 +53,7 @@ img { max-width: 100%; }
 :root[data-theme="dark"] {
   --page: #0f0f0e; --surface: #1a1a19; --surface-2: #262624; --ink: #f2f1ec; --ink-2: #c3c2b7;
   --muted: #a3a19a; --grid: #262624; --axis: #4a4944; --hair: rgba(255, 255, 255, 0.10);
-  --model: #3987e5; --real: #c9a98a; --critical: #d03b3b; --good: #0ca30c; --cell-ok: #34342f;
+  --model: #3987e5; --real: #9d9c95; --critical: #d03b3b; --good: #0ca30c; --cell-ok: #34342f;
   --note-bg: #33290f; --note-ink: #f0c96e; --sel-bg: #f2f1ec; --sel-ink: #141413;
   --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500;
   --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9; --cat-8: #e66767;
@@ -228,6 +228,10 @@ tr.total-row td { border-top: 1px solid var(--axis); font-weight: 600; }
   background: var(--surface); border: 1px solid var(--hair); border-radius: 10px; padding: 8px 12px; box-shadow: 0 6px 16px -12px rgba(0, 0, 0, 0.35); }
 .period .p-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .period select { font: inherit; font-size: 13px; color: var(--ink); background: var(--surface-2); border: 0; border-radius: 6px; padding: 4px 6px; }
+.period .p-date { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.period input[type="date"] { font: inherit; font-size: 14px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--hair); border-radius: 6px; padding: 3px 6px; cursor: pointer; color-scheme: light dark; }
+/* run B in Compare: the model's blue, dashed */
+.sw-dash { background: repeating-linear-gradient(90deg, var(--model) 0 6px, transparent 6px 9px); }
 .period .p-count { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .period button { font-size: 13px; border: 1px solid var(--hair); background: var(--surface); border-radius: 6px; padding: 3px 9px; cursor: pointer; }
 .period button:hover:not(:disabled) { border-color: var(--axis); }
