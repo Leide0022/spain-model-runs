@@ -19,9 +19,10 @@
   const TABS = [["overview", "Overview"], ["price", "Price"], ["mix", "Generation mix"], ["flex", "Trading margin"], ["invest", "Investment case"], ["status", "AC redispatch"], ["grid", "Grid"], ["plants", "Power plants"], ["stages", "Market stages"], ["esios", "REE (e·sios)"], ["compare", "Compare runs"]];
   try { const saved = localStorage.getItem("runviewer.tab"); if (TABS.some(x => x[0] === saved)) state.tab = saved; } catch (e) {}
   try { const ms = localStorage.getItem("runviewer.mapStyle"); if (["plain", "political", "terrain", "dark"].includes(ms)) state.mapStyle = ms; } catch (e) {}
-  const CAT_COLOR = { Hydro: "var(--cat-1)", CCGT: "var(--cat-2)", Wind: "var(--cat-3)", Solar: "var(--cat-4)",
-    "CHP group": "var(--cat-5)", Imports: "var(--cat-6)", Nuclear: "var(--cat-7)", Coal: "var(--cat-8)",
-    Gas: "var(--cat-2)", "Bio & other": "var(--cat-5)" };
+  // power-source colours (tokens in viewer.css): CHP group takes the oil colour, a darker sibling of gas; imports = other
+  const CAT_COLOR = { Hydro: "var(--fuel-hydro)", CCGT: "var(--fuel-gas)", Wind: "var(--fuel-wind)", Solar: "var(--fuel-solar)",
+    "CHP group": "var(--fuel-oil)", Imports: "var(--fuel-other)", Nuclear: "var(--fuel-nuclear)", Coal: "var(--fuel-coal)",
+    Gas: "var(--fuel-gas)", "Bio & other": "var(--fuel-bio)", Biomass: "var(--fuel-bio)" };
   const STACK = ["Coal", "Nuclear", "Imports", "CHP group", "Solar", "Wind", "CCGT", "Hydro"]; // bottom to top
   const STACK_PHYS = ["Coal", "Nuclear", "Imports", "Bio & other", "Solar", "Wind", "Gas", "Hydro"];
   const REF_NAME = { omie: "OMIE day-ahead programme", entsoe: "ENTSO-E actual generation" };
@@ -1058,8 +1059,8 @@
   // ---------- power plants map ----------
   const PD = { groups: [], runs: {} };  // groups: the picked run's plants
   const PLANT_FUELS = ["Nuclear", "Coal", "Gas", "Hydro", "Wind", "Solar", "Biomass", "Imports"];
-  const PLANT_COLOR = { Hydro: "var(--cat-1)", Gas: "var(--cat-2)", Wind: "var(--cat-3)", Solar: "var(--cat-4)",
-    Biomass: "var(--cat-5)", Imports: "var(--cat-6)", Nuclear: "var(--cat-7)", Coal: "var(--cat-8)" };
+  const PLANT_COLOR = { Hydro: "var(--fuel-hydro)", Gas: "var(--fuel-gas)", Wind: "var(--fuel-wind)", Solar: "var(--fuel-solar)",
+    Biomass: "var(--fuel-bio)", Imports: "var(--fuel-other)", Nuclear: "var(--fuel-nuclear)", Coal: "var(--fuel-coal)" };
   const plantCache = {};
   function plantRun(id) {
     if (!plantCache[id]) {
@@ -1676,7 +1677,7 @@
     ["otros", "Other causes", "var(--axis)", false],
   ];
   const REBAL = ["Rebalancing after phase I", "var(--cat-3)"];
-  const RD_TYPES = [["Pumped storage", "var(--cat-7)"], ["Hydro", "var(--cat-1)"], ["Gas", "var(--cat-2)"], ["Wind and solar", "var(--cat-3)"], ["Other", "var(--axis)"]];
+  const RD_TYPES = [["Pumped storage", "var(--cat-7)"], ["Hydro", "var(--fuel-hydro)"], ["Gas", "var(--fuel-gas)"], ["Wind and solar", "var(--fuel-wind)"], ["Other", "var(--fuel-other)"]];
   function renderWhy(r, k) {
     const host = $("rd-why");
     if (!k.RD || !k.RD.up_by) { host.innerHTML = `<p class="fineprint">Publish this run again with the current publish_run.py to see the model's split.</p>`; $("rd-why-note").textContent = ""; return; }

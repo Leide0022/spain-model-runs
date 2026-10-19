@@ -30,6 +30,9 @@ img { max-width: 100%; }
   --mp-sea: #e3edf3; --mp-land: #faf9f4; --mp-land2: #eeede7; --mp-coast: #a7b7c0; --mp-reg: #8e8b82;
   --mp-prov: #d6d3ca; --mp-label: #4f4c46; --mp-halo: #faf9f4; --mp-tsea: #d3e4ec; --mp-tland: #eef0e0;
   --relief-blend: multiply; --relief-op: 0.85; --soto: #c2410c; --mp-sel: #141413;
+  /* power sources, from the group's reference palette (coal dark brown → gas red-brown, nuclear mustard, greens for renewables) */
+  --fuel-coal: #2a1517; --fuel-oil: #522a2f; --fuel-gas: #824148; --fuel-nuclear: #d9bf41; --fuel-bio: #545427;
+  --fuel-hydro: #49b691; --fuel-solar: #c7d162; --fuel-wind: #76d1b0; --fuel-other: #8093b3;
   --font-ui: "Avenir Next", Avenir, "Nunito Sans", system-ui, -apple-system, "Segoe UI", sans-serif;   /* Avenir where installed (Mac); Nunito Sans (Google Fonts) is the free stand-in */
   --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
 }
@@ -46,6 +49,9 @@ img { max-width: 100%; }
     --mp-sea: #121a1f; --mp-land: #212426; --mp-land2: #1a1c1e; --mp-coast: #3a4a52; --mp-reg: #626a70;
     --mp-prov: #33393d; --mp-label: #c3cad0; --mp-halo: #15191b; --mp-tsea: #0f171c; --mp-tland: #262922;
     --relief-blend: overlay; --relief-op: 0.75; --soto: #fb923c; --mp-sel: #f2f1ec;
+    /* the dark browns are lifted so they show on a dark page */
+    --fuel-coal: #8a6466; --fuel-oil: #a0565f; --fuel-gas: #c0707b; --fuel-nuclear: #d9bf41; --fuel-bio: #8c8c48;
+    --fuel-hydro: #49b691; --fuel-solar: #c7d162; --fuel-wind: #76d1b0; --fuel-other: #8093b3;
     color-scheme: dark;
   }
 }
@@ -61,6 +67,9 @@ img { max-width: 100%; }
   --mp-sea: #121a1f; --mp-land: #212426; --mp-land2: #1a1c1e; --mp-coast: #3a4a52; --mp-reg: #626a70;
   --mp-prov: #33393d; --mp-label: #c3cad0; --mp-halo: #15191b; --mp-tsea: #0f171c; --mp-tland: #262922;
   --relief-blend: overlay; --relief-op: 0.75; --soto: #fb923c; --mp-sel: #f2f1ec;
+    /* the dark browns are lifted so they show on a dark page */
+    --fuel-coal: #8a6466; --fuel-oil: #a0565f; --fuel-gas: #c0707b; --fuel-nuclear: #d9bf41; --fuel-bio: #8c8c48;
+    --fuel-hydro: #49b691; --fuel-solar: #c7d162; --fuel-wind: #76d1b0; --fuel-other: #8093b3;
   color-scheme: dark;
 }
 
