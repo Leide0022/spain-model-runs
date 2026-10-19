@@ -251,7 +251,8 @@
     lo = ticks[0]; hi = ticks[ticks.length - 1];
     // left margin wide enough for the longest axis number (e.g. 1,200,000 €)
     const tickW = Math.max(...ticks.map(t => t.toLocaleString("en-GB").length)) * 6.6 + 12;
-    const m = { l: Math.max(40, tickW), r: o.endLabels ? 66 : 8, t: o.yUnit ? 26 : 8, b: (o.band ? 34 : 0) + 22 };
+    const endW = o.endLabels ? Math.max(...o.series.map(q => String(q.name).length)) * 7.6 + 16 : 8;
+    const m = { l: Math.max(40, tickW), r: o.endLabels ? Math.max(66, endW) : 8, t: o.yUnit ? 26 : 8, b: (o.band ? 34 : 0) + 22 };
     const pw = W - m.l - m.r, ph = H - m.t - m.b;
     const n = o.n;
     const x = i => m.l + (n === 1 ? pw / 2 : (i / (n - 1)) * pw);
@@ -291,7 +292,7 @@
         d += (pen ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1);
         pen = true;
       });
-      svg("path", { d, fill: "none", stroke: ser.color, "stroke-width": ser.width || 1.75, "stroke-linejoin": "round", "stroke-linecap": "round" }, s);
+      svg("path", { d, fill: "none", stroke: ser.color, "stroke-width": Math.max(2, ser.width || 2), "stroke-linejoin": "round", "stroke-linecap": "round" }, s);
     }
     // optional dots on the first series, e.g. the hours a storage unit charges or discharges
     for (const pt of o.points || []) for (const i of pt.idx) {
@@ -553,6 +554,15 @@
   function saveFilters() { try { localStorage.setItem("runviewer.filters", JSON.stringify(filters)); } catch (e) {} }
 
   // ---------- sections ----------
+  let runsOpen = false;
+  try { runsOpen = localStorage.getItem("runviewer.runsOpen") === "1"; } catch (e) {}
+  function setRunsOpen(open) {
+    runsOpen = open;
+    try { localStorage.setItem("runviewer.runsOpen", open ? "1" : "0"); } catch (e) {}
+    document.querySelector(".layout").classList.toggle("runs-closed", !open);
+    const t = $("runs-toggle"); if (t) t.setAttribute("aria-expanded", String(open));
+    if (open) window.scrollTo({ top: 0 });
+  }
   function renderRunList() {
     renderRunFilters();
     const host = $("run-list"); host.innerHTML = "";
@@ -570,7 +580,7 @@
         ${tags.length ? `<span class="ri-tags">${tags.map(t => `<span class="ri-tag">${esc(t)}</span>`).join("")}</span>` : ""}
         <span class="ri-meta"><span>${nf(pct, 0)} % of hours solved</span></span>
         <span class="meter" aria-hidden="true"><span style="width:${pct}%"></span></span>`;
-      b.addEventListener("click", () => { if (m.id !== state.run || !run()) selectRun(m.id); });
+      b.addEventListener("click", () => { if (m.id !== state.run || !run()) selectRun(m.id); setRunsOpen(false); });
       host.appendChild(b);
     }
     if (!shown.length) host.innerHTML = `<p class="rf-empty">No run has this combination of model changes.</p>`;
@@ -1367,14 +1377,16 @@
     const opts = selI => r.days.map((d, i) => `<option value="${i}"${i === selI ? " selected" : ""}>${dayLabel(d)}</option>`).join("");
     const el = $("period");
     el.classList.toggle("zoomed", !!state.zoom);
-    el.innerHTML = `<span class="p-label">Showing</span>
+    el.innerHTML = `<span class="p-run"><button type="button" class="runs-toggle" id="runs-toggle" aria-expanded="${runsOpen}" aria-controls="runs-nav">☰ Runs</button><b title="${esc(r.name)}">${esc(r.name)}</b></span>
+      <span class="p-label">Showing</span>
       <select id="p-from" aria-label="First day shown">${opts(z[0])}</select><span>to</span>
       <select id="p-to" aria-label="Last day shown">${opts(z[1])}</select>
       <span class="p-count">${len} of ${nd} days</span>
       <button type="button" id="p-prev" aria-label="Show the previous ${len} days" ${z[0] === 0 || !state.zoom ? "disabled" : ""}>← Earlier</button>
       <button type="button" id="p-next" aria-label="Show the next ${len} days" ${z[1] === nd - 1 || !state.zoom ? "disabled" : ""}>Later →</button>
       <button type="button" id="p-reset" ${state.zoom ? "" : "disabled"}>Show all days</button>
-      <span class="p-hint">Drag across a chart to zoom in.</span>`;
+      <span class="p-key" aria-label="Colours"><span><i class="sw-line" style="background:var(--model)"></i>Model</span><span><i class="sw-line" style="background:var(--real)"></i>Real</span></span>`;
+    $("runs-toggle").onclick = () => setRunsOpen(!runsOpen);
     $("p-from").onchange = e => { const a = +e.target.value; setZoom(a, Math.max(a, z[1])); };
     $("p-to").onchange = e => { const b = +e.target.value; setZoom(Math.min(z[0], b), b); };
     $("p-prev").onclick = () => { const a = Math.max(0, z[0] - len); setZoom(a, a + len - 1); };
@@ -1410,9 +1422,7 @@
     seg($("price-stage"), PRICE_STAGES.map(s => [s, s, s]), state.priceStage, v => { state.priceStage = v; renderPrice(view()); });
     seg($("price-res"), [["hour", "Hourly"], ["day", "Daily mean"]], state.priceRes, v => { state.priceRes = v; renderPrice(view()); });
     const [rKey, rName, rTerm] = REAL_FOR_STAGE[state.priceStage] || [null, "Real (OMIE day-ahead)", "real_price"];
-    $("price-legend").innerHTML = `<span><i class="sw-line" style="background:var(--real)"></i>${term(rName, rTerm)}</span>
-      <span><i class="sw-line" style="background:var(--model)"></i>${term(`Model (${state.priceStage})`, state.priceStage)}</span>
-      <span><i class="sw-box" style="background:var(--critical)"></i>${term("AC redispatch failed", "failed")}</span>`;
+    $("price-legend").innerHTML = `<span><i class="sw-box" style="background:var(--critical)"></i>${term("AC redispatch failed", "failed")}</span>`;
     const host = $("price-chart");
     const nd = r.days.length, hourly = state.priceRes === "hour";
     const model = r.price[state.priceStage];
@@ -1433,8 +1443,8 @@
       onZoom: (a, b) => zoomFromChart(a, b, hourly),
       xTicks: dayTicks(r.days, hourly, host.clientWidth - 110),
       series: [
-        { name: "Real", values: rv, color: "var(--real)", width: 1.5 },
-        { name: "Model", values: mv, color: "var(--model)", width: 2 },
+        { name: rName, values: rv, color: "var(--real)", width: 2 },
+        { name: `Model (${state.priceStage})`, values: mv, color: "var(--model)", width: 2.25 },
       ],
       tooltip: i => {
         const day = hourly ? Math.floor(i / 24) : i;
@@ -1446,7 +1456,7 @@
         return `<b>${when}</b>
           <div class="row"><i class="sw-line" style="background:var(--real)"></i>${rName}<span class="v">${nf(a)} €/MWh</span></div>
           <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model ${state.priceStage}<span class="v">${nf(b)} €/MWh</span></div>
-          <div class="row">Difference<span class="v">${a != null && b != null ? signed(b - a) : "–"}</span></div>
+          <div class="row">Difference<span class="v">${a != null && b != null ? signed(b - a) + " €/MWh" : "–"}</span></div>
           <div class="row">${st}</div>`;
       },
     });
@@ -1529,12 +1539,11 @@
     const agg = a => hourly ? a : dailyMean(a, nd);
     const PR = [["Model, balancing (BAL)", r.price.BAL, "var(--model)", 2], ["REE, RR price", E("rr_price"), "var(--real)", 1.5],
                 ["REE, aFRR up", E("afrr_up_price"), "var(--cat-2)", 1.2], ["REE, aFRR down", E("afrr_down_price"), "var(--cat-3)", 1.2]];
-    $("bal-legend").innerHTML = PR.map(([n, , c]) => `<span><i class="sw-line" style="background:${c}"></i>${n}</span>`).join("")
-      + `<span style="color:var(--muted)">${hourly ? "each hour" : "daily mean"}</span>`;
+    $("bal-legend").innerHTML = `<span style="color:var(--muted)">${hourly ? "each hour" : "daily mean"}</span>`;
     const host = $("bal-chart");
     const ser = PR.map(([name, v, color, width]) => ({ name, values: agg(v), color, width }));
     lineChart(host, {
-      n: ser[0].values.length, height: 300, yUnit: "€/MWh", label: "Balancing price, model vs REE", endLabels: false,
+      n: ser[0].values.length, height: 300, yUnit: "€/MWh", label: "Balancing price, model vs REE", endLabels: true,
       xTicks: dayTicks(r.days, hourly, host.clientWidth - 60), onZoom: (a, b) => zoomFromChart(a, b, hourly),
       series: ser,
       tooltip: i => `<b>${hourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i]) + " (daily mean)"}</b>`
@@ -2024,7 +2033,7 @@
     $("flex-explain").innerHTML = `${g}
       <div class="fx-text">
         <ol>
-          <li><b>Buys</b> <i class="sw-box" style="background:var(--model)"></i> in the day's cheapest hours and <b>sells</b> <i class="sw-box" style="background:var(--soto)"></i> in the most expensive.</li>
+          <li><b>Buys</b> <i class="sw-box" style="background:var(--buy)"></i> in the day's cheapest hours and <b>sells</b> <i class="sw-box" style="background:var(--sell)"></i> in the most expensive.</li>
           <li><b>Only if it pays:</b> 1 MWh in gives ${nf(eff, 2)} MWh back, so it sells only at <b>${nf(100 / a.eff, 2)} ×</b> the buying price or more.</li>
           <li><b>Empty</b> at the start and end of every day; holds up to ${a.h} hours of charging.</li>
         </ol>
@@ -2261,27 +2270,27 @@
 
     // model price with the hours the unit trades
     $("flex-price-legend").innerHTML = `<span><i class="sw-line" style="background:var(--ink-2)"></i>${PL[2]}</span>
-      <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--model)"/></svg>Charges (buys)</span>
-      <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--soto)"/></svg>Discharges (sells)</span>`;
+      <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--buy)"/></svg>Charges (buys)</span>
+      <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--sell)"/></svg>Discharges (sells)</span>`;
     const ph = $("flex-price-chart"), idxOf = v => M.acts.reduce((o, x, i) => (x === v && o.push(i), o), []);
     lineChart(ph, {
       n: nd * 24, height: 320, label: `${PL[2]} with the hours the storage unit charges and discharges`, endLabels: false, yUnit: "€/MWh",
       onZoom: (x0, x1) => zoomFromChart(x0, x1, true),
       xTicks: dayTicks(r.days, true, ph.clientWidth - 60),
       series: [{ name: PL[2], values: P, color: "var(--ink-2)", width: 1.25 }],
-      points: [{ idx: idxOf(1), color: "var(--model)" }, { idx: idxOf(-1), color: "var(--soto)" }],
+      points: [{ idx: idxOf(1), color: "var(--buy)" }, { idx: idxOf(-1), color: "var(--sell)" }],
       tooltip: i => `<b>${dayLabel(r.days[Math.floor(i / 24)])}, ${hh(i % 24)}</b>
         <div class="row">${PL[2]}<span class="v">${nf(P[i])} €/MWh</span></div>
         <div class="row">${M.acts[i] === 1 ? "Charges (buys)" : M.acts[i] === -1 ? "Discharges (sells)" : "Waits"}</div>`,
     });
 
-    $("flex-legend").innerHTML = `<span><i class="sw-line" style="background:var(--model)"></i>Trading margin per day, ${nf(MW, 0)} MW in, in €</span>`;
+    $("flex-legend").innerHTML = `<span><i class="sw-line" style="background:var(--ink-2)"></i>Trading margin per day, ${nf(MW, 0)} MW in, in €</span>`;
     const host = $("flex-chart");
     lineChart(host, {
       n: nd, height: 300, label: "Storage trading margin per day on the model's day-ahead price", endLabels: false, yUnit: "€ per day",
       onZoom: (x0, x1) => zoomFromChart(x0, x1, false),
       xTicks: dayTicks(r.days, false, host.clientWidth - 60),
-      series: [{ name: "Trading margin", values: M.days.map(d => d.value * MW), color: "var(--model)", width: 2 }],
+      series: [{ name: "Trading margin", values: M.days.map(d => d.value * MW), color: "var(--ink-2)", width: 2 }],
       tooltip: i => {
         const d = M.days[i];
         return `<b>${dayLabel(r.days[i])}</b>
@@ -2305,7 +2314,7 @@
     }
     g += `<line x1="${l}" x2="${l + pw}" y1="${mid}" y2="${mid}" class="fp-axis"/>`
       + `<text x="${l + 6}" y="${t + 12}" class="fp-ax">discharges ↑</text><text x="${l + 6}" y="${H - b - 6}" class="fp-ax">charges ↓</text></svg>`;
-    $("flex-profiles").innerHTML = `<div class="legend"><span><i class="sw-box" style="background:var(--soto)"></i>Discharges (sells)</span><span><i class="sw-box" style="background:var(--model)"></i>Charges (buys)</span></div>${g}`;
+    $("flex-profiles").innerHTML = `<div class="legend"><span><i class="sw-box" style="background:var(--sell)"></i>Discharges (sells)</span><span><i class="sw-box" style="background:var(--buy)"></i>Charges (buys)</span></div>${g}`;
 
     // per month
     const months = {};
@@ -2397,7 +2406,6 @@
       <div class="table-wrap">${tbl}</div>
       <p class="fineprint">Bold = closer to reality (price error) or more hours solved. Generation is the day-ahead stage. Trading margin = sales − electricity bought, before investment and running costs, with the settings on the Trading margin tab.</p>
       <div class="cmp-head"><h4 class="flex-h4">Price</h4><div class="seg" role="group" aria-label="Time resolution" id="cmp-res"></div></div>
-      <div class="legend"><span><i class="sw-line" style="background:var(--model)"></i>A</span><span><i class="sw-line" style="background:var(--cat-2)"></i>B</span><span><i class="sw-line" style="background:var(--axis)"></i>Real (OMIE)</span></div>
       <div class="chart" id="cmp-chart"></div>
       <h4 class="flex-h4">Generation: how much more or less B produces than A</h4>
       <div id="cmp-mix"></div>
@@ -2412,15 +2420,15 @@
       n: hourly ? nd * 24 : nd, height: 340, label: "Day-ahead price, run A vs run B", endLabels: true, yUnit: "€/MWh",
       xTicks: dayTicks(days, hourly, host.clientWidth - 110),
       series: [
-        { name: "Real", values: dm(real), color: "var(--axis)", width: 1 },
-        { name: "A", values: dm(pa), color: "var(--model)", width: 2 },
-        { name: "B", values: dm(pb), color: "var(--cat-2)", width: 2 },
+        { name: "Real (OMIE)", values: dm(real), color: "var(--real)", width: 2 },
+        { name: "Run A", values: dm(pa), color: "var(--model)", width: 2.25 },
+        { name: "Run B", values: dm(pb), color: "var(--cat-2)", width: 2.25 },
       ],
       tooltip: i => { const a = dm(pa)[i], b = dm(pb)[i], re = dm(real)[i];
         return `<b>${hourly ? dayLabel(days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(days[i]) + " (daily mean)"}</b>
           <div class="row"><i class="sw-line" style="background:var(--model)"></i>A<span class="v">${nf(a)} €/MWh</span></div>
           <div class="row"><i class="sw-line" style="background:var(--cat-2)"></i>B<span class="v">${nf(b)} €/MWh</span></div>
-          <div class="row"><i class="sw-line" style="background:var(--axis)"></i>Real<span class="v">${nf(re)} €/MWh</span></div>`; },
+          <div class="row"><i class="sw-line" style="background:var(--real)"></i>Real<span class="v">${nf(re)} €/MWh</span></div>`; },
     });
 
     // generation difference per technology, B − A, TWh
@@ -2587,7 +2595,27 @@
     note.hidden = true; $("report").classList.remove("loading");
     renderAll();
   }
+  function foldExplanations() {
+    document.querySelectorAll(".sec-head > div > p").forEach(p => {
+      const h = p.innerHTML, m = h.match(/\.\s+(?=[A-Z"“(])/);
+      if (!m || h.length < 140) return;
+      const cut = m.index + 1, rest = h.slice(cut).trim();
+      p.innerHTML = h.slice(0, cut);
+      const d = document.createElement("details"); d.className = "howto";
+      d.innerHTML = `<summary>How to read this</summary><p>${rest}</p>`;
+      p.after(d);
+    });
+    document.querySelectorAll("section.card > p.fineprint:not([id])").forEach(p => {
+      if (p.textContent.length < 200) return;
+      const d = document.createElement("details"); d.className = "howto more";
+      d.innerHTML = "<summary>Sources and details</summary>";
+      p.replaceWith(d); d.appendChild(p);
+    });
+  }
   function start() {
+    foldExplanations();
+    document.querySelector(".layout").classList.toggle("runs-closed", !runsOpen);
+    document.querySelector(".layout > .runs").id = "runs-nav";
     renderRunList();
     if (!MANIFEST.length) {
       $("status-note").hidden = false;
