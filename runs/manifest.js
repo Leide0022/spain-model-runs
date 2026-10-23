@@ -2,6 +2,59 @@
 window.RUN_MANIFEST = [
  {
   "schema": 1,
+  "id": "2035-trinity-impr-wk1",
+  "name": "2035 Trinity, improvements, week 1",
+  "note": "2035 with CO2 fix, CCGTs closed oldest first, gas efficiency per plant, unit commitment + minimum-income check, gas/coal mark-ups, island plants, nuclear 0.85, CHP per month; weather 2015, 1-7 Jan.",
+  "published": "2026-10-23T13:54:30+02:00",
+  "published_by": "Lars Erik Eide",
+  "first_day": "2024-01-01",
+  "last_day": "2024-01-07",
+  "n_days": 7,
+  "ac_solved": 168,
+  "ac_total": 168,
+  "months": [
+   "2024-01"
+  ],
+  "size_mb": 1.2,
+  "info": {
+   "ran_by": "Lars Erik Eide",
+   "branch": "2035-improvements",
+   "commit": "cef35d7",
+   "commit_message": "2035: gas mark-up from the model's own RSI (no owner data), calibrated on 2024",
+   "uncommitted_files": [
+    "Data/BellmanValuesOUT_sddp4_Trinity.csv",
+    "Data/ExchangeSchedule_sddp4_Trinity.csv",
+    "Data/TurbineSchedule_sddp4_Trinity.csv",
+    "Data/Volume_Scen0_OUT_sddp4_Trinity.csv",
+    "Manifest.toml",
+    "Project.toml"
+   ],
+   "started": "2026-10-23 12:58:48",
+   "finished": "2026-10-23 13:38:44",
+   "runtime_min": 39.9,
+   "power_flow": "AC",
+   "linear_solver": "ma57",
+   "label": "Trinity",
+   "reconstructed": false
+  },
+  "scenario": {
+   "label": "Trinity",
+   "period": 2,
+   "weather_years": [
+    2015
+   ]
+  },
+  "features": {
+   "res": "accepted",
+   "xb": true,
+   "gas": true,
+   "markup": true,
+   "hydro": false,
+   "chain": "day"
+  }
+ },
+ {
+  "schema": 1,
   "id": "2035-trinity-ref-wk1",
   "name": "2035 Trinity, reference, week 1",
   "note": "First 2035 run: EMPIRE Trinity period 2 as Ehsan shipped it, weather 2015, 1-7 Jan.",
