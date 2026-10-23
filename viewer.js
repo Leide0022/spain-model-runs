@@ -197,6 +197,8 @@
   function esiosFor(r, key) {
     const E = window.ESIOS, s = E && E.series[key];
     if (!s) return null;
+    // scenario runs (e.g. 2035) carry 2024 calendar dates: REE's 2024 data must not sit next to them
+    if (r.scenario) return r.days.flatMap(() => Array(24).fill(null));
     return r.days.flatMap(d => { const i = esiosDay[d]; return i == null ? Array(24).fill(null) : s.slice(i * 24, i * 24 + 24); });
   }
   const mean = a => { let s = 0, n = 0; for (const x of a) if (x != null) { s += x; n++; } return n ? s / n : null; };
@@ -573,6 +575,7 @@
       const tagOn = { res: "offered", chain: "day" };
       const tags = m.features ? FEATS.filter(f => f[4] && featValue(m, f[0]) === (tagOn[f[0]] || "on")).map(f => f[4]) : [];
       if (m.features && m.features.res === "accepted") tags.unshift("accepted");
+      if (m.scenario) tags.unshift(m.scenario.label);
       const b = document.createElement("button");
       b.type = "button"; b.className = "run-item";
       b.setAttribute("aria-current", String(m.id === state.run));
@@ -594,6 +597,7 @@
     $("run-head").innerHTML = `
       <h2>${esc(r.name)}</h2>
       <p class="note">${esc(r.note)}</p>
+      ${r.scenario ? `<p class="note"><span class="flag">${icon("warn")} Scenario run: ${esc(r.scenario.label)}${r.scenario.period ? `, EMPIRE period ${esc(String(r.scenario.period))}` : ""}${(r.scenario.weather_years || []).length ? `, weather year ${esc(r.scenario.weather_years.join(", "))}` : ""}. The dates follow the 2024 calendar the model uses; there is no real data to compare, so the real (OMIE, ENTSO-E, REE) series are empty.</span></p>` : ""}
       <dl class="facts">
         <div><dt>Period</dt><dd>${period(r.days)} · ${r.days.length} days</dd></div>
         <div><dt>${term("Code version", "commit")}</dt><dd><span class="mono">${i.commit}</span> on <span class="mono">${i.branch}</span></dd></div>
