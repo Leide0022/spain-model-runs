@@ -66,6 +66,62 @@ window.RUN_MANIFEST = [
  },
  {
   "schema": 1,
+  "id": "2024-01-01_2024-redispatch-ree-way",
+  "name": "2024 redispatch REE way",
+  "note": "Branch redispatch-realism, sourced settings: phase I with REE's 2024 zones and AC check, duplicate lines once, P.O. 7.4 generator band, water budget; markets from run 4 offered. Cost shown is the viewer's marginal-cost estimate, not REE's pay-as-bid.",
+  "published": "2026-10-26T09:23:13+01:00",
+  "published_by": "magnusberard",
+  "first_day": "2024-01-01",
+  "last_day": "2024-12-29",
+  "n_days": 364,
+  "ac_solved": 8721,
+  "ac_total": 8736,
+  "months": [
+   "2024-01",
+   "2024-02",
+   "2024-03",
+   "2024-04",
+   "2024-05",
+   "2024-06",
+   "2024-07",
+   "2024-08",
+   "2024-09",
+   "2024-10",
+   "2024-11",
+   "2024-12"
+  ],
+  "size_mb": 44.6,
+  "info": {
+   "ran_by": "magnusberard",
+   "branch": "redispatch-realism",
+   "commit": "78bdcc5",
+   "commit_message": "README: sync_hours reserve rule fails the agreed test (46 vs 87/122 GWh, wrong timing); year runs without a reserve rule (y24_base)",
+   "uncommitted_files": [
+    "Manifest.toml",
+    "Project.toml",
+    "scripts/run_reinforcement.sh",
+    "scripts/run_reinforcement_diag.sh",
+    "scripts/solstorm_env.sh"
+   ],
+   "started": "2026-10-25 15:02:57",
+   "finished": "2026-10-25 17:37:49",
+   "runtime_min": 154.9,
+   "power_flow": "AC",
+   "linear_solver": "ma57",
+   "label": "2024",
+   "reconstructed": false
+  },
+  "features": {
+   "res": "offered",
+   "xb": true,
+   "gas": true,
+   "markup": true,
+   "hydro": true,
+   "chain": "day"
+  }
+ },
+ {
+  "schema": 1,
   "id": "2035-trinity-impr-wk1",
   "name": "2035 Trinity, improvements, week 1",
   "note": "2035 with CO2 fix, CCGTs closed oldest first, gas efficiency per plant, unit commitment + minimum-income check, gas/coal mark-ups, island plants, nuclear 0.85, CHP per month; weather 2015, 1-7 Jan.",
