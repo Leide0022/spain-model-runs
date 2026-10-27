@@ -73,7 +73,7 @@
     Wind: ["Wind", "Onshore and offshore wind."],
     Solar: ["Solar", "Solar PV and solar thermal."],
     "CHP group": ["CHP group", "OMIE's group 'cogeneration / waste / mini-hydro'. In the model: industrial CHP gas, waste and mini-hydro blocks, plus biomass."],
-    Imports: ["Imports", "Imports from France and Portugal. Real: OMIE's import columns. Model: the interconnector units."],
+    Imports: ["Imports", "Imports from France and Portugal. Real: OMIE's import columns. Model: the interconnector units (2024 runs) or the exchange the model's joint day-ahead with France, Portugal and the rest of Europe clears (2035 runs; exports are listed under the table)."],
     input: ["Model input", "At day-ahead this comes from OMIE's own numbers, so it matches by construction and says nothing about model accuracy."],
     diff: ["Difference", "Model energy minus real energy over the hours shown. The bar shows its size next to the other technologies."],
     hourly_error: ["Hourly error", "Average absolute difference in MW between model and real, hour by hour. Unlike the total, errors up and down do not cancel."],
@@ -157,6 +157,7 @@
       real_phys: each(r.real_phys, sl), mix_phys: each(r.mix_phys, m => each(m, sl)),
       balancing: r.balancing ? each(r.balancing, sl) : null,
       traded: r.traded ? each(r.traded, sl) : null,
+      exchange: r.exchange ? each(r.exchange, sl) : null,
       redispatch: r.redispatch ? Object.fromEntries(Object.entries(r.redispatch).map(([k, v]) => [k, Array.isArray(v) ? sl(v) : each(v, sl)])) : null,
     };
   }
@@ -1507,6 +1508,12 @@
     if (state.mixStage === "RD" && omie) notes.push("OMIE's day-ahead programme is a plan, so this comparison also includes everything that changed in reality after the day-ahead. ENTSO-E actual is the fairer reference for this stage.");
     if (!omie) notes.push("Imports are measured physical flows from France and Portugal.");
     if (!omie && state.mixStage !== "RD") notes.push("This compares a market stage with the final real outcome, so the difference also includes the real changes made after that market.");
+    if (r.exchange) {
+      // 4-zone runs (2035): the model clears the exchange itself; imports are in the mix, exports are not generation
+      const tw = (a, sgn) => a.reduce((s, v) => s + (v == null ? 0 : Math.max(0, sgn * v)), 0) / 1e6;
+      const fi = tw(r.exchange.FR, 1), fe = tw(r.exchange.FR, -1), pi = tw(r.exchange.PT, 1), pe = tw(r.exchange.PT, -1);
+      notes.push(`Cross-border exchange, cleared by the model's joint day-ahead with France, Portugal and the rest of Europe and kept in the later stages: France ${nf(fi, 2)} TWh imported, ${nf(fe, 2)} TWh exported; Portugal ${nf(pi, 2)} TWh imported, ${nf(pe, 2)} TWh exported; net ${signed(fi + pi - fe - pe, 2)} TWh (+ = import). Imports are in the mix above; exports are not generation, so they are listed here.`);
+    }
     notes.push("Hourly error is the mean absolute difference per hour.");
     $("mix-note").textContent = notes.join(" ");
 
