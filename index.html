@@ -18,6 +18,7 @@
 
   <div class="layout">
     <nav class="runs" aria-label="Runs">
+      <button type="button" class="home-btn" id="home-btn" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5 8 3l5.5 4.5V13a.5.5 0 0 1-.5.5H9.5V10h-3v3.5H3a.5.5 0 0 1-.5-.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>Home</button>
       <details class="run-filters" id="run-filters">
         <summary><span class="rf-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M2 3h12l-4.5 5.5V13l-3 1.5V8.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span><span class="rf-title">Filters</span><span class="rf-active" id="rf-active"></span><span class="rf-caret" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 5h12M3 9h12M3 13h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></summary>
         <div class="rf-body" id="rf-body"></div>
@@ -29,6 +30,54 @@
 
     <main class="report" id="report">
       <p class="status-note" id="status-note" hidden></p>
+      <section class="home" id="home" hidden>
+        <div class="card home-hero">
+          <img src="logo.svg" alt="" width="64" height="64">
+          <div>
+            <h2>Spanish Power Market Model: Results Viewer</h2>
+            <p>Results of the market model built in the IFØ04 project thesis (NTNU, autumn 2026), next to what really happened in Spain. Pick a run on the left to start.</p>
+          </div>
+        </div>
+
+        <div class="card home-how">
+          <h3>How to use this site</h3>
+          <ol class="how-grid">
+          <li class="how-step">
+            <span class="how-ico"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1.5"/><rect x="3" y="10" width="18" height="4" rx="1.5" fill="currentColor" fill-opacity=".18"/><rect x="3" y="16" width="18" height="4" rx="1.5"/></svg><b>1</b></span>
+            <span class="how-txt"><b>Pick a run</b><span>Choose a run in the list on the left. <b>Filters</b> narrow it to runs with certain settings.</span></span>
+          </li>
+          <li class="how-step">
+            <span class="how-ico"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 7 2 2 3-3"/><path d="M12 8h8"/><path d="m4 15 2 2 3-3"/><path d="M12 16h8"/></svg><b>2</b></span>
+            <span class="how-txt"><b>Read its settings</b><span>The top of the page lists what the run includes; ✓ marks what differs from the original model.</span></span>
+          </li>
+          <li class="how-step">
+            <span class="how-ico"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 4v5"/><path d="M15 4v5"/></svg><b>3</b></span>
+            <span class="how-txt"><b>Choose a section</b><span><b>Market</b> · <b>Grid</b> · <b>Storage</b> · <b>Model</b> · <b>Compare runs</b>, each with its own tabs. <b>All</b> shows everything.</span></span>
+          </li>
+          <li class="how-step">
+            <span class="how-ico"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 14h3v3H8z" fill="currentColor" fill-opacity=".25"/></svg><b>4</b></span>
+            <span class="how-txt"><b>Set the period</b><span>Pick dates in the period bar, or <b>drag across a chart</b> to zoom into those days.</span></span>
+          </li>
+          <li class="how-step">
+            <span class="how-ico"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l12 6-5 2-2 5z" fill="currentColor" fill-opacity=".18"/><path d="M14 14l5 5"/></svg><b>5</b></span>
+            <span class="how-txt"><b>Hover to learn</b><span>Hover an <span class="term">underlined word</span> for a short explanation, or a chart for its values.</span></span>
+          </li>
+          <li class="how-step">
+            <span class="how-ico"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 19h16"/></svg><b>6</b></span>
+            <span class="how-txt"><b>Take it with you</b><span><b>Save image</b> gives a figure for the report; <b>Download data</b> gives the numbers (CSV).</span></span>
+          </li>
+          </ol>
+          <div class="how-foot">
+            <div class="how-key">
+              <svg width="120" height="34" viewBox="0 0 120 34" aria-hidden="true"><polyline points="2,24 14,14 24,22 36,8 48,18 60,10 72,20 84,6 96,16 108,12 118,18" fill="none" stroke="var(--real)" stroke-width="2.2" stroke-linejoin="round"/><polyline points="2,26 20,20 40,18 60,14 80,16 100,12 118,14" fill="none" stroke="var(--model)" stroke-width="2.8" stroke-linejoin="round"/></svg>
+              <span><i class="sw-line" style="background:var(--model)"></i><b>Model</b> is turquoise</span>
+              <span><i class="sw-line" style="background:var(--real)"></i><b>Real Spain</b> is grey</span>
+            </div>
+            <p class="how-new">New runs appear after <span class="mono">git pull</span> and <span class="mono">Ctrl+Shift+R</span>.</p>
+          </div>
+        </div>
+
+      </section>
       <section class="card run-head" id="run-head"></section>
       <div class="sticky-bar">
         <nav class="tabs" aria-label="Report sections" id="tabs"></nav>

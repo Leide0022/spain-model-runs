@@ -751,7 +751,7 @@
         b.title = m.name;
         b.innerHTML = `<span class="ri-name">${esc(m.name)}</span>
           <span class="ri-meta"><span>${period([m.first_day, m.last_day])}</span><span>${nf(pct, 0)} % solved</span></span>`;
-        b.addEventListener("click", () => { if (m.id !== state.run || !run()) selectRun(m.id); });
+        b.addEventListener("click", () => { const wasHome = state.home; showHome(false); if (m.id !== state.run || !run()) selectRun(m.id); else if (wasHome) renderAll(); });
         list.appendChild(b);
       }
       det.appendChild(list); host.appendChild(det);
@@ -2950,7 +2950,7 @@
   async function selectRun(id) {
     stopPlay("gh"); stopPlay("ph");
     state.run = id; state.zoom = null; state.gridHour = null; state.gridSel = null; state.plantHour = null; state.plantSel = null;
-    try { history.replaceState(null, "", "#" + id); } catch (e) {}
+    if (!state.home) try { history.replaceState(null, "", "#" + id); } catch (e) {}
     renderRunList();
     const note = $("status-note");
     note.hidden = false; note.textContent = "Loading the run …";
@@ -2999,7 +2999,19 @@
       for (const id of ids) rep.appendChild($(id));
     }
   }
+  // ---------- home page: what the project and the site are; shown first when the link names no run ----------
+  state.home = !location.hash || location.hash === "#home";
+  function showHome(on) {
+    state.home = on;
+    $("report").classList.toggle("home-on", on);
+    $("home").hidden = !on;
+    $("home-btn").setAttribute("aria-pressed", String(on));
+    if (on) { try { history.replaceState(null, "", "#home"); } catch (e) {} window.scrollTo({ top: 0 }); }
+    else if (state.run) { try { history.replaceState(null, "", "#" + state.run); } catch (e) {} }
+  }
   function start() {
+    $("home-btn").addEventListener("click", () => showHome(true));
+    showHome(state.home);
     orderSections();
     foldExplanations();
     // the mix section's note on how the model is grouped sits inside its "How to read this"

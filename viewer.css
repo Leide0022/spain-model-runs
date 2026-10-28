@@ -109,6 +109,36 @@ button { font: inherit; color: inherit; }
 .ri-meta { font-size: 12px; color: var(--ink-2); display: flex; flex-wrap: wrap; gap: 2px 10px; }
 .meter { height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
 .meter span { display: block; height: 100%; background: var(--ink-2); border-radius: 2px; }
+/* Home button above Filters */
+.home-btn { display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 8px; padding: 9px 12px; border: 1px solid var(--hair);
+  border-radius: 8px; background: var(--surface); font-size: 14px; font-weight: 600; cursor: pointer; color: var(--ink); text-align: left; }
+.home-btn svg { color: var(--accent); }
+.home-btn:hover { background: var(--surface-2); }
+.home-btn[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+/* the home page replaces the run report while it is open */
+.report.home-on > :not(#home):not(#status-note) { display: none !important; }
+.home { display: grid; gap: 18px; }
+.home-hero { display: flex; align-items: center; gap: 18px; }
+.home-hero h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.015em; }
+.home-hero p { margin: 4px 0 0; color: var(--ink-2); max-width: 75ch; }
+.home h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+.home p { margin: 8px 0 0; color: var(--ink-2); font-size: 14.5px; line-height: 1.55; }
+.home b { color: var(--ink); }
+/* how-to steps: numbered tiles with an icon each */
+.how-grid { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1100px) { .how-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .how-grid { grid-template-columns: minmax(0, 1fr); } }
+.how-step { display: flex; gap: 14px; align-items: flex-start; padding: 14px; border-radius: 12px; background: var(--surface-2); }
+.how-ico { position: relative; flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px;
+  background: var(--surface); color: var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10); }
+.how-ico b { position: absolute; top: -7px; left: -7px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 700; }
+.how-txt { display: grid; gap: 3px; font-size: 14px; line-height: 1.45; color: var(--ink-2); }
+.how-txt > b { font-size: 15.5px; color: var(--ink); }
+.how-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--grid); }
+.how-key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: 14px; color: var(--ink-2); }
+.how-key span { display: inline-flex; align-items: center; gap: 6px; }
+.home p.how-new { margin: 0; font-size: 13.5px; color: var(--muted); }
 /* at the bottom of the left column (bottom left of the window), always in view */
 .runs .hint { position: fixed; bottom: 0; left: clamp(16px, 2vw, 40px); width: 266px; z-index: 6; font-size: 12px; color: var(--muted); margin: 0; padding: 8px 2px 12px; background: var(--page); border-top: 1px solid var(--grid); }
 /* run filters: model changes per run (meta.features) */
