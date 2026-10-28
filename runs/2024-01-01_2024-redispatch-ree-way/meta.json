@@ -51,6 +51,7 @@
   "gas": true,
   "markup": true,
   "hydro": true,
-  "chain": "day"
+  "chain": "day",
+  "rd": "ree"
  }
 }

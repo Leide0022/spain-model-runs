@@ -50,7 +50,9 @@ window.RUN_MANIFEST = [
    "gas": true,
    "markup": true,
    "hydro": true,
-   "chain": "day"
+   "chain": "day",
+   "participation": "measured",
+   "balancing": "qualified"
   }
  },
  {
@@ -170,7 +172,8 @@ window.RUN_MANIFEST = [
    "gas": true,
    "markup": true,
    "hydro": true,
-   "chain": "day"
+   "chain": "day",
+   "rd": "ree"
   }
  },
  {
