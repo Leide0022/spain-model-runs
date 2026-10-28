@@ -256,7 +256,7 @@
     // left margin wide enough for the longest axis number (e.g. 1,200,000 €)
     const tickW = Math.max(...ticks.map(t => t.toLocaleString("en-GB").length)) * 6.6 + 12;
     const endW = o.endLabels ? Math.max(...o.series.map(q => String(q.name).length)) * 7.6 + 16 : 8;
-    const m = { l: Math.max(40, tickW), r: o.endLabels ? Math.max(66, endW) : 8, t: o.yUnit ? 26 : 8, b: (o.band ? 34 : 0) + 22 };
+    const m = { l: Math.max(40, tickW), r: o.endLabels ? Math.max(66, endW) : 8, t: o.yUnit ? 26 : 8, b: (o.band || o.colorBand ? 34 : 0) + 22 };
     const pw = W - m.l - m.r, ph = H - m.t - m.b;
     const n = o.n;
     const x = i => m.l + (n === 1 ? pw / 2 : (i / (n - 1)) * pw);
@@ -272,7 +272,7 @@
     const xb = m.t + ph;
     for (const t of o.xTicks) {
       svg("line", { x1: x(t.i), x2: x(t.i), y1: xb, y2: xb + 4, stroke: "var(--axis)" }, s);
-      const tx = svg("text", { x: x(t.i), y: xb + (o.band ? 34 : 0) + 16, "text-anchor": "middle" }, s);
+      const tx = svg("text", { x: x(t.i), y: xb + (o.band || o.colorBand ? 34 : 0) + 16, "text-anchor": "middle" }, s);
       tx.textContent = t.label;
     }
 
@@ -287,6 +287,15 @@
       });
       const bl = svg("text", { x: m.l - 6, y: by + 11, "text-anchor": "end" }, s);
       bl.textContent = "AC";
+    }
+    if (o.colorBand) {
+      const by = xb + 10, bh = 14, bw = Math.max(1, pw / Math.max(n, 1));
+      svg("rect", { x: m.l, y: by, width: pw, height: bh, fill: "var(--surface-2)", rx: 2 }, s);
+      o.colorBand.colors.forEach((c, i) => {
+        if (c) svg("rect", { x: x(i) - bw / 2, y: by, width: bw + 0.4, height: bh, fill: c }, s);
+      });
+      const bl = svg("text", { x: m.l - 6, y: by + 11, "text-anchor": "end" }, s);
+      bl.textContent = o.colorBand.label || "";
     }
 
     for (const ser of o.series) {
@@ -323,7 +332,7 @@
     const guide = svg("line", { y1: m.t, y2: xb, stroke: "var(--axis)", "stroke-width": 1, visibility: "hidden" }, s);
     const dots = o.series.map(ser => svg("circle", { r: 4, fill: ser.color, stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }, s));
     const sel = svg("rect", { y: m.t, height: ph, fill: "var(--model)", opacity: 0.12, visibility: "hidden", "pointer-events": "none" }, s);
-    const hit = svg("rect", { x: m.l, y: m.t, width: pw, height: ph + (o.band ? 34 : 0), fill: "transparent", tabindex: 0, "aria-label": o.label + ". Use the arrow keys to read values." }, s);
+    const hit = svg("rect", { x: m.l, y: m.t, width: pw, height: ph + (o.band || o.colorBand ? 34 : 0), fill: "transparent", tabindex: 0, "aria-label": o.label + ". Use the arrow keys to read values." }, s);
     if (o.onZoom) { hit.style.cursor = "crosshair"; hit.style.touchAction = "pan-y"; }
     let cur = -1, drag = null;
     const idxAt = ev => { const r = s.getBoundingClientRect(); const px = (ev.clientX - r.left) * (W / r.width); return Math.max(0, Math.min(n - 1, Math.round(((px - m.l) / pw) * (n - 1)))); };
@@ -1445,8 +1454,21 @@
     const mv = hourly ? model : dailyMean(model, nd);
     const rv = hourly ? real : dailyMean(real, nd);
     const n = mv.length;
+    const SB = r.setter && r.setter.stages[state.priceStage];
+    let band = null;
+    if (SB) {
+      const grp = hourly ? SB.group : [...Array(nd).keys()].map(d => {
+        const c = {}; let best = -1, bn = 0;
+        for (const g of SB.group.slice(d * 24, d * 24 + 24)) if (g != null && g >= 0 && (c[g] = (c[g] || 0) + 1) > bn) { bn = c[g]; best = g; }
+        return best;
+      });
+      band = { label: "Set by", colors: grp.map(g => g != null && g >= 0 ? SETTER_COLOR[g] : null) };
+      const seen = [...new Set(grp.filter(g => g != null && g >= 0))].sort((a, b) => a - b);
+      $("price-legend").innerHTML = `<span style="color:var(--muted)">Strip under the chart, the type that set the model's ${state.priceStage} price${hourly ? "" : " most often that day"}:</span>`
+        + seen.map(g => `<span><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i>${r.setter.groups[g]}</span>`).join("");
+    }
     lineChart(host, {
-      n, height: state.tab === "price" ? 440 : 310, label: "Price, model vs real", endLabels: true, yUnit: "€/MWh",
+      n, height: state.tab === "price" ? 440 : 310, label: "Price, model vs real", endLabels: true, yUnit: "€/MWh", colorBand: band,
       onZoom: (a, b) => zoomFromChart(a, b, hourly),
       xTicks: dayTicks(r.days, hourly, host.clientWidth - 110),
       series: [
