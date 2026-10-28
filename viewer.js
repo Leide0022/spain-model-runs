@@ -770,7 +770,7 @@
     ["gas", "Gas and coal plants", "f_gas", v => v ? "Own cost per plant, start/stop rules, closed coal plants removed" : "Simple costs, no start/stop rules"],
     ["markup", "Generation tax and mark-ups", "f_markup", v => v ? "On: generation tax and mark-ups on gas and coal bids" : "Off"],
     ["hydro", "Hydro planning", "f_hydro", v => v ? "Improved: real 2024 reservoir start, seasonal limits, monthly inflow" : "Basic"],
-    ["participation", "Intraday trading", "f_part", v => v === "measured" ? "Measured from REE: about 7 % of wind and demand and 6 % of solar re-trade in continuous intraday" : "Every unit re-trades at every stage (PowerVision's active case)"],
+    ["participation", "Intraday trading", "f_part", v => v === "measured" ? "Measured from REE: about 7 % of wind and demand and 6 % of solar re-trade in continuous intraday" : v === "passive" ? "No re-trading after the day-ahead (PowerVision's passive case)" : "Every unit re-trades at every stage (PowerVision's active case)"],
     ["balancing", "Balancing", "f_bal", v => v === "qualified" ? "Only units qualified for balancing (REE's list, plus batteries)" : "Every unit can balance"],
     ["pumping", "Pumped-storage load", "f_pump", v => v ? "Real 2024 pumping taken out of the load; the model pumps itself" : "Kept in the load as in OMIE's data"],
     ["rd", "Redispatch", "f_rd", v => v === "ree" ? "The REE way: phases I and II, pay-as-bid (model change §20)" : "AC power flow at marginal cost"],
@@ -781,7 +781,7 @@
     const i = r.info, f = r.meta.features;
     const sc = r.scenario;
     const rows = f ? SETTINGS.filter(([k]) => k in f || ["participation", "balancing", "rd"].includes(k)).map(([k, label, tip, words]) => {
-      const v = f[k], on = k in SETTING_ON ? v === SETTING_ON[k] : !!v;
+      const v = f[k], on = k === "participation" ? v === "measured" || v === "passive" : k in SETTING_ON ? v === SETTING_ON[k] : !!v;
       return `<li class="${on ? "on" : "off"}"><span class="s-mark" aria-hidden="true">${on ? "✓" : "–"}</span><span><span class="s-name">${term(label, tip)}:</span> <span class="s-val">${esc(words(v))}</span></span></li>`;
     }) : [];
     $("run-head").innerHTML = `
