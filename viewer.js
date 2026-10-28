@@ -806,8 +806,6 @@
   }
 
   function renderTabs(v) {
-    const solvedPct = 100 * v.status.reduce((a, b) => a + b, 0) / v.status.length;
-    const hint = { status: `${nf(solvedPct, 0)} % solved` };
     const host = $("tabs"); host.innerHTML = "";
     // scenario runs (2035) have no real data: no REE tab, no sections marked data-real
     const scen = !!v.scenario;
@@ -835,7 +833,7 @@
     row("tab-groups", "Sections", GROUPS.map(g => [g[0], g[1]]), cur[0],
       gk => { const g = GROUPS.find(x => x[0] === gk); pickTab(g[2].includes(state.lastTab[gk]) ? state.lastTab[gk] : g[2][0]); }, "grp-");
     const sub = cur[2].filter(k => !(scen && k === "esios"));
-    if (sub.length > 1) row("tab-sub", cur[1], sub.map(k => [k, TABS.find(t => t[0] === k)[1], hint[k]]), state.tab, pickTab, "tab-");
+    if (sub.length > 1) row("tab-sub", cur[1], sub.map(k => [k, TABS.find(t => t[0] === k)[1]]), state.tab, pickTab, "tab-");
     document.querySelectorAll("[data-tabs]").forEach(el => { el.hidden = !el.dataset.tabs.split(" ").includes(state.tab) || (scen && el.hasAttribute("data-real")); });
   }
   function pickTab(key) {
@@ -1615,13 +1613,13 @@
     const [k, word] = solveStatus(pct);
     const dap = r.price.DA.filter(x => x != null);
     const tiles = r.scenario ? [
-      ...(["price", "mix"].includes(state.tab) ? [] : [[term("Redispatch hours solved", "solved"), `${nf(pct, 0)}<small>%</small>`, `<span class="status">${icon(k)} ${word}</span> · ${solved} of ${N} hours`]]),
+      ...(state.tab !== "status" ? [] : [[term("Redispatch hours solved", "solved"), `${nf(pct, 0)}<small>%</small>`, `<span class="status">${icon(k)} ${word}</span> · ${solved} of ${N} hours`]]),
       [term("Mean day-ahead price", "meanprice"), `${nf(mean(dap))}<small>€/MWh</small>`, "Model, over the hours shown"],
       ["Highest hour", `${nf(dap.length ? Math.max(...dap) : null)}<small>€/MWh</small>`, "Model day-ahead price"],
       ["Lowest hour", `${nf(dap.length ? Math.min(...dap) : null)}<small>€/MWh</small>`, "Model day-ahead price"],
       ["Hours at 0 €/MWh or below", `${nf(dap.length ? 100 * dap.filter(x => x <= 0).length / dap.length : null, 0)}<small>%</small>`, "Model day-ahead price"],
     ] : [
-      ...(["price", "mix"].includes(state.tab) ? [] : [[term("Redispatch hours solved", "solved"), `${nf(pct, 0)}<small>%</small>`, `<span class="status">${icon(k)} ${word}</span> · ${solved} of ${N} hours`]]),
+      ...(state.tab !== "status" ? [] : [[term("Redispatch hours solved", "solved"), `${nf(pct, 0)}<small>%</small>`, `<span class="status">${icon(k)} ${word}</span> · ${solved} of ${N} hours`]]),
       [term("Mean day-ahead price", "meanprice"), `${nf(mm)}<small>€/MWh</small>`, `Real: ${nf(mr)} €/MWh`],
       [term("Price bias", "bias"), `${signed(mm - mr)}<small>€/MWh</small>`, mm < mr ? "Model below real" : "Model above real"],
       [term("Price error (MAE)", "mae"), `${nf(mae)}<small>€/MWh</small>`, "Typical size of the hourly error"],
