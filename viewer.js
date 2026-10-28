@@ -14,10 +14,17 @@
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const NS = "http://www.w3.org/2000/svg";
 
-  const state = { run: MANIFEST.length ? MANIFEST[0].id : null, priceStage: "DA", priceRes: "hour", setterStage: "DA", tradeRes: "day", mixStage: "DA", mixRes: "hour", mixRef: "omie", zoom: null, tab: "overview", gridMode: "max", gridHour: null, gridSel: null, mapStyle: "terrain", plantSize: "cap", plantTime: "period", plantHour: null, plantSel: null, plantHidden: [], playSpeed: 2,
+  const state = { run: MANIFEST.length ? MANIFEST[0].id : null, priceStage: "DA", priceShow: { real: true, model: true }, priceRes: "hour", setterStage: "DA", tradeRes: "day", mixStage: "DA", mixRes: "hour", mixRef: "omie", zoom: null, tab: "overview", gridMode: "max", gridHour: null, gridSel: null, mapStyle: "terrain", plantSize: "cap", plantTime: "period", plantHour: null, plantSel: null, plantHidden: [], playSpeed: 2,
     gridLayers: ["hv", "lv", "trafo", "border"], gridSort: ["max", -1], gridQuery: "", gridAll: false };
-  const TABS = [["overview", "Overview"], ["price", "Price"], ["mix", "Generation mix"], ["flex", "Trading margin"], ["invest", "Investment case"], ["status", "AC redispatch"], ["grid", "Grid"], ["plants", "Power plants"], ["stages", "Market stages"], ["trading", "Traded volume"], ["esios", "REE (e·sios)"], ["compare", "Compare runs"]];
+  const TABS = [["overview", "All"], ["price", "Price"], ["mix", "Generation mix"], ["trading", "Traded volume"], ["status", "Redispatch: failed hours"], ["grid", "Line loading map"], ["plants", "Power plant map"], ["esios", "Redispatch & balancing vs REE"], ["flex", "Trading margin"], ["invest", "Investment case"], ["stages", "Market stages"], ["compare", "Compare runs"]];
+  // the menu: a top row of groups, and the group's own tabs in a second row (keys as in TABS and data-tabs)
+  const GROUPS = [["summary", "All", ["overview"]], ["market", "Market", ["price", "mix", "trading"]],
+    ["grid", "Grid", ["status", "grid", "plants", "esios"]], ["storage", "Storage", ["flex", "invest"]],
+    ["model", "Model", ["stages"]], ["compare", "Compare runs", ["compare"]]];
+  const groupOf = key => GROUPS.find(g => g[2].includes(key));
+  state.lastTab = {};   // the tab last open in each group, so a group opens where you left it
   try { const saved = localStorage.getItem("runviewer.tab"); if (TABS.some(x => x[0] === saved)) state.tab = saved; } catch (e) {}
+  try { Object.assign(state.lastTab, JSON.parse(localStorage.getItem("runviewer.lastTab") || "{}")); } catch (e) {}
   try { const ms = localStorage.getItem("runviewer.mapStyle"); if (["plain", "political", "terrain", "dark"].includes(ms)) state.mapStyle = ms; } catch (e) {}
   const CAT_COLOR = { Hydro: "var(--cat-1)", CCGT: "var(--cat-2)", Wind: "var(--cat-3)", Solar: "var(--cat-4)",
     "CHP group": "var(--cat-5)", Imports: "var(--cat-6)", Nuclear: "var(--cat-7)", Coal: "var(--cat-8)",
@@ -41,9 +48,9 @@
 
   // ---------- hover explanations ----------
   const GLOSS = {
-    solved: ["AC hours solved", "Share of hours where the AC redispatch (Ipopt) found a solution. In a failed hour the market stages still have results, but the redispatch has none."],
-    failed: ["Failed hour", "The AC redispatch stopped without a solution, usually Ipopt getting stuck (local infeasibility). It does not mean the system was short of power."],
-    okhour: ["Solved hour", "The AC redispatch found a schedule that respects line limits and voltages for this hour."],
+    solved: ["Redispatch hours solved", "Share of hours where the redispatch (Ipopt) found a solution. In a failed hour the market stages still have results, but the redispatch has none."],
+    failed: ["Failed hour", "The redispatch stopped without a solution, usually Ipopt getting stuck (local infeasibility). It does not mean the system was short of power."],
+    okhour: ["Solved hour", "The redispatch found a schedule that respects line limits and voltages for this hour."],
     meanprice: ["Mean day-ahead price", "Average of the model's day-ahead price over the hours shown, next to OMIE's real Spanish day-ahead price for the same hours."],
     bias: ["Price bias", "Model mean minus real mean. Negative means the model price is too low on average. Errors up and down can cancel out here, so read it together with MAE."],
     mae: ["MAE (mean absolute error)", "The average size of the hourly price error, ignoring the sign. 0 is perfect. 20 €/MWh means the model is off by 20 €/MWh in a typical hour."],
@@ -58,7 +65,7 @@
     ree_imb: ["REE net imbalance", "e·sios indicator 1338: the net imbalance of generation and demand in each hour, which REE covers with balancing energy."],
     model_imb: ["Model forecast change", "Load minus wind minus solar at the balancing stage, minus the same at the continuous intraday stage: the forecast change the model's balancing stage has to cover. It is the model's counterpart of the imbalance."],
     rd_cost: ["Extra cost of redispatch", "What the redispatch costs on top of the market: paid for energy turned up minus what is saved or refunded for energy turned down. REE: its settled cost of technical constraints (P.O. 14.4), pay-as-bid with start-up costs. Model: marginal cost × change, with no start-ups or bids."],
-    model_rd: ["Model redispatch", "The model's AC redispatch minus its balancing schedule, summed over all units except the fixed border flows. It includes the grid losses the copper-plate markets do not see. Failed AC hours have no value."],
+    model_rd: ["Model redispatch", "The model's redispatch minus its balancing schedule, summed over all units except the fixed border flows. It includes the grid losses the copper-plate markets do not see. Failed redispatch hours have no value."],
     real_mix: ["Real generation", "OMIE's day-ahead programme per technology (the 'Energía horaria por tecnologías' report)."],
     DA: ["Day-ahead (DA)", "Clears all 24 hours the day before delivery, using the day-ahead forecast of load, wind and solar."],
     ID2: ["Intraday 2 (ID2)", "Re-clears all 24 hours with an updated forecast, starting from the DA schedule."],
@@ -86,16 +93,16 @@
     ref_entsoe: ["ENTSO-E actual generation", "Measured output per fuel type: what plants really produced after all markets and REE's grid fixes. Right reference for the redispatch."],
     g_max: ["Highest loading", "For each line, the highest loading in any solved hour of the shown period."],
     g_h90: ["Hours at 90 % or more", "For each line, how many solved hours in the shown period it was loaded to 90 % of its limit or more."],
-    g_hour: ["One hour", "Loading of every line in a single hour. Pick the hour with the slider; failed AC hours have no flows."],
+    g_hour: ["One hour", "Loading of every line in a single hour. Pick the hour with the slider; failed redispatch hours have no flows."],
     st_plain: ["Plain map", "Land, sea and country borders only, so the lines stand out most."],
     st_political: ["Political map", "Spain's autonomous communities and provinces, the largest cities, and Soto de Ribera."],
     st_terrain: ["Terrain map", "Shaded mountains and valleys (Natural Earth shaded relief), with the communities and cities."],
     st_dark: ["Dark map", "A dark background where the loaded lines light up. Stays dark in a light page."],
     p_cap: ["Installed capacity", "The MW the plants can produce at most. Shows where the generation fleet is."],
-    p_out: ["Output", "What the plants produced in the AC redispatch (the final stage), as an average over the shown period or in one hour."],
+    p_out: ["Output", "What the plants produced in the redispatch (the final stage), as an average over the shown period or in one hour."],
     p_chg: ["Redispatch change", "Redispatch output minus balancing output: how much the grid stage turned each plant up or down to keep line flows and voltages within limits."],
     p_period: ["Average over period", "The average over all solved hours in the shown period."],
-    p_hour: ["One hour", "A single hour; pick it with the slider. Failed AC hours have no redispatch output."],
+    p_hour: ["One hour", "A single hour; pick it with the slider. Failed redispatch hours have no redispatch output."],
     p_realout: ["Real output", "What the plant really produced (ENTSO-E's measured output per unit), as an average over the shown period or in one hour. Only plants ENTSO-E reports one by one are shown."],
     p_real: ["Real vs model", "Compares the model's redispatch output with what the plant really produced (ENTSO-E). Only plants ENTSO-E reports one by one are shown."],
     p_above: ["Model above real", "A filled circle: the model ran the plant more than it really ran."],
@@ -108,17 +115,21 @@
     g_lv: ["220 kV and lower", "The regional grid: 220 kV and the few 132 kV lines. Drawn thin."],
     g_trafo: ["Transformers", "Connect two voltage levels at one substation (e.g. 400/220 kV). Both ends are at the same place, so they are drawn as squares, coloured by loading like the lines."],
     g_border: ["Border lines", "The lines to France and Portugal. The model enters the exchange with each country as fixed power at the far end of these lines, split by line rating."],
-    g_nlim: ["Hours at limit", "Solved AC hours in the period where this line or transformer carried its full limit (100 % loading). Failed hours are not counted."],
-    g_limit: ["At limit", "The line carries its full limit. The AC redispatch does not let a line go over its limit, so 100 % means the limit is binding."],
+    g_nlim: ["Hours at limit", "Solved redispatch hours in the period where this line or transformer carried its full limit (100 % loading). Failed hours are not counted."],
+    g_limit: ["At limit", "The line carries its full limit. The redispatch does not let a line go over its limit, so 100 % means the limit is binding."],
     gas_dot: ["CCGT running", "A combined-cycle gas plant produced more than 1 MW at the balancing stage in that hour."],
     f_chain: ["Market stage order", "Stage by stage: each market stage is solved for all days before the next stage (DA for every day, then ID2 for every day, …). Day by day: each day runs DA → ID2 → ID3 → CID → BAL before the next day starts, as in reality, so a day can hand on which plants are running at midnight (model change §16). See the Market stages tab."],
     f_res: ["Solar/wind input", "Accepted: OMIE's accepted day-ahead solar and wind. Offered: also what was offered in the auction but not accepted, so the model can curtail it (model change §12)."],
-    f_xb: ["Cross-border split", "The redispatch chooses how the exchange with France and Portugal is split over the border lines, instead of a fixed split by line rating (§11). Removed most failed AC hours."],
+    f_xb: ["Cross-border split", "The redispatch chooses how the exchange with France and Portugal is split over the border lines, instead of a fixed split by line rating (§11). Removed most failed redispatch hours."],
     f_gas: ["Gas and coal", "Each gas plant has its own cost (daily gas and CO₂ price, efficiency by build year) and on/off rules; coal cost from import prices; closed coal plants removed; island plants out of the market; day-by-day market chain (§13, §14, §16)."],
     f_markup: ["Tax and mark-ups", "Spain's generation tax (IVPEE, by quarter) and mark-ups on gas and coal bids; the gas mark-up is higher in tight hours (§17)."],
     f_hydro: ["Improved hydro planning", "Improved hydro planning: real starting reservoir level (REE), seasonal limits (rule curves) and monthly inflow (§15)."],
     f_margin: ["Trading margin", "Money from selling electricity minus money paid for the electricity it bought. Not profit: the investment (heater, tank or battery), staff, maintenance, insurance, wear, grid charges and taxes still have to be paid out of it. Here it is also a best case: perfect knowledge of the day's prices, day-ahead market only."],
     f_len: ["Period", "Length of the run: a full year, about a month, or a week or less."],
+    f_part: ["Intraday trading", "How much of each source re-trades in the intraday markets. The original model (PowerVision's active case) lets every unit re-trade at every stage; the measured shares come from REE's schedules for June–December 2024 (model change §23)."],
+    f_bal: ["Balancing", "Which units may change their output in the balancing stage. Qualified: only those REE has qualified for balancing services, plus batteries (model change §23)."],
+    f_pump: ["Pumped-storage load", "OMIE's 2024 load already contains the real pumping. Taking it out lets the model decide when to pump without counting the same pumping twice."],
+    f_rd: ["Redispatch", "How the grid stage fixes the market schedule. AC: one power-flow solve per hour at marginal cost. The REE way: REE's phases I and II with bids, as in P.O. 3.2 (model change §20)."],
   };
   const term = (label, key) => `<span class="term" tabindex="0" data-tip="${key}">${label}</span>`;
   const gloss = document.createElement("div");
@@ -244,11 +255,117 @@
     return ["bad", "Many failures"];
   }
 
+  // ---------- export: "Save image" (PNG, a finished figure) and "Download data" (CSV) on each chart ----------
+  // A chart function calls chartTools(host, ex) after drawing. ex: { title, unit, legend: [{name, color, kind}],
+  // cols: [{name, values}] (left out for image-only charts), x: i => [label, ...] with xHead }.
+  const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+  const saveBlob = (blob, name) => {
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
+  // a CSS colour (var(--model), color-mix(...)) as the browser resolves it right now
+  function cssColor(c) {
+    const el = document.createElement("i"); el.style.color = c; document.body.appendChild(el);
+    const out = getComputedStyle(el).color; el.remove(); return out;
+  }
+  // the x column for a chart's CSV, from the period shown: hourly, daily, hour of day, else a plain index
+  function autoX(n) {
+    const days = view().days;
+    if (n === days.length * 24) return { head: ["date", "hour"], at: i => [days[Math.floor(i / 24)], hh(i % 24)] };
+    if (n === days.length) return { head: ["date"], at: i => [days[i]] };
+    if (n === 24) return { head: ["hour of day"], at: i => [hh(i)] };
+    return { head: ["index"], at: i => [i] };
+  }
+  // legend items drawn in the page above a chart (swatches + text), for charts whose own data has no names
+  function htmlLegend(host) {
+    for (let el = host; el && !el.matches("section.card"); el = el.parentElement) {
+      for (let s = el.previousElementSibling; s; s = s.previousElementSibling) {
+        const lg = s.matches(".legend") ? s : s.querySelector && s.querySelector(".legend");
+        if (lg) return [...lg.querySelectorAll("span")].filter(sp => sp.querySelector("i.sw-box, i.sw-line"))
+          .map(sp => { const i = sp.querySelector("i"); return { name: sp.textContent.trim(), color: getComputedStyle(i).backgroundColor, kind: i.classList.contains("sw-line") ? "line" : "box" }; });
+      }
+    }
+    return [];
+  }
+  function exportCSV(ex) {
+    const r = run(), q = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+    const n = ex.cols[0].values.length, X = ex.x || autoX(n);
+    const unit = ex.unit ? ` [${ex.unit}]` : "";
+    const lines = [[...X.head, ...ex.cols.map(c => c.name + unit)].map(q).join(",")];
+    for (let i = 0; i < n; i++) lines.push([...X.at(i), ...ex.cols.map(c => c.values[i] == null || Number.isNaN(c.values[i]) ? "" : +(+c.values[i]).toFixed(3))].map(q).join(","));
+    const days = view().days;
+    saveBlob(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }), `${r.id}_${slug(ex.title)}_${days[0]}_${days[days.length - 1]}.csv`);
+  }
+  // the chart's SVG with every style written into it (light theme), drawn on a canvas with a title,
+  // run and period, legend and source line, so the PNG can go straight into the report
+  function exportPNG(host, ex) {
+    const src = host.querySelector("svg"); if (!src) return;
+    const root = document.documentElement, theme = root.getAttribute("data-theme");
+    root.setAttribute("data-theme", "light");
+    let svgText, legend;
+    try {
+      const clone = src.cloneNode(true), a = [src, ...src.querySelectorAll("*")], b = [clone, ...clone.querySelectorAll("*")];
+      const P = ["fill", "fill-opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "stroke-linejoin", "opacity", "visibility",
+        "font-family", "font-size", "font-weight", "text-anchor", "font-variant-numeric", "letter-spacing"];
+      a.forEach((el, k) => { const cs = getComputedStyle(el); b[k].setAttribute("style", P.map(p => `${p}:${cs.getPropertyValue(p)}`).join(";")); });
+      // the hover guide, dots and drag box are hidden; leave out the transparent hit area too
+      clone.querySelectorAll('[visibility="hidden"], rect[tabindex]').forEach(el => el.remove());
+      const vb = (src.getAttribute("viewBox") || `0 0 ${src.clientWidth} ${src.clientHeight}`).split(/\s+/).map(Number);
+      clone.setAttribute("width", vb[2]); clone.setAttribute("height", vb[3]); clone.setAttribute("xmlns", NS);
+      clone.style.overflow = "visible";
+      svgText = new XMLSerializer().serializeToString(clone);
+      legend = (ex.legend || []).map(L => ({ ...L, color: cssColor(L.color) })).concat(ex.htmlLegend ? htmlLegend(host) : []);
+    } finally { theme == null ? root.removeAttribute("data-theme") : root.setAttribute("data-theme", theme); }
+    const img = new Image();
+    img.onload = () => {
+      const r = run(), v = view(), S = 2, pad = 28, W = Math.max(img.width + 2 * pad, 640), font = getComputedStyle(document.body).fontFamily;
+      const cv = document.createElement("canvas"), g = cv.getContext("2d");
+      // legend rows: wrap the items to the width
+      g.font = `13px ${font}`;
+      const rows = [[]]; let rowW = 0;
+      for (const L of legend) { const w = 26 + g.measureText(L.name).width + 18; if (rowW + w > W - 2 * pad && rows[rows.length - 1].length) { rows.push([]); rowW = 0; } rows[rows.length - 1].push({ ...L, w }); rowW += w; }
+      const legH = legend.length ? rows.length * 20 + 8 : 0, top = pad + 28 + 22 + legH + 6, H = top + img.height + 46;
+      cv.width = W * S; cv.height = H * S; g.scale(S, S);
+      g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, H);
+      g.fillStyle = "#141413"; g.font = `600 19px ${font}`; g.fillText(ex.title, pad, pad + 16);
+      g.fillStyle = "#52514e"; g.font = `14px ${font}`;
+      g.fillText(`${r.name} · ${period(v.days)}${ex.unit ? " · " + ex.unit : ""}`, pad, pad + 40);
+      let y = pad + 50 + 14;
+      g.font = `13px ${font}`;
+      for (const row of rows) {
+        let x = pad;
+        for (const L of row) {
+          g.fillStyle = L.color;
+          if (L.kind === "line") g.fillRect(x, y - 5, 18, 3); else g.fillRect(x + 4, y - 9, 11, 11);
+          g.fillStyle = "#52514e"; g.fillText(L.name, x + 24, y); x += L.w;
+        }
+        y += 20;
+      }
+      g.drawImage(img, (W - img.width) / 2, top);
+      g.fillStyle = "#66645e"; g.font = `12px ${font}`;
+      g.fillText(`Spain power-market model, run ${r.id} (commit ${r.info.commit})${r.scenario ? "" : " · real data: OMIE, ENTSO-E, REE e·sios"} · exported ${new Date().toISOString().slice(0, 10)}`, pad, H - 18);
+      cv.toBlob(b => saveBlob(b, `${r.id}_${slug(ex.title)}_${v.days[0]}_${v.days[v.days.length - 1]}.png`), "image/png");
+    };
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText);
+  }
+  const ICON_IMG = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="5.5" cy="6.5" r="1.4" fill="currentColor"/><path d="m2.5 12.5 4-4 3 3 2-2 3 3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+  const ICON_DATA = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m-3.5-3.5L8 10l3.5-3.5M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function chartTools(host, ex) {
+    const t = document.createElement("div"); t.className = "chart-tools";
+    t.innerHTML = `<button type="button" class="ct-img" title="Save this chart as a PNG picture with its title, legend and source">${ICON_IMG}<span>Save image</span></button>`
+      + (ex.cols ? `<button type="button" class="ct-csv" title="Download the numbers in this chart (CSV) for the period shown">${ICON_DATA}<span>Download data</span></button>` : "");
+    t.querySelector(".ct-img").onclick = () => exportPNG(host, ex);
+    if (ex.cols) t.querySelector(".ct-csv").onclick = () => exportCSV(ex);
+    host.appendChild(t);
+  }
+
   // ---------- generic line chart ----------
   function lineChart(host, o) {
     host.innerHTML = "";
     const W = Math.max(260, host.clientWidth);
-    const H = o.height;
+    // with strips (who set the price): dates right under the axis, then the strips, then their legend
+    const bandLayout = !!o.colorBand && !o.band, GAP = 16;
+    const H = o.height + (bandLayout ? GAP + 4 : 0);
     const all = o.series.flatMap(s => s.values.filter(v => v != null));
     let lo = Math.min(0, ...all), hi = Math.max(...all, 1);
     const ticks = niceTicks(lo, hi, o.yTicks || 4);
@@ -257,8 +374,19 @@
     const tickW = Math.max(...ticks.map(t => t.toLocaleString("en-GB").length)) * 6.6 + 12;
     const endW = o.endLabels ? Math.max(...o.series.map(q => String(q.name).length)) * 7.6 + 16 : 8;
     const cbs = o.colorBand ? [].concat(o.colorBand) : [];
-    const BS = o.band ? 34 : cbs.length ? 12 + cbs.length * 16 : 0;   // room under the x axis for the strips
-    const m = { l: Math.max(40, tickW), r: o.endLabels ? Math.max(66, endW) : 8, t: o.yUnit ? 26 : 8, b: BS + 22 };
+    // optional legend for the strips, drawn just above them: lay its items out in rows first
+    const BL = o.bandLegend && cbs.length ? o.bandLegend : null, blRows = [];
+    if (BL) {
+      const g = (lineChart.ctx = lineChart.ctx || document.createElement("canvas").getContext("2d"));
+      g.font = `12.5px ${getComputedStyle(host).fontFamily}`;
+      const avail = W - 16, itemW = it => 15 + g.measureText(it.name).width + 16;
+      let row = [{ title: BL.title, w: g.measureText(BL.title).width + 14 }], rw = row[0].w;
+      for (const it of BL.items) { const w = itemW(it); if (rw + w > avail && row.length) { blRows.push(row); row = []; rw = 0; } row.push({ ...it, w }); rw += w; }
+      blRows.push(row);
+    }
+    const LH = BL ? blRows.length * 18 + 6 : 0;
+    const BS = o.band ? 34 : bandLayout ? 22 + GAP + cbs.length * 16 + 8 + LH : 0;   // room under the x axis for the strips
+    const m = { l: Math.max(40, tickW), r: o.endLabels ? Math.max(66, endW) : 8, t: o.yUnit ? 26 : 8, b: bandLayout ? BS : BS + 22 };
     const pw = W - m.l - m.r, ph = H - m.t - m.b;
     const n = o.n;
     const x = i => m.l + (n === 1 ? pw / 2 : (i / (n - 1)) * pw);
@@ -274,7 +402,7 @@
     const xb = m.t + ph;
     for (const t of o.xTicks) {
       svg("line", { x1: x(t.i), x2: x(t.i), y1: xb, y2: xb + 4, stroke: "var(--axis)" }, s);
-      const tx = svg("text", { x: x(t.i), y: xb + BS + 16, "text-anchor": "middle" }, s);
+      const tx = svg("text", { x: x(t.i), y: bandLayout ? xb + 16 : xb + BS + 16, "text-anchor": "middle" }, s);
       tx.textContent = t.label;
     }
 
@@ -290,8 +418,16 @@
       const bl = svg("text", { x: m.l - 6, y: by + 11, "text-anchor": "end" }, s);
       bl.textContent = "AC";
     }
+    blRows.forEach((row, k) => {
+      let lx = 8; const ly = xb + 22 + GAP + cbs.length * 16 + 8 + 12 + k * 18;
+      for (const it of row) {
+        if (it.title) { const t = svg("text", { x: lx, y: ly, class: "band-legend-title" }, s); t.textContent = it.title; }
+        else { svg("rect", { x: lx, y: ly - 9, width: 10, height: 10, rx: 2, fill: it.color }, s); const t = svg("text", { x: lx + 15, y: ly, class: "band-legend" }, s); t.textContent = it.name; }
+        lx += it.w;
+      }
+    });
     cbs.forEach((cb, j) => {
-      const by = xb + 10 + j * 16, bh = 12, bw = Math.max(1, pw / Math.max(n, 1));
+      const by = xb + 22 + GAP + j * 16, bh = 12, bw = Math.max(1, pw / Math.max(n, 1));
       svg("rect", { x: m.l, y: by, width: pw, height: bh, fill: "var(--surface-2)", rx: 2 }, s);
       cb.colors.forEach((c, i) => {
         if (c) svg("rect", { x: x(i) - bw / 2, y: by, width: bw + 0.4, height: bh, fill: c }, s);
@@ -382,6 +518,11 @@
       if (ev.key === "ArrowRight") { show(Math.min(n - 1, cur + step)); ev.preventDefault(); }
       if (ev.key === "ArrowLeft") { show(Math.max(0, cur - step)); ev.preventDefault(); }
     });
+    if (o.tools !== false) chartTools(host, {
+      title: o.title || o.label, unit: o.yUnit, x: o.csvX, htmlLegend: !!o.colorBand || !!o.points,
+      legend: o.series.map(q => ({ name: q.name, color: q.color, kind: "line" })),
+      cols: o.series.map(q => ({ name: q.name, values: q.values })),
+    });
   }
 
   function stackChart(host, o) {
@@ -409,7 +550,7 @@
         let d = `M${x(i).toFixed(1)},${y(top[i]).toFixed(1)}`;
         for (let k = i + 1; k <= j; k++) d += `L${x(k).toFixed(1)},${y(top[k]).toFixed(1)}`;
         for (let k = j; k >= i; k--) d += `L${x(k).toFixed(1)},${y(base[k]).toFixed(1)}`;
-        svg("path", { d: d + "Z", fill: L.color, stroke: "var(--surface)", "stroke-width": 0.75, "stroke-linejoin": "round" }, s);
+        svg("path", { d: d + "Z", fill: L.color, stroke: "var(--surface)", "stroke-width": n > 744 ? 0 : 0.75, "stroke-linejoin": "round" }, s);   // no white seams in a year of hours
         i = j + 1;
       }
       base = top.map((tp, i) => tp == null ? base[i] : tp);
@@ -459,6 +600,11 @@
       if (ev.key === "ArrowRight") { go(Math.min(n - 1, cur + st)); ev.preventDefault(); }
       if (ev.key === "ArrowLeft") { go(Math.max(0, cur - st)); ev.preventDefault(); }
     });
+    chartTools(host, {
+      title: o.title || o.label, unit: o.yUnit,
+      legend: [...o.layers].reverse().map(L => ({ name: L.name, color: L.color, kind: "box" })),
+      cols: o.layers.map(L => ({ name: L.name, values: L.values })),
+    });
     return api;
   }
 
@@ -487,6 +633,8 @@
         tr += a || 0; if (b == null) mOk = false; else tm += b;
         return `<tr><td><i class="sw-box" style="background:${CAT_COLOR[c]};margin-right:6px"></i>${c}</td><td>${nf(a, 0)}</td><td>${nf(b, 0)}</td></tr>`;
       }).join("");
+      if (r.scenario) return `<b>${when}</b><table><tr><th></th><th>Model MW</th></tr>${rows.replace(/<td>[^<]*<\/td><td>/g, "<td>")}
+        <tr class="total"><td>Total</td><td>${mOk ? nf(tm, 0) : "–"}</td></tr></table>`;
       return `<b>${when}</b><table><tr><th></th><th>Real MW</th><th>Model MW</th></tr>${rows}
         <tr class="total"><td>Total</td><td>${nf(tr, 0)}</td><td>${mOk ? nf(tm, 0) : "–"}</td></tr></table>`;
     };
@@ -498,8 +646,8 @@
       onLeave: () => charts.forEach(c => c.hide()),
       onZoom: (a, b) => zoomFromChart(a, b, hourly),
     });
-    charts.push(stackChart($("stack-real"), opts($("stack-real"), real, "Real generation mix, stacked")));
-    charts.push(stackChart($("stack-model"), opts($("stack-model"), model, "Model generation mix, stacked")));
+    if (!r.scenario) charts.push(stackChart($("stack-real"), opts($("stack-real"), real, `Real generation mix (${REF_NAME[md.ref]})`)));
+    charts.push(stackChart($("stack-model"), opts($("stack-model"), model, `Model generation mix (${stageName.toLowerCase()})`)));
   }
 
   function dayTicks(days, perHour, width) {
@@ -512,11 +660,11 @@
     return out;
   }
 
-  function seg(host, options, current, onPick) {
+  function seg(host, options, current, onPick, html) {
     host.innerHTML = "";
     for (const [val, label, tip] of options) {
       const b = document.createElement("button");
-      b.type = "button"; b.textContent = label;
+      b.type = "button"; if (html) b.innerHTML = label; else b.textContent = label;
       if (tip) b.dataset.tip = tip;
       b.setAttribute("aria-pressed", String(val === current));
       b.addEventListener("click", () => onPick(val));
@@ -569,90 +717,134 @@
   }
   function saveFilters() { try { localStorage.setItem("runviewer.filters", JSON.stringify(filters)); } catch (e) {} }
 
-  // ---------- sections ----------
-  let runsOpen = false;
-  try { runsOpen = localStorage.getItem("runviewer.runsOpen") === "1"; } catch (e) {}
-  function setRunsOpen(open) {
-    runsOpen = open;
-    try { localStorage.setItem("runviewer.runsOpen", open ? "1" : "0"); } catch (e) {}
-    document.querySelector(".layout").classList.toggle("runs-closed", !open);
-    const t = $("runs-toggle"); if (t) t.setAttribute("aria-expanded", String(open));
-    if (open) window.scrollTo({ top: 0 });
-  }
+  // ---------- the run list: always shown on the left, in groups that fold ----------
+  // a run belongs to the first group whose test it passes (manifest order is kept inside a group)
+  const RUN_GROUPS = [
+    ["full", "2024, full year", m => !m.scenario && m.n_days >= 300],
+    ["scen", "2035 scenarios", m => !!m.scenario],
+    ["test", "Shorter test runs", () => true],
+  ];
+  let openGroups = ["full", "scen"];
+  try { const og = JSON.parse(localStorage.getItem("runviewer.runGroups") || "null"); if (Array.isArray(og)) openGroups = og; } catch (e) {}
   function renderRunList() {
     renderRunFilters();
     const host = $("run-list"); host.innerHTML = "";
     const shown = MANIFEST.filter(m => runMatches(m));
-    for (const m of shown) {
-      const pct = m.ac_total ? 100 * m.ac_solved / m.ac_total : 0, i = m.info || {};
-      const tagOn = { res: "offered", chain: "day" };
-      const tags = m.features ? FEATS.filter(f => f[4] && featValue(m, f[0]) === (tagOn[f[0]] || "on")).map(f => f[4]) : [];
-      if (m.features && m.features.res === "accepted") tags.unshift("accepted");
-      if (m.scenario) tags.unshift(m.scenario.label);
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "run-item";
-      b.setAttribute("aria-current", String(m.id === state.run));
-      b.innerHTML = `<span class="ri-name">${esc(m.name)}</span>
-        <span class="ri-meta"><span>${period([m.first_day, m.last_day])}</span><span class="mono">${esc(i.commit || "–")}</span><span>${esc(i.ran_by || "–")}</span></span>
-        ${tags.length ? `<span class="ri-tags">${tags.map(t => `<span class="ri-tag">${esc(t)}</span>`).join("")}</span>` : ""}
-        <span class="ri-meta"><span>${nf(pct, 0)} % of hours solved</span></span>
-        <span class="meter" aria-hidden="true"><span style="width:${pct}%"></span></span>`;
-      b.addEventListener("click", () => { if (m.id !== state.run || !run()) selectRun(m.id); setRunsOpen(false); });
-      host.appendChild(b);
+    const groupOfRun = m => RUN_GROUPS.find(g => g[2](m))[0];
+    for (const [gk, glabel] of RUN_GROUPS) {
+      const runs = shown.filter(m => groupOfRun(m) === gk);
+      if (!runs.length) continue;
+      const det = document.createElement("details"); det.className = "run-group";
+      // the group of the run on screen is always open
+      det.open = openGroups.includes(gk) || runs.some(m => m.id === state.run);
+      det.innerHTML = `<summary><span>${glabel}</span><span class="rg-n">${runs.length}</span></summary>`;
+      det.addEventListener("toggle", () => {
+        openGroups = det.open ? [...new Set([...openGroups, gk])] : openGroups.filter(x => x !== gk);
+        try { localStorage.setItem("runviewer.runGroups", JSON.stringify(openGroups)); } catch (e) {}
+      });
+      const list = document.createElement("div"); list.className = "rg-list";
+      for (const m of runs) {
+        const pct = m.ac_total ? 100 * m.ac_solved / m.ac_total : 0;
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "run-item";
+        b.setAttribute("aria-current", String(m.id === state.run));
+        b.title = m.name;
+        b.innerHTML = `<span class="ri-name">${esc(m.name)}</span>
+          <span class="ri-meta"><span>${period([m.first_day, m.last_day])}</span><span>${nf(pct, 0)} % solved</span></span>`;
+        b.addEventListener("click", () => { if (m.id !== state.run || !run()) selectRun(m.id); });
+        list.appendChild(b);
+      }
+      det.appendChild(list); host.appendChild(det);
     }
     if (!shown.length) host.innerHTML = `<p class="rf-empty">No run has this combination of model changes.</p>`;
     else if (!shown.some(m => m.id === state.run)) host.insertAdjacentHTML("afterbegin", `<p class="rf-empty">The run you are viewing is hidden by the filters.</p>`);
     $("run-count").textContent = shown.length === MANIFEST.length ? String(MANIFEST.length) : `${shown.length} of ${MANIFEST.length}`;
   }
 
+  // The run's settings in plain words, one line each, from meta.features (publish_run.py detect_features,
+  // or tagged by hand). [key, label, gloss, words when on / the value, words when off]
+  const SETTINGS = [
+    ["chain", "Market stage order", "f_chain", v => v === "day" ? "Day by day: each day runs DA → ID2 → ID3 → CID → BAL before the next" : "Stage by stage: each market for all days before the next market"],
+    ["res", "Solar and wind", "f_res", v => v === "offered" ? "Offered bids: the model can curtail solar and wind" : "Fixed at the accepted volumes: no curtailment"],
+    ["xb", "Exchange with France and Portugal", "f_xb", v => v ? "The redispatch splits it over the border lines" : "Fixed split by line rating"],
+    ["gas", "Gas and coal plants", "f_gas", v => v ? "Own cost per plant, start/stop rules, closed coal plants removed" : "Simple costs, no start/stop rules"],
+    ["markup", "Generation tax and mark-ups", "f_markup", v => v ? "On: generation tax and mark-ups on gas and coal bids" : "Off"],
+    ["hydro", "Hydro planning", "f_hydro", v => v ? "Improved: real 2024 reservoir start, seasonal limits, monthly inflow" : "Basic"],
+    ["participation", "Intraday trading", "f_part", v => v === "measured" ? "Measured from REE: about 7 % of wind and demand and 6 % of solar re-trade in continuous intraday" : "Every unit re-trades at every stage (PowerVision's active case)"],
+    ["balancing", "Balancing", "f_bal", v => v === "qualified" ? "Only units qualified for balancing (REE's list, plus batteries)" : "Every unit can balance"],
+    ["pumping", "Pumped-storage load", "f_pump", v => v ? "Real 2024 pumping taken out of the load; the model pumps itself" : "Kept in the load as in OMIE's data"],
+    ["rd", "Redispatch", "f_rd", v => v === "ree" ? "The REE way: phases I and II, pay-as-bid (model change §20)" : "AC power flow at marginal cost"],
+  ];
+  // a setting counts as switched on when it differs from the original model
+  const SETTING_ON = { chain: "day", res: "offered", participation: "measured", balancing: "qualified", rd: "ree" };
   function renderHead(r) {
-    const i = r.info;
+    const i = r.info, f = r.meta.features;
+    const sc = r.scenario;
+    const rows = f ? SETTINGS.filter(([k]) => k in f || ["participation", "balancing", "rd"].includes(k)).map(([k, label, tip, words]) => {
+      const v = f[k], on = k in SETTING_ON ? v === SETTING_ON[k] : !!v;
+      return `<li class="${on ? "on" : "off"}"><span class="s-mark" aria-hidden="true">${on ? "✓" : "–"}</span><span><span class="s-name">${term(label, tip)}:</span> <span class="s-val">${esc(words(v))}</span></span></li>`;
+    }) : [];
     $("run-head").innerHTML = `
       <h2>${esc(r.name)}</h2>
-      <p class="note">${esc(r.note)}</p>
-      ${r.scenario ? `<p class="note"><span class="flag">${icon("warn")} Scenario run: ${esc(r.scenario.label)}${r.scenario.period ? `, EMPIRE period ${esc(String(r.scenario.period))}` : ""}${(r.scenario.weather_years || []).length ? `, weather year ${esc(r.scenario.weather_years.join(", "))}` : ""}. The dates follow the 2024 calendar the model uses; there is no real data to compare, so the real (OMIE, ENTSO-E, REE) series are empty.</span></p>` : ""}
+      ${sc ? `<p class="scenario-flag">${icon("warn")} <b>Scenario run: ${esc(sc.label)}</b>${sc.period ? `, EMPIRE period ${esc(String(sc.period))}` : ""}${(sc.weather_years || []).length ? `, weather year ${esc(sc.weather_years.join(", "))}` : ""}. No real data to compare with; the dates follow the 2024 calendar the model uses.</p>` : ""}
+      <div class="settings-box">
+        <h3>Settings in this run</h3>
+        ${rows.length ? `<ul class="settings">${rows.join("")}</ul>` : `<p class="fineprint" style="margin:0">This run was published before runs recorded their settings; see the technical note below.</p>`}
+      </div>
       <dl class="facts">
         <div><dt>Period</dt><dd>${period(r.days)} · ${r.days.length} days</dd></div>
         <div><dt>${term("Code version", "commit")}</dt><dd><span class="mono">${i.commit}</span> on <span class="mono">${i.branch}</span></dd></div>
-        <div><dt>${term("Uncommitted changes", "dirty")}</dt><dd>${i.dirty.length ? `<span class="flag">${icon("warn")} ${i.dirty.map(f => `<span class="mono">${f}</span>`).join(", ")}</span>` : "None"}</dd></div>
         <div><dt>${term("Redispatch", "rd_setup")}</dt><dd>${i.power_flow}, ${i.solver}</dd></div>
         <div><dt>Ran by</dt><dd>${i.ran_by}</dd></div>
         <div><dt>Finished</dt><dd>${i.finished} · ${i.runtime}</dd></div>
       </dl>
-      <p class="fineprint" style="margin:0">${i.commit_msg ? `Commit message: “${esc(i.commit_msg)}”. ` : ""}${i.reconstructed ? "This run was made before runs recorded their own info, so it was filled in by hand when it was published. " : ""}Published ${esc((r.meta.published || "").slice(0, 10))} by ${esc(r.meta.published_by || "–")}.</p>`;
+      <details class="howto tech-note"><summary>Technical note</summary>
+        <p>${esc(r.note)}</p>
+        <p>${term("Uncommitted changes", "dirty")}: ${i.dirty.length ? i.dirty.map(x => `<span class="mono">${esc(x)}</span>`).join(", ") : "none"}.
+          ${i.commit_msg ? `Commit message: “${esc(i.commit_msg)}”. ` : ""}${i.reconstructed ? "This run was made before runs recorded their own info, so it was filled in by hand when it was published. " : ""}Published ${esc((r.meta.published || "").slice(0, 10))} by ${esc(r.meta.published_by || "–")}.</p>
+      </details>`;
   }
 
   function renderTabs(v) {
-    const p = pairs(v.price.DA, v.real_price);
-    const mae = mean(p.map(q => Math.abs(q[0] - q[1])));
     const solvedPct = 100 * v.status.reduce((a, b) => a + b, 0) / v.status.length;
-    const hint = { price: `MAE ${nf(mae)} €/MWh`, status: `${nf(solvedPct, 0)} % solved` };
+    const hint = { status: `${nf(solvedPct, 0)} % solved` };
     const host = $("tabs"); host.innerHTML = "";
-    TABS.forEach(([key, label]) => {
-      const b = document.createElement("button");
-      b.type = "button"; b.setAttribute("role", "tab"); b.id = "tab-" + key;
-      b.setAttribute("aria-selected", String(key === state.tab));
-      b.tabIndex = key === state.tab ? 0 : -1;
-      b.innerHTML = label + (hint[key] ? `<small>${hint[key]}</small>` : "");
-      b.addEventListener("click", () => pickTab(key));
-      b.addEventListener("keydown", ev => {
-        const i = TABS.findIndex(x => x[0] === state.tab);
-        if (ev.key === "ArrowRight" || ev.key === "ArrowLeft") {
-          const j = (i + (ev.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length;
-          pickTab(TABS[j][0]); $("tab-" + TABS[j][0]).focus(); ev.preventDefault();
-        }
+    // scenario runs (2035) have no real data: no REE tab, no sections marked data-real
+    const scen = !!v.scenario;
+    if (scen && state.tab === "esios") state.tab = "status";
+    const cur = groupOf(state.tab);
+    // one row of buttons; the arrow keys move along the row
+    const row = (cls, label, items, selected, onPick, idPre) => {
+      const d = document.createElement("div");
+      d.className = "tab-row " + cls; d.setAttribute("role", "tablist"); d.setAttribute("aria-label", label);
+      items.forEach(([key, text, small], i) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.setAttribute("role", "tab"); b.id = idPre + key;
+        b.setAttribute("aria-selected", String(key === selected)); b.tabIndex = key === selected ? 0 : -1;
+        b.innerHTML = text + (small ? `<small>${small}</small>` : "");
+        b.addEventListener("click", () => onPick(key));
+        b.addEventListener("keydown", ev => {
+          if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return;
+          const j = (i + (ev.key === "ArrowRight" ? 1 : items.length - 1)) % items.length;
+          onPick(items[j][0]); const nb = $(idPre + items[j][0]); if (nb) nb.focus(); ev.preventDefault();
+        });
+        d.appendChild(b);
       });
-      host.appendChild(b);
-    });
-    document.querySelectorAll("[data-tabs]").forEach(el => { el.hidden = !el.dataset.tabs.split(" ").includes(state.tab); });
+      host.appendChild(d);
+    };
+    row("tab-groups", "Sections", GROUPS.map(g => [g[0], g[1]]), cur[0],
+      gk => { const g = GROUPS.find(x => x[0] === gk); pickTab(g[2].includes(state.lastTab[gk]) ? state.lastTab[gk] : g[2][0]); }, "grp-");
+    const sub = cur[2].filter(k => !(scen && k === "esios"));
+    if (sub.length > 1) row("tab-sub", cur[1], sub.map(k => [k, TABS.find(t => t[0] === k)[1], hint[k]]), state.tab, pickTab, "tab-");
+    document.querySelectorAll("[data-tabs]").forEach(el => { el.hidden = !el.dataset.tabs.split(" ").includes(state.tab) || (scen && el.hasAttribute("data-real")); });
   }
   function pickTab(key) {
     if (key === state.tab) return;
-    state.tab = key;
-    try { localStorage.setItem("runviewer.tab", key); } catch (e) {}
+    state.tab = key; state.lastTab[groupOf(key)[0]] = key;
+    try { localStorage.setItem("runviewer.tab", key); localStorage.setItem("runviewer.lastTab", JSON.stringify(state.lastTab)); } catch (e) {}
     hideGloss();
     const v = view();
-    renderTabs(v);
+    renderTabs(v); renderKpis(v);
     // sections that were hidden have no width yet, so draw them now that they are visible
     renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); renderSetter(v); renderTradeCharts(v);
     // if the page was scrolled down, jump back to the top of the new tab's content
@@ -898,7 +1090,7 @@
     const empty = !Array.prototype.some.call(vals, v => !isNaN(v));
     if (empty) {
       const n = document.createElement("div"); n.className = "map-note";
-      n.innerHTML = state.gridMode === "hour" ? "The AC redispatch failed in this hour, so there are no line flows." : "No solved AC hours in the shown period.";
+      n.innerHTML = state.gridMode === "hour" ? "The redispatch failed in this hour, so there are no line flows." : "No solved redispatch hours in the shown period.";
       host.appendChild(n);
     }
 
@@ -965,7 +1157,7 @@
           + `<td>${pct(st.max[c])}${wh >= 0 ? `<div class="sub">${dayLabel(r.days[Math.floor(wh / 24)])}, ${hh(wh % 24)}</div>` : ""}</td><td>${st.n90[c]}</td><td>${st.nlim[c] ? `<b>${st.nlim[c]}</b>` : "0"}</td></tr>`;
       }).join("")
         : `<tr><td colspan="${cols.length}" style="color:var(--muted)">Nothing matches${q ? ` “${esc(q)}”` : ""}. Check the search box and the Show buttons above the map.</td></tr>`) + "</tbody>";
-    $("grid-table-count").innerHTML = `${all.length.toLocaleString("en-GB")} of ${C.toLocaleString("en-GB")} · hours counted over the ${r.status.reduce((a, b) => a + b, 0)} solved AC hours in the period`
+    $("grid-table-count").innerHTML = `${all.length.toLocaleString("en-GB")} of ${C.toLocaleString("en-GB")} · hours counted over the ${r.status.reduce((a, b) => a + b, 0)} solved redispatch hours in the period`
       + (all.length > LIMIT ? ` · <button type="button" class="linkbtn" id="grid-table-all">${state.gridAll ? `Show the first ${LIMIT}` : `Show all ${all.length.toLocaleString("en-GB")}`}</button>` : "");
     $("grid-table").querySelectorAll("button.sort").forEach(b => b.addEventListener("click", () => {
       const k2 = b.dataset.k;
@@ -1175,7 +1367,7 @@
     const only = state.plantSize === "realout";
     // model and real over the hours that have both (for the comparison and the hover)
     const md = new Float32Array(S).fill(NaN), rl = new Float32Array(S).fill(NaN);
-    // real alone over every hour ENTSO-E has, failed AC hours included (for "Real output")
+    // real alone over every hour ENTSO-E has, failed redispatch hours included (for "Real output")
     const ro = new Float32Array(S).fill(NaN);
     for (let s = 0; s < S; s++) {
       if (one) {
@@ -1233,7 +1425,7 @@
     if (!shown.length) {
       const n = document.createElement("div"); n.className = "map-note";
       n.innerHTML = only ? "ENTSO-E has no data for this choice."
-        : one && r.status[state.plantHour - h0] === 0 ? "The AC redispatch failed in this hour, so there is no model output to compare." : "No hours with both model and real data in this period.";
+        : one && r.status[state.plantHour - h0] === 0 ? "The redispatch failed in this hour, so there is no model output to compare." : "No hours with both model and real data in this period.";
       host.appendChild(n);
     }
 
@@ -1279,7 +1471,9 @@
   function renderPlants(r) {
     if ($("sec-plants").hidden) return;
     wirePlantSearch();
-    seg($("plant-size"), [["cap", "Installed capacity", "p_cap"], ["out", "Output", "p_out"], ["chg", "Redispatch change", "p_chg"], ["realout", "Real output", "p_realout"], ["real", "Real vs model", "p_real"]], state.plantSize,
+    if (r.scenario && (state.plantSize === "real" || state.plantSize === "realout")) state.plantSize = "cap";
+    seg($("plant-size"), [["cap", "Installed capacity", "p_cap"], ["out", "Output", "p_out"], ["chg", "Redispatch change", "p_chg"],
+      ...(r.scenario ? [] : [["realout", "Real output", "p_realout"], ["real", "Real vs model", "p_real"]])], state.plantSize,
       v => { state.plantSize = v; renderPlants(view()); });
     const timeHost = $("plant-time");
     timeHost.hidden = state.plantSize === "cap";
@@ -1352,7 +1546,7 @@
     M.rescale();
     if (!shown.length) {
       const n = document.createElement("div"); n.className = "map-note";
-      n.innerHTML = one && r.status[state.plantHour - h0] === 0 ? "The AC redispatch failed in this hour, so there is no redispatch output." : "Nothing to show for this choice.";
+      n.innerHTML = one && r.status[state.plantHour - h0] === 0 ? "The redispatch failed in this hour, so there is no redispatch output." : "Nothing to show for this choice.";
       host.appendChild(n);
     }
 
@@ -1394,16 +1588,14 @@
     const r = run(), nd = r.days.length, z = state.zoom || [0, nd - 1], len = z[1] - z[0] + 1;
     const el = $("period");
     el.classList.toggle("zoomed", !!state.zoom);
-    el.innerHTML = `<span class="p-run"><button type="button" class="runs-toggle" id="runs-toggle" aria-expanded="${runsOpen}" aria-controls="runs-nav">☰ Runs</button><b title="${esc(r.name)}">${esc(r.name)}</b></span>
-      <span class="p-label">Showing</span>
+    el.innerHTML = `<span class="p-label">Showing</span>
       <label class="p-date">From <input type="date" id="p-from" min="${r.days[0]}" max="${r.days[nd - 1]}" value="${r.days[z[0]]}" aria-label="First day shown"></label>
       <label class="p-date">to <input type="date" id="p-to" min="${r.days[0]}" max="${r.days[nd - 1]}" value="${r.days[z[1]]}" aria-label="Last day shown"></label>
       <span class="p-count">${len} of ${nd} days</span>
       <button type="button" id="p-prev" aria-label="Show the previous ${len} days" ${z[0] === 0 || !state.zoom ? "disabled" : ""}>← Earlier</button>
       <button type="button" id="p-next" aria-label="Show the next ${len} days" ${z[1] === nd - 1 || !state.zoom ? "disabled" : ""}>Later →</button>
       <button type="button" id="p-reset" ${state.zoom ? "" : "disabled"}>Show all days</button>
-      <span class="p-key" aria-label="Colours"><span><i class="sw-line" style="background:var(--model)"></i>Model</span><span><i class="sw-line" style="background:var(--real)"></i>Real</span></span>`;
-    $("runs-toggle").onclick = () => setRunsOpen(!runsOpen);
+      <span class="p-key" aria-label="Colours"><span><i class="sw-line" style="background:var(--model)"></i>Model</span>${r.scenario ? "" : `<span><i class="sw-line" style="background:var(--real)"></i>Real</span>`}</span>`;
     // a picked date maps to the nearest run day inside the range (runs can skip days)
     const firstFrom = iso => { const i = r.days.findIndex(d => d >= iso); return i < 0 ? nd - 1 : i; };
     const lastTo = iso => { let i = nd - 1; while (i > 0 && r.days[i] > iso) i--; return i; };
@@ -1421,8 +1613,15 @@
     const mae = mean(p.map(q => Math.abs(q[0] - q[1])));
     const c = corr(p);
     const [k, word] = solveStatus(pct);
-    const tiles = [
-      [term("AC hours solved", "solved"), `${nf(pct, 0)}<small>%</small>`, `<span class="status">${icon(k)} ${word}</span> · ${solved} of ${N} hours`],
+    const dap = r.price.DA.filter(x => x != null);
+    const tiles = r.scenario ? [
+      ...(["price", "mix"].includes(state.tab) ? [] : [[term("Redispatch hours solved", "solved"), `${nf(pct, 0)}<small>%</small>`, `<span class="status">${icon(k)} ${word}</span> · ${solved} of ${N} hours`]]),
+      [term("Mean day-ahead price", "meanprice"), `${nf(mean(dap))}<small>€/MWh</small>`, "Model, over the hours shown"],
+      ["Highest hour", `${nf(dap.length ? Math.max(...dap) : null)}<small>€/MWh</small>`, "Model day-ahead price"],
+      ["Lowest hour", `${nf(dap.length ? Math.min(...dap) : null)}<small>€/MWh</small>`, "Model day-ahead price"],
+      ["Hours at 0 €/MWh or below", `${nf(dap.length ? 100 * dap.filter(x => x <= 0).length / dap.length : null, 0)}<small>%</small>`, "Model day-ahead price"],
+    ] : [
+      ...(["price", "mix"].includes(state.tab) ? [] : [[term("Redispatch hours solved", "solved"), `${nf(pct, 0)}<small>%</small>`, `<span class="status">${icon(k)} ${word}</span> · ${solved} of ${N} hours`]]),
       [term("Mean day-ahead price", "meanprice"), `${nf(mm)}<small>€/MWh</small>`, `Real: ${nf(mr)} €/MWh`],
       [term("Price bias", "bias"), `${signed(mm - mr)}<small>€/MWh</small>`, mm < mr ? "Model below real" : "Model above real"],
       [term("Price error (MAE)", "mae"), `${nf(mae)}<small>€/MWh</small>`, "Typical size of the hourly error"],
@@ -1467,18 +1666,26 @@
     const band = [], seen = new Set();
     if (SB) { const g = perRes(SB.group); g.forEach(x => x >= 0 && seen.add(x)); band.push({ label: "Model", colors: g.map(x => x >= 0 ? SETTER_COLOR[x] : null) }); }
     if (RS && RS.group.some(x => x >= 0)) { const g = perRes(RS.group); g.forEach(x => x >= 0 && seen.add(x)); band.push({ label: "Real", colors: g.map(x => x >= 0 ? SETTER_COLOR[x] : null) }); }
-    if (band.length) {
-      $("price-legend").innerHTML = `<span style="color:var(--muted)">Strip${band.length > 1 ? "s" : ""} under the chart, who set the ${band.map(b => b.label.toLowerCase()).join(" and the ")} ${state.priceStage} price${hourly ? "" : " most often that day"}:</span>`
-        + [...seen].sort((a, b) => a - b).map(g => `<span><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i>${SETTER_GROUPS[g]}</span>`).join("");
-    }
+    const bandLegend = band.length ? {
+      title: "Who set the price:",
+      items: [...seen].sort((a, b) => a - b).map(g => ({ name: SETTER_GROUPS[g], color: SETTER_COLOR[g] })),
+    } : null;
+    // show or hide each line; one always stays on
+    const show = r.scenario ? { real: false, model: true } : state.priceShow;
+    $("price-show").hidden = !!r.scenario;
+    seg($("price-show"), [["real", `<i class="sw-line" style="background:var(--real)"></i>Real`], ["model", `<i class="sw-line" style="background:var(--model)"></i>Model`]], null, k => {
+      if (show[k] && !show[k === "real" ? "model" : "real"]) return;
+      show[k] = !show[k]; renderPrice(view());
+    }, true);
+    $("price-show").querySelectorAll("button").forEach((b, i) => b.setAttribute("aria-pressed", String(show[i ? "model" : "real"])));
     lineChart(host, {
-      n, height: state.tab === "price" ? 440 : 310, label: "Price, model vs real", endLabels: true, yUnit: "€/MWh", colorBand: band.length ? band : null,
+      n, height: state.tab === "price" ? 440 : 310, label: "Price, model vs real", endLabels: true, yUnit: "€/MWh", colorBand: band.length ? band : null, bandLegend,
       onZoom: (a, b) => zoomFromChart(a, b, hourly),
       xTicks: dayTicks(r.days, hourly, host.clientWidth - 110),
       series: [
-        { name: rName, values: rv, color: "var(--real)", width: 2 },
-        { name: `Model (${state.priceStage})`, values: mv, color: "var(--model)", width: 2.25 },
-      ],
+        show.real && { name: rName, values: rv, color: "var(--real)", width: 2 },
+        show.model && { name: `Model (${state.priceStage})`, values: mv, color: "var(--model)", width: 2.25 },
+      ].filter(Boolean),
       tooltip: i => {
         const day = hourly ? Math.floor(i / 24) : i;
         const when = dayLabel(r.days[day]) + (hourly ? ", " + hh(i % 24) : " (daily mean)");
@@ -1514,63 +1721,32 @@
     }
     return { groups: R.groups, units: R.units, group, unit };
   }
-  // 100 % bars per month (per day inside a month) of who set the price
-  function setterBars(host, grp, days, price) {
-    host.innerHTML = "";
-    const G = SETTER_GROUPS, byMonth = new Set(days.map(d => d.slice(0, 7))).size > 1;
-    const keys = [], bucketOf = [];
-    days.forEach(d => { const k = byMonth ? d.slice(0, 7) : d; if (keys[keys.length - 1] !== k) keys.push(k); bucketOf.push(keys.length - 1); });
-    const cnt = keys.map(() => new Array(G.length).fill(0)), tot = keys.map(() => 0);
-    const all = new Array(G.length).fill(0), psum = new Array(G.length).fill(0), pn = new Array(G.length).fill(0);
+  // how often each type set the price, and the mean price in those hours
+  function setterCounts(grp, price) {
+    const G = SETTER_GROUPS.length, all = new Array(G).fill(0), psum = new Array(G).fill(0), pn = new Array(G).fill(0);
     grp.forEach((g, i) => {
       if (g == null || g < 0) return;
-      const b = bucketOf[Math.floor(i / 24)];
-      cnt[b][g]++; tot[b]++; all[g]++;
+      all[g]++;
       if (price && price[i] != null) { psum[g] += price[i]; pn[g]++; }
-    });
-    const W = Math.max(260, host.clientWidth), H = 200, m = { l: 44, r: 8, t: 10, b: 22 };
-    const pw = W - m.l - m.r, ph = H - m.t - m.b, nb = keys.length, bw = pw / nb;
-    const s = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Share of hours per price-setting plant type" }, host);
-    for (const t of [0, 25, 50, 75, 100]) {
-      const yy = m.t + ph - t / 100 * ph;
-      svg("line", { x1: m.l, x2: m.l + pw, y1: yy, y2: yy, stroke: t === 0 ? "var(--axis)" : "var(--grid)" }, s);
-      const tx = svg("text", { x: m.l - 6, y: yy + 4, "text-anchor": "end" }, s); tx.textContent = t + " %";
-    }
-    const mlab = k => byMonth ? new Date(k + "-01T00:00:00").toLocaleString("en-GB", { month: "short" }) : String(+k.slice(8));
-    const every = Math.max(1, Math.ceil(nb / Math.max(2, Math.floor(pw / 34))));
-    keys.forEach((k, b) => {
-      let y0 = m.t + ph;
-      const x0 = m.l + b * bw + bw * 0.12, w = Math.max(1, bw * 0.76);
-      for (let g = 0; g < G.length; g++) {
-        if (!tot[b] || !cnt[b][g]) continue;
-        const hgt = cnt[b][g] / tot[b] * ph;
-        const rc = svg("rect", { x: x0, y: y0 - hgt, width: w, height: hgt, fill: SETTER_COLOR[g] }, s);
-        svg("title", {}, rc).textContent = `${byMonth ? k : dayLabel(k)}: ${G[g]} ${nf(100 * cnt[b][g] / tot[b], 0)} % (${cnt[b][g]} h)`;
-        y0 -= hgt;
-      }
-      if (b % every === 0) { const tx = svg("text", { x: x0 + w / 2, y: m.t + ph + 16, "text-anchor": "middle" }, s); tx.textContent = mlab(k); }
     });
     return { all, psum, pn, N: all.reduce((a, b) => a + b, 0) };
   }
   function renderSetter(r) {
-    const host = $("setter-chart"), hostR = $("setter-chart-real"), tbl = $("setter-table"), note = $("setter-note"), leg = $("setter-legend");
+    const tbl = $("setter-table"), note = $("setter-note");
     const stages = r.setter ? PRICE_STAGES.filter(s => r.setter.stages[s]) : [];
     if (stages.length && !stages.includes(state.setterStage)) state.setterStage = stages[0];
     seg($("setter-stage"), (stages.length ? stages : ["DA"]).map(s => [s, s, s]), state.setterStage, v => { state.setterStage = v; renderSetter(view()); });
     const RS = state.setterStage === "DA" ? realSetterFor(r) : null;
     const hasReal = !!RS && RS.group.some(g => g >= 0);
     const S = r.setter && r.setter.stages[state.setterStage];
-    $("setter-model-title").innerHTML = S ? `<span class="st-main"><i style="background:var(--model)"></i>Model</span><span class="st-sub">${state.setterStage}</span>` : "";
-    $("setter-real-title").innerHTML = hasReal ? `<span class="st-main"><i style="background:var(--real)"></i>Real</span><span class="st-sub">OMIE day-ahead, from the bid curves</span>` : "";
-    const M = S ? setterBars(host, S.group, r.days, r.price[state.setterStage] || []) : (host.innerHTML = "", null);
-    const Rl = hasReal ? setterBars(hostR, RS.group, r.days, r.real_price) : (hostR.innerHTML = "", null);
+    const M = S ? setterCounts(S.group, r.price[state.setterStage] || []) : null;
+    const Rl = hasReal ? setterCounts(RS.group, r.real_price) : null;
     if (!M && !Rl) {
-      tbl.innerHTML = ""; leg.innerHTML = "";
+      tbl.innerHTML = "";
       note.textContent = "No price-setter data for this run and stage: the package has none (publish it again with the current publish_run.py) and the real one exists for the 2024 day-ahead only.";
       return;
     }
     const used = SETTER_GROUPS.map((_, g) => g).filter(g => (M && M.all[g]) || (Rl && Rl.all[g]));
-    leg.innerHTML = used.map(g => `<span><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i>${SETTER_GROUPS[g]}</span>`).join("");
     const pc = (X, g) => X && X.N ? nf(100 * X.all[g] / X.N, 1) + " %" : "–";
     const mp = (X, g) => X && X.pn[g] ? nf(X.psum[g] / X.pn[g]) + " €/MWh" : "–";
     const key = g => (M ? M.all[g] : 0) + (Rl ? Rl.all[g] : 0);
@@ -1579,7 +1755,7 @@
       + `</tbody>`;
     note.textContent = `Model: the unit running between its limits whose bid equals the price; reservoir hydro, storage and imports set it when no such unit exists. `
       + (hasReal ? `Real: from OMIE's per-unit bids, the bid at the Spanish price that was only partly matched; "Imports" = no Iberian bid at the price, so it was set elsewhere in the coupled European market; "Demand bid" = a buyer (retailer, export) set it, pumping counts as storage. ` : state.setterStage !== "DA" ? "The real price setter is known for the day-ahead (DA) only. " : "")
-      + `Hover over a bar for its numbers, or over the price chart for the plant hour by hour.`;
+      + `Hover over the price chart for the plant hour by hour.`;
   }
 
   // ---------- traded volume per stage over time (Traded volume tab) ----------
@@ -1594,7 +1770,8 @@
       ["Continuous intraday", r.traded && r.traded.CID, E("cid_mwh")],
       ["Balancing (aFRR + mFRR + RR)", B && add(B.up, B.down), window.ESIOS ? add(...["afrr_up", "afrr_down", "mfrr_up", "mfrr_down", "rr_up", "rr_down"].map(E)) : null],
     ];
-    $("trade-legend").innerHTML = `<span><i class="sw-line" style="background:var(--real)"></i>Real (OMIE, REE via e·sios)</span><span><i class="sw-line" style="background:var(--model)"></i>Model (this run)</span>`;
+    const scen = !!r.scenario;
+    $("trade-legend").innerHTML = `${scen ? "" : `<span><i class="sw-line" style="background:var(--real)"></i>Real (OMIE, REE via e·sios)</span>`}<span><i class="sw-line" style="background:var(--model)"></i>Model (this run)</span>`;
     const hod = state.tradeRes === "hod";
     for (const [title, mArr, eArr] of stages) {
       const box = document.createElement("div"); box.className = "sm";
@@ -1618,19 +1795,19 @@
       mv.forEach((x, i) => { if (x != null && ev[i] != null) { pm.push(x); pe.push(ev[i]); } });
       const se = pe.reduce((a, b) => a + b, 0);
       const ratio = pm.length && se ? 100 * pm.reduce((a, b) => a + b, 0) / se : null;
-      box.innerHTML = `<h4>${title}<span>${ratio != null ? "model " + nf(ratio, 0) + " % of real" : hasM ? "no real data" : "no model data"}</span></h4>`;
+      box.innerHTML = `<h4>${title}<span>${scen ? (hasM ? "" : "no model data") : ratio != null ? "model " + nf(ratio, 0) + " % of real" : hasM ? "no real data" : "no model data"}</span></h4>`;
       box.appendChild(ch); sm.appendChild(box);
       requestAnimationFrame(() => lineChart(ch, {
         n: mv.length, height: 150, yTicks: 3, yUnit: unit, label: `${title}, traded volume, model vs real`, xTicks: ticks,
-        series: [{ name: "Real", values: ev, color: "var(--real)", width: 1.5 }, { name: "Model", values: mv, color: "var(--model)", width: 1.75 }],
+        series: [...(scen ? [] : [{ name: "Real", values: ev, color: "var(--real)", width: 1.5 }]), { name: "Model", values: mv, color: "var(--model)", width: 1.75 }],
         onZoom: (a, b) => { if (!hod) zoomFromChart(a, b, false); },
         tooltip: i => `<b>${hod ? hh(i) : dayLabel(r.days[i])}</b>
-          <div class="row"><i class="sw-line" style="background:var(--real)"></i>Real<span class="v">${nf(ev[i], 1)} ${unit}</span></div>
+          ${scen ? "" : `<div class="row"><i class="sw-line" style="background:var(--real)"></i>Real<span class="v">${nf(ev[i], 1)} ${unit}</span></div>`}
           <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model<span class="v">${nf(mv[i], 1)} ${unit}</span></div>`,
       }));
     }
-    $("trade-note").textContent = (r.scenario ? "Scenario run: no real data to compare with. " : "")
-      + "One side of each trade, as in the table. Only hours where both model and real have a value are compared, so days before 14 June 2024 (no real IDA2/IDA3) show no IDA lines. "
+    $("trade-note").textContent = (scen ? "One side of each trade, as in the table. "
+      : "One side of each trade, as in the table. Only hours where both model and real have a value are compared, so days before 14 June 2024 (no real IDA2/IDA3) show no IDA lines. ")
       + (hod ? "By hour of day: the mean over the days shown, in MW (= MWh per hour)." : "Drag across a chart to zoom the whole report to those days.");
   }
 
@@ -1640,6 +1817,10 @@
     });
     seg($("mix-ref"), [["omie", "OMIE day-ahead", "ref_omie"], ["entsoe", "ENTSO-E actual", "ref_entsoe"]], state.mixRef,
       v => { state.mixRef = v; renderMix(view()); });
+    const scen = !!r.scenario;
+    if (scen) state.mixRef = "omie";
+    $("mix-ref").hidden = scen; $("mix-ref-label").hidden = scen;
+    $("stack-real").parentElement.hidden = scen;
     seg($("mix-res"), [["hour", "Hourly"], ["day", "Daily mean"]], state.mixRes, v => { state.mixRes = v; renderMix(view()); });
     renderStacks(r);
     const md = mixData(r), mix = md.model, realSrc = md.real;
@@ -1648,19 +1829,24 @@
       const p = pairs(mix[c], realSrc[c]);
       const gm = p.reduce((s, q) => s + q[0], 0) / 1000, gr = p.reduce((s, q) => s + q[1], 0) / 1000;
       const mae = mean(p.map(q => Math.abs(q[0] - q[1])));
-      return { c, gm, gr, diff: gm - gr, pct: gr > 0.5 ? 100 * (gm - gr) / gr : null, mae };
+      const gmo = mix[c].reduce((t, v) => t + (v || 0), 0) / 1000;   // all model hours (scenario runs have no real to pair with)
+      return { c, gm, gr, gmo, diff: gm - gr, pct: gr > 0.5 ? 100 * (gm - gr) / gr : null, mae };
     });
     // Switching the real data only regroups the model into that source's categories; say so,
     // with the model total (all hours with a model value), which is the same in both groupings.
     const modelTotal = md.cats.reduce((s, c) => s + mix[c].reduce((a, v) => a + (v || 0), 0), 0) / 1000;
-    $("mix-ref-note").innerHTML = (md.ref === "entsoe"
+    const refNote = $("mix-ref-note");
+    if (refNote) refNote.innerHTML = (md.ref === "entsoe"
       ? `<b>Same model run, regrouped</b> into ENTSO-E's fuel types so it can be compared: CCGT and CHP gas → <b>Gas</b>; mini-hydro → <b>Hydro</b>; biomass, waste and oil → <b>Bio & other</b>.`
       : `<b>Model grouped like OMIE's technology report:</b> CHP gas, biomass, waste and mini-hydro → <b>CHP group</b>. "ENTSO-E actual" regroups the same model numbers into fuel types.`)
       + ` Only the grouping changes, not the model: total ${nf(modelTotal, 0)} GWh in both views.`;
     const tot = rows.reduce((s, x) => ({ gm: s.gm + x.gm, gr: s.gr + x.gr }), { gm: 0, gr: 0 });
     const maxAbs = Math.max(...rows.map(x => Math.abs(x.diff)), 1);
     const input = state.mixStage === "DA" && md.ref === "omie" ? { Wind: 1, Solar: 1 } : {};
-    $("mix-table").innerHTML = `<thead><tr><th>Technology</th><th>${term("Real GWh", md.ref === "entsoe" ? "ref_entsoe" : "real_mix")}</th><th>Model GWh</th><th>${term("Difference", "diff")}</th><th></th><th>${term("Hourly error", "hourly_error")}</th></tr></thead><tbody>` +
+    if (scen) $("mix-table").innerHTML = `<thead><tr><th>Technology</th><th>Model GWh</th><th>Share</th></tr></thead><tbody>`
+      + rows.map(x => `<tr><td>${term(x.c, x.c)}</td><td>${nf(x.gmo, 0)}</td><td>${nf(100 * x.gmo / (modelTotal || 1), 1)} %</td></tr>`).join("")
+      + `<tr class="total-row"><td>Total</td><td>${nf(modelTotal, 0)}</td><td>100 %</td></tr></tbody>`;
+    else $("mix-table").innerHTML = `<thead><tr><th>Technology</th><th>${term("Real GWh", md.ref === "entsoe" ? "ref_entsoe" : "real_mix")}</th><th>Model GWh</th><th>${term("Difference", "diff")}</th><th></th><th>${term("Hourly error", "hourly_error")}</th></tr></thead><tbody>` +
       rows.map(x => {
         const w = 35 * Math.abs(x.diff) / maxAbs;
         const bar = `<span class="diffbar" aria-hidden="true"><i style="left:${x.diff < 0 ? 35 - w : 35}px;width:${Math.max(w, 0.5)}px"></i></span>`;
@@ -1671,13 +1857,13 @@
       }).join("") + `<tr class="total-row"><td>Total</td><td>${nf(tot.gr, 0)}</td><td>${nf(tot.gm, 0)}</td>
           <td>${signed(tot.gm - tot.gr, 0)} GWh</td><td></td><td></td></tr></tbody>`;
     const notes = [];
-    const omie = md.ref === "omie";
+    const omie = md.ref === "omie" && !scen;
     if (state.mixStage === "DA" && omie) notes.push("Wind and solar match exactly because the day-ahead uses OMIE's own numbers as input. The other rows are the model's own decisions.");
     if (state.mixStage === "BAL" && omie) notes.push("Balancing uses the updated wind, solar and load forecasts, while the reference is OMIE's day-ahead programme, so wind and solar differ here by design.");
     if (state.mixStage === "RD") notes.push(`Redispatch counts only the ${solved} of ${N} hours where the AC solve finished.`);
     if (state.mixStage === "RD" && omie) notes.push("OMIE's day-ahead programme is a plan, so this comparison also includes everything that changed in reality after the day-ahead. ENTSO-E actual is the fairer reference for this stage.");
-    if (!omie) notes.push("Imports are measured physical flows from France and Portugal.");
-    if (!omie && state.mixStage !== "RD") notes.push("This compares a market stage with the final real outcome, so the difference also includes the real changes made after that market.");
+    if (!omie && !scen) notes.push("Imports are measured physical flows from France and Portugal.");
+    if (!omie && !scen && state.mixStage !== "RD") notes.push("This compares a market stage with the final real outcome, so the difference also includes the real changes made after that market.");
     if (r.exchange) {
       // 4-zone runs (2035): the model clears the exchange itself; imports are in the mix, exports are not generation
       const tw = (a, sgn) => a.reduce((s, v) => s + (v == null ? 0 : Math.max(0, sgn * v)), 0) / 1e6;
@@ -1687,12 +1873,12 @@
     notes.push("Hourly error is the mean absolute difference per hour.");
     $("mix-note").textContent = notes.join(" ");
 
-    $("mix-legend").innerHTML = `<span><i class="sw-line" style="background:var(--real)"></i>Real (${md.ref === "entsoe" ? "ENTSO-E" : "OMIE"})</span><span><i class="sw-line" style="background:var(--model)"></i>Model (${MIX_STAGES.find(s => s[0] === state.mixStage)[1].toLowerCase()})</span><span style="color:var(--muted)">${nd <= 3 ? "MW each hour" : "Energy per day"} for each technology</span>`;
+    $("mix-legend").innerHTML = `${scen ? "" : `<span><i class="sw-line" style="background:var(--real)"></i>Real (${md.ref === "entsoe" ? "ENTSO-E" : "OMIE"})</span>`}<span><i class="sw-line" style="background:var(--model)"></i>Model (${MIX_STAGES.find(s => s[0] === state.mixStage)[1].toLowerCase()})</span><span style="color:var(--muted)">${nd <= 3 ? "MW each hour" : "Energy per day"} for each technology</span>`;
     const sm = $("mix-sm"); sm.innerHTML = "";
     const smHourly = nd <= 3;
     for (const x of rows) {
       const box = document.createElement("div"); box.className = "sm";
-      box.innerHTML = `<h4>${x.c}<span>${x.pct != null ? signed(x.pct, 0) + " %" : signed(x.diff, 1) + " GWh"}</span></h4>`;
+      box.innerHTML = `<h4>${x.c}<span>${scen ? nf(x.gmo, 0) + " GWh" : x.pct != null ? signed(x.pct, 0) + " %" : signed(x.diff, 1) + " GWh"}</span></h4>`;
       const ch = document.createElement("div"); ch.className = "chart"; box.appendChild(ch); sm.appendChild(box);
       const masked = realSrc[x.c].map((v, i) => mix[x.c][i] == null ? null : v);
       const rv = smHourly ? masked : dailySum(masked, nd);
@@ -1701,10 +1887,10 @@
       requestAnimationFrame(() => lineChart(ch, {
         n: rv.length, height: 122, yTicks: 2, yUnit: smHourly ? "MW" : "GWh/day", label: x.c + ", model vs real",
         xTicks: dayTicks(r.days, smHourly, ch.clientWidth - 60).filter((t, k, a) => smHourly ? t.label.includes(" ") : (k === 0 || k === a.length - 1)),
-        series: [{ name: "Real", values: rv, color: "var(--real)", width: 1.5 }, { name: "Model", values: mv, color: "var(--model)", width: 1.75 }],
+        series: [...(scen ? [] : [{ name: "Real", values: rv, color: "var(--real)", width: 1.5 }]), { name: "Model", values: mv, color: "var(--model)", width: 1.75 }],
         onZoom: (a, b) => zoomFromChart(a, b, smHourly),
         tooltip: i => `<b>${smHourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i])}</b>
-          <div class="row"><i class="sw-line" style="background:var(--real)"></i>Real<span class="v">${nf(rv[i])} ${unit}</span></div>
+          ${scen ? "" : `<div class="row"><i class="sw-line" style="background:var(--real)"></i>Real<span class="v">${nf(rv[i])} ${unit}</span></div>`}
           <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model<span class="v">${nf(mv[i])} ${unit}</span></div>`,
       }));
     }
@@ -1826,7 +2012,7 @@
     $("rd-table").innerHTML = `<thead><tr><th>Over the ${solved} solved hours</th><th>Up, GWh</th><th>Down, GWh</th><th>${term("Extra cost", "rd_cost")}, €</th><th>€ per MWh up</th></tr></thead><tbody>`
       + rows.map(([l, u, d, c]) => `<tr><td>${l}</td><td>${nf(u, 0)}</td><td>${nf(d, 0)}</td><td>${nf(c * 1e6, 0)}</td><td>${perMWh(c, u)}</td></tr>`).join("")
       + `<tr class="total-row"><td>REE, total</td><td>${nf(ru, 0)}</td><td>${nf(rd, 0)}</td><td>${nf(rc * 1e6, 0)}</td><td>${perMWh(rc, ru)}</td></tr>`
-      + `<tr class="total-row"><td>Model, AC redispatch</td><td>${nf(mu, 0)}${pctOf(mu, ru)}</td><td>${nf(md, 0)}${pctOf(md, rd)}</td><td>${mc == null ? "–" : nf(mc * 1e6, 0) + pctOf(mc, rc)}</td><td>${perMWh(mc, mu)}</td></tr>`
+      + `<tr class="total-row"><td>Model, redispatch</td><td>${nf(mu, 0)}${pctOf(mu, ru)}</td><td>${nf(md, 0)}${pctOf(md, rd)}</td><td>${mc == null ? "–" : nf(mc * 1e6, 0) + pctOf(mc, rc)}</td><td>${perMWh(mc, mu)}</td></tr>`
       + (RD ? `<tr><td class="pv-muted-txt">of which grid losses in the model (the markets have none)</td><td class="pv-muted-txt">${nf(ml, 0)}</td><td></td><td></td><td></td></tr>` : "")
       + "</tbody>";
     $("rd-cost-note").innerHTML = RD ? `REE's whole real-time cost was ${nf(M(E("rtr_cost")) * 1e6, 0)} € (indicator 724); the table uses its up and down parts (1723, 1724), which go with the volumes.`
@@ -1997,7 +2183,7 @@
     const ST = [["DA", "day-ahead"], ["ID2", "IDA2 · 22:00 D−1"], ["ID3", "IDA3 · 10:00 D"], ["CID", "h − 1"], ["BAL", "h · paper: BE"], ["Redispatch", "AC · h"]];
     const arrow = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="ar" marker-end="url(#pv-head)"/>`;
     const lines = (x, y0, list, cls = "") => list.map((s, k) => `<text x="${x}" y="${y0 + k * 18}" class="${cls}">${s}</text>`).join("");
-    $("pv-structure").innerHTML = `<svg class="pv-svg" viewBox="0 0 960 400" role="img" aria-label="Structure of the model: inputs and a forecasting model feed a chain of market stages, DA, ID2, ID3, CID and BAL on one zone, then an AC redispatch on the transmission grid">
+    $("pv-structure").innerHTML = `<svg class="pv-svg" viewBox="0 0 960 400" role="img" aria-label="Structure of the model: inputs and a forecasting model feed a chain of market stages, DA, ID2, ID3, CID and BAL on one zone, then a redispatch on the transmission grid">
       <defs><marker id="pv-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="hd"/></marker></defs>
       <rect x="20" y="20" width="380" height="165" rx="8" class="bx"/>
       <text x="36" y="46" class="ti">Inputs</text><text x="100" y="46" class="df">paper: all from FanSi</text>
@@ -2105,18 +2291,19 @@
     const daySum = (a, d) => a.slice(d * 24, d * 24 + 24).reduce((s, x) => s + (x || 0), 0);
     const res = cols.map(([real, model, m, e]) => {
       // (only the real side's days when this package has no model volume yet)
-      const days = [...Array(nd).keys()].filter(d => (!m || hasDay(m, d)) && hasDay(e, d));
+      const days = [...Array(nd).keys()].filter(d => (!m || hasDay(m, d)) && (r.scenario || hasDay(e, d)));
       const avg = a => days.length ? days.reduce((s, d) => s + daySum(a, d), 0) / days.length / 1000 : null;
       return { real, model, n: days.length, m: m ? avg(m) : null, e: avg(e) };
     });
     const v = x => x == null ? "–" : nf(x, 1);
     host.innerHTML = `<thead><tr><th>GWh/day, one side</th>${res.map(c => `<th>${c.real}<div class="sub">model: ${c.model}</div></th>`).join("")}</tr></thead><tbody>`
       + `<tr><td>Model (this run)</td>${res.map(c => `<td>${v(c.m)}</td>`).join("")}</tr>`
-      + `<tr><td>Real Spain (OMIE, REE via e·sios)</td>${res.map(c => `<td>${v(c.e)}</td>`).join("")}</tr>`
-      + `<tr><td class="pv-muted-txt">Model as % of real</td>${res.map(c => `<td class="pv-muted-txt">${c.m == null || !c.e ? "–" : nf(100 * c.m / c.e, 0) + " %"}</td>`).join("")}</tr>`
-      + `<tr><td class="pv-muted-txt">Days compared</td>${res.map(c => `<td class="pv-muted-txt">${n0(c.n)}</td>`).join("")}</tr></tbody>`;
+      + (r.scenario ? "" : `<tr><td>Real Spain (OMIE, REE via e·sios)</td>${res.map(c => `<td>${v(c.e)}</td>`).join("")}</tr>`
+      + `<tr><td class="pv-muted-txt">Model as % of real</td>${res.map(c => `<td class="pv-muted-txt">${c.m == null || !c.e ? "–" : nf(100 * c.m / c.e, 0) + " %"}</td>`).join("")}</tr>`)
+      + (r.scenario ? "" : `<tr><td class="pv-muted-txt">Days compared</td>${res.map(c => `<td class="pv-muted-txt">${n0(c.n)}</td>`).join("")}</tr>`) + `</tbody>`;
     const none = !r.traded ? " This run's package has no intraday volumes yet; publish it again with the current publish_run.py." : "";
     const early = res[0].n === 0 && r.traded ? " These days are before 14 June 2024, when the European intraday auctions started, so there is no real IDA2/IDA3 volume to compare with." : "";
+    if (r.scenario) { $("pv-traded-cap").innerHTML = `<b>Table 4, Spanish version, model only.</b> Average volume traded per stage over the days shown, in GWh per day, counting one side of each trade. Model: in ID2, ID3 and CID, the sum of all position increases from the previous stage; in BE, what the balancing plants moved up plus down.${none}`; return; }
     $("pv-traded-cap").innerHTML = `<b>Table 4, Spanish version.</b> Average volume traded per stage over the days shown, in GWh per day, counting one side of each trade (what is sold, which equals what is bought). Model: in ID2, ID3 and CID, the sum of all position increases from the previous stage, over every plant and the consumers (a higher load forecast is a purchase); ID3 trades hours 12–23 only. In BE, what the balancing plants moved up plus down. Real: energy assigned in IDA2 (e·sios 606) and IDA3 (607) from 14 June 2024, and in the continuous market (1442), all from OMIE; BE is REE's activated aFRR, mFRR and RR, up plus down. Each column averages only over days with data on both sides.${early}${none} <span class="pv-ref">PowerVision paper, Table 4 (which counts buy + sell, twice our numbers)</span>`;
   }
 
@@ -2379,6 +2566,11 @@
     const pb = payback(true);
     if (pb != null) { const xp = l + (pb + 0.5) * bw; s += `<line x1="${xp}" x2="${xp}" y1="${t0}" y2="${t0 + ph}" class="npv-pb"/><text x="${xp + 4}" y="${t0 + 10}" class="fp-ax">paid back after ${nf(pb, 1)} years</text>`; }
     $("npv-chart").innerHTML = s + `<text x="${l + pw}" y="${H - 8}" text-anchor="end" class="fp-ax">year</text></svg>`;
+    chartTools($("npv-chart"), {
+      title: `${a.name}: money in or out so far, discounted`, unit: "€",
+      cols: [{ name: "Cumulative discounted cash", values: cum }, { name: "Cash that year (undiscounted)", values: [-capex, ...cash] }],
+      x: { head: ["year"], at: k => [k] },
+    });
   }
 
   // Which prices the storage unit trades on: the run's model DA price, or OMIE's real day-ahead price
@@ -2386,8 +2578,11 @@
   state.flexPrice = "model";
   try { const fp = localStorage.getItem("runviewer.flexPrice"); if (fp === "model" || fp === "real") state.flexPrice = fp; } catch (e) {}
   const FLEX_PRICE = { model: ["Model prices", "the model's day-ahead price", "Model DA price"], real: ["Real prices", "OMIE's real day-ahead price", "Real DA price (OMIE)"] };
-  const flexPrices = r => state.flexPrice === "real" ? r.real_price : r.price.DA;
-  function flexPriceSeg(id, redraw) {
+  // a scenario run has only its own prices
+  const flexKey = r => r && r.scenario ? "model" : state.flexPrice;
+  const flexPrices = r => flexKey(r) === "real" ? r.real_price : r.price.DA;
+  function flexPriceSeg(id, redraw, r) {
+    $(id).hidden = !!(r && r.scenario);
     seg($(id), [["model", "Model prices"], ["real", "Real prices (OMIE)"]], state.flexPrice, v => {
       state.flexPrice = v; try { localStorage.setItem("runviewer.flexPrice", v); } catch (e) {} redraw(); });
   }
@@ -2396,11 +2591,11 @@
     if ($("sec-invest").hidden) return;
     const a = FLEX_ASSETS[state.flexAsset], nd = r.days.length, MW = state.flexMW;
     seg($("invest-asset"), Object.entries(FLEX_ASSETS).map(([k, v]) => [k, v.name]), state.flexAsset, v => { pickFlexAsset(v); renderInvest(view()); });
-    flexPriceSeg("invest-prices", () => renderInvest(view()));
+    flexPriceSeg("invest-prices", () => renderInvest(view()), r);
     const M = flexStats(flexPrices(r), nd, a.h, a.eff / 100);
     const margin = M.days.reduce((t, d) => t + d.value, 0) * MW * 365 / nd;
     $("invest-unit").innerHTML = `<b>${esc(a.name)}</b>: ${sizeText(a, MW)} (${a.h} h), ${a.eff} % round trip ·
-      trading margin <b>${eurS(margin)} per year</b> on ${FLEX_PRICE[state.flexPrice][1]}${nd < 360 ? ` (scaled up from ${nd} days)` : ""} ·
+      trading margin <b>${eurS(margin)} per year</b> on ${FLEX_PRICE[flexKey(r)][1]}${nd < 360 ? ` (scaled up from ${nd} days)` : ""} ·
       <button type="button" class="invest-link" id="invest-link">change size or efficiency on the Trading margin tab</button>`;
     $("invest-link").onclick = () => pickTab("flex");
     renderFlexNPV(a, M, nd, MW);
@@ -2425,9 +2620,9 @@
     renderFlexExplain(a);
     renderFlexTerms(a);
     const nd = r.days.length, eff = a.eff / 100, MW = state.flexMW;
-    flexPriceSeg("flex-prices", () => renderFlex(view()));
-    const P = flexPrices(r), PL = FLEX_PRICE[state.flexPrice];
-    $("flex-price-h").textContent = `${state.flexPrice === "real" ? "Real" : "Model"} price and when the unit trades`;
+    flexPriceSeg("flex-prices", () => renderFlex(view()), r);
+    const P = flexPrices(r), PL = FLEX_PRICE[flexKey(r)];
+    $("flex-price-h").textContent = `${flexKey(r) === "real" ? "Real" : "Model"} price and when the unit trades`;
     const M = flexStats(P, nd, a.h, eff);
     const tot = (idx, k) => idx.reduce((t, i) => t + M.days[i][k], 0);
     const all = r.days.map((_, i) => i);
@@ -2447,7 +2642,7 @@
     $("flex-margin").innerHTML = `<b>Trading margin is not profit.</b> It is the money from selling minus the money paid for the electricity it bought. The investment, staff, maintenance, wear and grid charges are not subtracted; they all have to be paid out of this. See the picture at the bottom.`;
 
     // model price with the hours the unit trades
-    $("flex-price-legend").innerHTML = `<span><i class="sw-line" style="background:${state.flexPrice === "real" ? "var(--real)" : "var(--model)"}"></i>${PL[2]}</span>
+    $("flex-price-legend").innerHTML = `<span><i class="sw-line" style="background:${flexKey(r) === "real" ? "var(--real)" : "var(--model)"}"></i>${PL[2]}</span>
       <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--buy)"/></svg>Charges (buys)</span>
       <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--sell)"/></svg>Discharges (sells)</span>`;
     const ph = $("flex-price-chart"), idxOf = v => M.acts.reduce((o, x, i) => (x === v && o.push(i), o), []);
@@ -2455,7 +2650,7 @@
       n: nd * 24, height: 320, label: `${PL[2]} with the hours the storage unit charges and discharges`, endLabels: false, yUnit: "€/MWh",
       onZoom: (x0, x1) => zoomFromChart(x0, x1, true),
       xTicks: dayTicks(r.days, true, ph.clientWidth - 60),
-      series: [{ name: PL[2], values: P, color: state.flexPrice === "real" ? "var(--real)" : "var(--model)", width: 1.5 }],
+      series: [{ name: PL[2], values: P, color: flexKey(r) === "real" ? "var(--real)" : "var(--model)", width: 1.5 }],
       points: [{ idx: idxOf(1), color: "var(--buy)" }, { idx: idxOf(-1), color: "var(--sell)" }],
       tooltip: i => `<b>${dayLabel(r.days[Math.floor(i / 24)])}, ${hh(i % 24)}</b>
         <div class="row">${PL[2]}<span class="v">${nf(P[i])} €/MWh</span></div>
@@ -2502,7 +2697,7 @@
       return `<tr><td>${MON[+k.slice(5) - 1]} ${k.slice(0, 4)}</td><td>${nf(meanSpread(idx), 0)}</td><td>${n} of ${idx.length}</td><td>${nf(avg(idx, "buyEur", "buyMWh"), 1)}</td><td>${nf(avg(idx, "sellEur", "sellMWh"), 1)}</td><td>${eur(tot(idx, "value") * MW)}</td></tr>`;
     }).join("");
     $("flex-table").innerHTML = `<thead><tr><th>Month</th><th>Price spread<br>€/MWh</th><th>Days worth running</th><th>Buys at<br>€/MWh</th><th>Sells at<br>€/MWh</th><th>Trading margin<br>€, ${nf(MW, 0)} MW</th></tr></thead><tbody>${rowsM}</tbody>`;
-    $("flex-note").innerHTML = `How it is worked out: each day on its own, starting and ending empty; in each hour the unit charges 1 MW, discharges or waits, and the plan with the highest trading margin (discharge price × efficiency − charge price) is chosen, knowing the whole day's prices. Prices: ${PL[1]}${state.flexPrice === "real" ? " (hours without a real price, the daylight-saving hour, are skipped)" : ""}. Totals are for the plant size above (earnings grow in proportion to it); per year scales the period to 365 days. Not included: intraday and balancing markets, grid limits, wear, heat losses in the tank, start-up of the steam cycle, carrying energy over to the next day. The unit does not move the price (price-taker).`;
+    $("flex-note").innerHTML = `How it is worked out: each day on its own, starting and ending empty; in each hour the unit charges 1 MW, discharges or waits, and the plan with the highest trading margin (discharge price × efficiency − charge price) is chosen, knowing the whole day's prices. Prices: ${PL[1]}${flexKey(r) === "real" ? " (hours without a real price, the daylight-saving hour, are skipped)" : ""}. Totals are for the plant size above (earnings grow in proportion to it); per year scales the period to 365 days. Not included: intraday and balancing markets, grid limits, wear, heat losses in the tank, start-up of the steam cycle, carrying energy over to the next day. The unit does not move the price (price-taker).`;
   }
 
   // ---------- compare: the run you are viewing (A) next to a second run (B) ----------
@@ -2566,7 +2761,7 @@
       ["Price error vs OMIE (MAE)", mae(pa, all), mae(pb, all), "€/MWh", 1, "low", null],
       ["Average day-ahead price", meanOf(pa), meanOf(pb), "€/MWh", 1, null, meanOf(real)],
       ["Daily price spread", spread(pa), spread(pb), "€/MWh", 1, null, spread(real)],
-      ["AC hours solved", solved(v.status, ia), solved(B.status, ib), "%", 1, "high", null],
+      ["Redispatch hours solved", solved(v.status, ia), solved(B.status, ib), "%", 1, "high", null],
       ...D.categories.map(c => [`${c} (day-ahead)`, twh(v, ia, c), twh(B, ib, c), "TWh", 2, null, null]),
       [`TES trading margin (${FLEX_ASSETS.tes.h} h, ${FLEX_ASSETS.tes.eff} %, ${nf(FLEX_ASSETS.tes.mw, 0)} MW)`, flexYr(pa, "tes"), flexYr(pb, "tes"), "€/yr", 0, null, null],
       [`Battery trading margin (${FLEX_ASSETS.battery.h} h, ${FLEX_ASSETS.battery.eff} %, ${nf(FLEX_ASSETS.battery.mw, 0)} MW)`, flexYr(pa, "battery"), flexYr(pb, "battery"), "€/yr", 0, null, null],
@@ -2679,7 +2874,7 @@
       <defs><marker id="pv-head2" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="hd"/></marker></defs>
       ${panel(12, "stage")}${panel(492, "day")}
       <rect x="12" y="330" width="936" height="34" rx="6" class="gr"/>
-      <text x="480" y="352" class="lb" text-anchor="middle">Then the AC redispatch on the grid: each hour on its own, after the market stages (hours can run in parallel)</text>
+      <text x="480" y="352" class="lb" text-anchor="middle">Then the redispatch on the grid: each hour on its own, after the market stages (hours can run in parallel)</text>
     </svg>`;
     $("pv-order-cap").innerHTML = `<b>Numbers = the order the model solves them.</b> Stage by stage: the DA is cleared for every day, then ID2 for every day, and so on. Each stage of a day only reads that day's earlier stages, so nothing passes from one day to the next. Day by day: each day runs its whole chain DA → ID2 → ID3 → CID → BAL before the next day starts. That is the real calendar: the DA for day D+1 clears at 12:00 on D, after D's IDA3 at 10:00. A day can then hand on which gas and coal plants are running at midnight (the arrow), so a plant started late on Day 1 stays on into Day 2 (minimum up/down time, start costs). Without on/off rules nothing is handed on, and both orders give the same prices (tested, model change §16). Full-year runs with the hand-over are run as split runs: the market chunks one after another, then the redispatch in parallel.`;
     const yes = b => b ? `${icon("good")} on` : "off";
@@ -2695,7 +2890,9 @@
 
   function renderAll() {
     const v = view();
-    renderRunList(); renderHead(run()); renderTabs(v); renderPeriod(); renderKpis(v); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); renderStages(); renderStageOrder(run()); renderTraded(v); renderSetter(v); renderTradeCharts(v);
+    renderRunList(); renderHead(run()); renderTabs(v); renderPeriod(); renderKpis(v); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); renderStages(); renderStageOrder(run());
+    $("pv-capacity").closest(".pv-block").hidden = !!run().scenario;   // 2024 capacity vs ENTSO-E: says nothing about a 2035 run
+    renderTraded(v); renderSetter(v); renderTradeCharts(v);
   }
 
   // ---------- loading runs ----------
@@ -2790,9 +2987,24 @@
       p.replaceWith(d); d.appendChild(p);
     });
   }
+  // the order of the sections on the "All" tab, under one heading per menu group
+  const ALL_ORDER = [["Market", ["sec-price", "sec-setter", "sec-mix", "sec-trading"]],
+    ["Grid", ["sec-status", "sec-grid", "sec-plants", "sec-esios-intro", "sec-rd", "sec-bal"]],
+    ["Storage", ["sec-flex", "sec-invest"]], ["Model", ["sec-stages"]], ["Compare runs", ["sec-compare"]]];
+  function orderSections() {
+    const rep = $("report");
+    for (const [title, ids] of ALL_ORDER) {
+      const h = document.createElement("h2"); h.className = "all-head"; h.dataset.tabs = "overview"; h.textContent = title;
+      rep.appendChild(h);
+      for (const id of ids) rep.appendChild($(id));
+    }
+  }
   function start() {
+    orderSections();
     foldExplanations();
-    document.querySelector(".layout").classList.toggle("runs-closed", !runsOpen);
+    // the mix section's note on how the model is grouped sits inside its "How to read this"
+    const mixHow = document.querySelector("#sec-mix .sec-head details.howto");
+    if (mixHow) mixHow.insertAdjacentHTML("beforeend", `<p id="mix-ref-note"></p>`);
     document.querySelector(".layout > .runs").id = "runs-nav";
     renderRunList();
     if (!MANIFEST.length) {

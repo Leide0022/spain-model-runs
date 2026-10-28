@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spain 2024 Run Viewer</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Nunito+Sans:wght@400;500;600;700&display=swap">
@@ -12,17 +13,16 @@
 <body>
 <div class="wrap">
   <header class="topbar">
-    <h1>Spain 2024 Run Viewer</h1>
-    <span class="sub">Model runs compared with real OMIE day-ahead results</span>
+    <h1><img class="logo" src="logo.svg" alt="" width="34" height="34">Spain 2024 Run Viewer</h1>
   </header>
 
   <div class="layout">
     <nav class="runs" aria-label="Runs">
-      <details class="run-filters" id="run-filters" open>
-        <summary><span>Filter by model version</span><span class="rf-active" id="rf-active"></span></summary>
+      <details class="run-filters" id="run-filters">
+        <summary><span class="rf-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M2 3h12l-4.5 5.5V13l-3 1.5V8.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span><span class="rf-title">Filters</span><span class="rf-active" id="rf-active"></span><span class="rf-caret" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 5h12M3 9h12M3 13h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></summary>
         <div class="rf-body" id="rf-body"></div>
       </details>
-      <h2>Published runs · <span id="run-count"></span></h2>
+      <h2>Runs · <span id="run-count"></span></h2>
       <div class="run-list" id="run-list"></div>
       <p class="hint">Runs are added with <span class="mono">scripts/publish_run.py</span> in the model repo. Get the newest ones with <span class="mono">git pull</span>.</p>
     </nav>
@@ -31,7 +31,7 @@
       <p class="status-note" id="status-note" hidden></p>
       <section class="card run-head" id="run-head"></section>
       <div class="sticky-bar">
-        <div class="tabs" role="tablist" aria-label="Report sections" id="tabs"></div>
+        <nav class="tabs" aria-label="Report sections" id="tabs"></nav>
         <section class="period" id="period" aria-label="Time period shown"></section>
       </div>
       <section class="kpis" id="kpis" aria-label="Headline numbers" data-tabs="overview price mix status"></section>
@@ -39,10 +39,10 @@
       <section class="card" id="sec-price" role="tabpanel" data-tabs="overview price">
         <div class="sec-head">
           <div>
-            <h3>Price: model vs real</h3>
-            <p>Spanish marginal price for each hour. "Real" is OMIE's day-ahead price, or for ID2, ID3 and CID the real intraday price of that market.</p>
+            <h3>Price</h3>
           </div>
           <div class="controls">
+            <div class="seg show-toggle" role="group" aria-label="Lines shown" id="price-show"></div>
             <div class="seg" role="group" aria-label="Model market stage" id="price-stage"></div>
             <div class="seg" role="group" aria-label="Time resolution" id="price-res"></div>
           </div>
@@ -52,45 +52,39 @@
         <p class="fineprint" id="price-note"></p>
       </section>
 
-      <section class="card" id="sec-setter" role="tabpanel" data-tabs="price">
+      <section class="card" id="sec-setter" role="tabpanel" data-tabs="overview price">
         <div class="sec-head">
           <div>
             <h3>Who sets the price</h3>
-            <p>Share of the hours in which each type of plant was the marginal unit, the one whose bid sets the model's price. Reservoir hydro sets it at its water value, storage at the value of its stored energy, the others at their bid (cost plus mark-up).</p>
+            <p>Share of the hours in which each type of plant was the marginal unit. Reservoir hydro sets it at its water value, storage at the value of its stored energy, the others at their bid (cost plus mark-up).</p>
           </div>
           <div class="controls">
             <div class="seg" role="group" aria-label="Market stage for the price setter" id="setter-stage"></div>
           </div>
         </div>
-        <div class="legend" id="setter-legend"></div>
-        <div class="stack-title" id="setter-model-title"></div>
-        <div class="chart" id="setter-chart"></div>
-        <div class="stack-title pv-gap" id="setter-real-title"></div>
-        <div class="chart" id="setter-chart-real"></div>
-        <div class="table-wrap pv-gap"><table id="setter-table"></table></div>
+        <div class="table-wrap"><table id="setter-table"></table></div>
         <p class="fineprint" id="setter-note"></p>
       </section>
 
       <section class="card" id="sec-mix" role="tabpanel" data-tabs="overview mix">
         <div class="sec-head">
           <div>
-            <h3>Generation mix: model vs real</h3>
+            <h3>Generation mix</h3>
             <p>Energy per technology. Market stages are compared with OMIE's day-ahead programme (the plan), the redispatch with ENTSO-E's measured generation (what plants really produced). "Compare with" switches the real data.</p>
           </div>
           <div class="controls">
             <div class="seg" role="group" aria-label="Model stage for the mix" id="mix-stage"></div>
             <div class="seg" role="group" aria-label="Time resolution for the mix" id="mix-res"></div>
-            <span class="ctl-label">Compare with</span>
+            <span class="ctl-label" id="mix-ref-label">Compare with</span>
             <div class="seg" role="group" aria-label="Real data to compare with" id="mix-ref"></div>
           </div>
         </div>
-        <p class="ref-note" id="mix-ref-note" aria-live="polite"></p>
         <div class="mix-grid">
           <div>
             <div class="legend" id="stack-legend"></div>
             <div class="stack-pair">
-              <div><div class="stack-title" id="stack-real-title">Real</div><div class="chart" id="stack-real"></div></div>
-              <div><div class="stack-title" id="stack-model-title">Model</div><div class="chart" id="stack-model"></div></div>
+              <div><div class="stack-title st-model" id="stack-model-title">Model</div><div class="chart" id="stack-model"></div></div>
+              <div><div class="stack-title st-real" id="stack-real-title">Real</div><div class="chart" id="stack-real"></div></div>
             </div>
           </div>
           <div>
@@ -107,8 +101,8 @@
       <section class="card" id="sec-status" role="tabpanel" data-tabs="overview status">
         <div class="sec-head">
           <div>
-            <h3>AC redispatch: hours that did not solve</h3>
-            <p>Every hour where the AC redispatch found no solution, with why it stopped and what the market looked like in that hour. Click a row to see the grid in that hour.</p>
+            <h3>Redispatch: hours that did not solve</h3>
+            <p>Every hour where the redispatch found no solution, with why it stopped and what the market looked like in that hour. Click a row to see the grid in that hour.</p>
           </div>
         </div>
         <div class="status-grid">
@@ -117,16 +111,16 @@
         </div>
       </section>
 
-      <section class="card" id="sec-esios-intro" role="tabpanel" data-tabs="esios">
+      <section class="card" id="sec-esios-intro" data-real role="tabpanel" data-tabs="overview esios">
         <div class="sec-head">
           <div>
             <h3 class="pv-title">REE (e·sios): what the grid operator really did</h3>
-            <p>Red Eléctrica's own data for the stages after the market, from its e·sios platform: redispatch for grid security and the balancing markets. These are the real counterparts of the model's last two stages (BAL and AC redispatch). Spanish peninsula, 2024; the data is downloaded with esios_download/fetch_esios.py (model repo) and built into reference/esios_2024.js by tools/build_esios.py.</p>
+            <p>Red Eléctrica's own data for the stages after the market, from its e·sios platform: redispatch for grid security and the balancing markets. These are the real counterparts of the model's last two stages (BAL and redispatch). Spanish peninsula, 2024; the data is downloaded with esios_download/fetch_esios.py (model repo) and built into reference/esios_2024.js by tools/build_esios.py.</p>
           </div>
         </div>
       </section>
 
-      <section class="card" id="sec-rd" role="tabpanel" data-tabs="esios">
+      <section class="card" id="sec-rd" data-real role="tabpanel" data-tabs="overview esios">
         <div class="sec-head">
           <div>
             <h3>Redispatch: model vs what REE really did</h3>
@@ -142,10 +136,10 @@
         <h4 class="rd-h4">Why the difference?</h4>
         <div id="rd-why"></div>
         <p class="fineprint" id="rd-why-note"></p>
-        <p class="fineprint">Pooled to match the model's single redispatch stage: REE's technical constraints after the day-ahead market (phase I turns plants up or down for grid security, phase II rebalances) plus real-time constraints, Spanish peninsula, from e·sios (volumes 701–704, 720, 721; costs 1373–1376, 1723, 1724). REE pays what goes up its own bid including start-up costs, and refunds what goes down at its bid or the day-ahead price (P.O. 3.2, P.O. 14.4); the cost is the extra cost over the market, paid by consumers. Model: AC redispatch minus balancing over all units except the border flows, valued at the model's marginal costs; it includes grid losses, and failed AC hours have no value.</p>
+        <p class="fineprint">Pooled to match the model's single redispatch stage: REE's technical constraints after the day-ahead market (phase I turns plants up or down for grid security, phase II rebalances) plus real-time constraints, Spanish peninsula, from e·sios (volumes 701–704, 720, 721; costs 1373–1376, 1723, 1724). REE pays what goes up its own bid including start-up costs, and refunds what goes down at its bid or the day-ahead price (P.O. 3.2, P.O. 14.4); the cost is the extra cost over the market, paid by consumers. Model: redispatch minus balancing over all units except the border flows, valued at the model's marginal costs; it includes grid losses, and failed redispatch hours have no value.</p>
       </section>
 
-      <section class="card" id="sec-bal" role="tabpanel" data-tabs="esios">
+      <section class="card" id="sec-bal" data-real role="tabpanel" data-tabs="overview esios">
         <div class="sec-head">
           <div>
             <h3>Balancing: the model's BAL stage vs REE's balancing markets</h3>
@@ -165,7 +159,7 @@
         <div class="sec-head">
           <div>
             <h3>Grid: how full each line is</h3>
-            <p>Every line in the model's grid, drawn straight between its substations and coloured by its loading in the AC redispatch. Thick lines are 400 kV, thin lines 220 kV and below, dashed lines go to France or Portugal, squares are transformers. Use "Show" to pick what is drawn.</p>
+            <p>Every line in the model's grid, drawn straight between its substations and coloured by its loading in the redispatch. Thick lines are 400 kV, thin lines 220 kV and below, dashed lines go to France or Portugal, squares are transformers. Use "Show" to pick what is drawn.</p>
           </div>
           <div class="controls">
             <div class="seg" role="group" aria-label="What the colour shows" id="grid-mode"></div>
@@ -191,7 +185,7 @@
           <div class="table-wrap gt-scroll"><table id="grid-table"></table></div>
           <p class="map-hint">Click a column to sort, a row to show it on the map. The list follows the Show buttons and the search box.</p>
         </div>
-        <p class="fineprint">Basemap: Natural Earth (outlines, shaded relief, public domain) and es-atlas (communities, provinces). Loading is the flow divided by the line's limit in the model. Where a corridor has several circuits, the most loaded circuit counts. Hours where the AC redispatch failed have no flows and are left out of the maximum and the hour counts.</p>
+        <p class="fineprint">Basemap: Natural Earth (outlines, shaded relief, public domain) and es-atlas (communities, provinces). Loading is the flow divided by the line's limit in the model. Where a corridor has several circuits, the most loaded circuit counts. Hours where the redispatch failed have no flows and are left out of the maximum and the hour counts.</p>
       </section>
 
       <section class="card" id="sec-plants" role="tabpanel" data-tabs="overview plants">
@@ -220,10 +214,10 @@
             <div class="table-wrap"><table id="plant-top"></table></div>
           </div>
         </div>
-        <p class="fineprint">Real vs model uses ENTSO-E's measured output per unit, matched to the model's plants in <code>entsoe_unit_crosswalk.csv</code>; plants ENTSO-E reports only in part are left out. Output and change are from the AC redispatch; "Redispatch change" is redispatch output minus balancing output, so it shows what the grid stage changed. Hydro includes pumped storage (pumping is not counted as output). Not shown: the model's industrial CHP, waste and mini-hydro blocks (spread over 100 substations, so not at real locations). Failed AC hours are left out of averages.</p>
+        <p class="fineprint">Real vs model uses ENTSO-E's measured output per unit, matched to the model's plants in <code>entsoe_unit_crosswalk.csv</code>; plants ENTSO-E reports only in part are left out. Output and change are from the redispatch; "Redispatch change" is redispatch output minus balancing output, so it shows what the grid stage changed. Hydro includes pumped storage (pumping is not counted as output). Not shown: the model's industrial CHP, waste and mini-hydro blocks (spread over 100 substations, so not at real locations). Failed redispatch hours are left out of averages.</p>
       </section>
 
-      <section class="card" id="sec-flex" role="tabpanel" data-tabs="flex">
+      <section class="card" id="sec-flex" role="tabpanel" data-tabs="overview flex">
         <div class="sec-head">
           <div>
             <h3>Trading margin: what a storage unit could earn on this run's prices</h3>
@@ -255,7 +249,7 @@
         <p class="fineprint" id="flex-note"></p>
       </section>
 
-      <section class="card" id="sec-invest" role="tabpanel" data-tabs="invest">
+      <section class="card" id="sec-invest" role="tabpanel" data-tabs="overview invest">
         <div class="sec-head">
           <div>
             <h3>Investment case: does the trading margin pay for building it?</h3>
@@ -276,7 +270,7 @@
         <div id="npv-chart"></div>
       </section>
 
-      <section class="card" id="sec-compare" role="tabpanel" data-tabs="compare">
+      <section class="card" id="sec-compare" role="tabpanel" data-tabs="overview compare">
         <div class="sec-head">
           <div>
             <h3>Compare two runs</h3>
@@ -287,7 +281,7 @@
         <div id="cmp-body"></div>
       </section>
 
-      <section class="card" id="sec-trading" role="tabpanel" data-tabs="trading">
+      <section class="card" id="sec-trading" role="tabpanel" data-tabs="overview trading">
         <div class="sec-head">
           <div>
             <h3>Traded volume per market stage: model vs real</h3>
@@ -304,7 +298,7 @@
         <p class="fineprint" id="trade-note"></p>
       </section>
 
-      <section class="card" id="sec-stages" role="tabpanel" data-tabs="stages">
+      <section class="card" id="sec-stages" role="tabpanel" data-tabs="overview stages">
         <div class="sec-head">
           <div>
             <h3 class="pv-title">Market stages: the model next to the PowerVision paper</h3>
