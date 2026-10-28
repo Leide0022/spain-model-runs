@@ -52,6 +52,22 @@
         <p class="fineprint" id="price-note"></p>
       </section>
 
+      <section class="card" id="sec-setter" role="tabpanel" data-tabs="price">
+        <div class="sec-head">
+          <div>
+            <h3>Who sets the price</h3>
+            <p>Share of the hours in which each type of plant was the marginal unit, the one whose bid sets the model's price. Reservoir hydro sets it at its water value, storage at the value of its stored energy, the others at their bid (cost plus mark-up).</p>
+          </div>
+          <div class="controls">
+            <div class="seg" role="group" aria-label="Market stage for the price setter" id="setter-stage"></div>
+          </div>
+        </div>
+        <div class="legend" id="setter-legend"></div>
+        <div class="chart" id="setter-chart"></div>
+        <div class="table-wrap pv-gap"><table id="setter-table"></table></div>
+        <p class="fineprint" id="setter-note"></p>
+      </section>
+
       <section class="card" id="sec-mix" role="tabpanel" data-tabs="overview mix">
         <div class="sec-head">
           <div>
@@ -268,11 +284,28 @@
         <div id="cmp-body"></div>
       </section>
 
+      <section class="card" id="sec-trading" role="tabpanel" data-tabs="trading">
+        <div class="sec-head">
+          <div>
+            <h3>Traded volume per market stage: model vs real</h3>
+            <p>How much is traded after the day-ahead market, stage by stage, in the model and in real Spain. The model trades when a forecast changes; real traders also re-shuffle portfolios and trade on price, which the model has no reason to do.</p>
+          </div>
+          <div class="controls">
+            <div class="seg" role="group" aria-label="Time resolution for the traded volume" id="trade-res"></div>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="pv-traded" class="pv-book"></table></div>
+        <p class="fineprint" id="pv-traded-cap"></p>
+        <div class="legend pv-gap" id="trade-legend"></div>
+        <div class="small-multiples" id="trade-sm"></div>
+        <p class="fineprint" id="trade-note"></p>
+      </section>
+
       <section class="card" id="sec-stages" role="tabpanel" data-tabs="stages">
         <div class="sec-head">
           <div>
             <h3 class="pv-title">Market stages: the model next to the PowerVision paper</h3>
-            <p>The overview the PowerVision paper (Koks et al., 2026) gives for Norway, filled in for this model of Spain. Each figure and table keeps the paper's number, so they can be read side by side. These facts are the same for every run, except the order of the market stages and the model version under Model structure, which follow the run you picked, and the traded volume at the end, which follows the run and the days shown.</p>
+            <p>The overview the PowerVision paper (Koks et al., 2026) gives for Norway, filled in for this model of Spain. Each figure and table keeps the paper's number, so they can be read side by side. These facts are the same for every run, except the order of the market stages and the model version under Model structure, which follow the run you picked. The traded volume per stage (the paper's Table 4) is on the Traded volume tab.</p>
           </div>
         </div>
         <div class="pv-block">
@@ -298,10 +331,6 @@
           <h4>Line and transformer assumptions</h4>
           <figure class="pv-fig"><div class="table-wrap"><table id="pv-lines" class="pv-book"></table></div>
             <div class="table-wrap pv-gap"><table id="pv-trafos" class="pv-book"></table></div><figcaption id="pv-lines-cap"></figcaption></figure>
-        </div>
-        <div class="pv-block">
-          <h4>Traded volume per stage</h4>
-          <figure class="pv-fig"><div class="table-wrap"><table id="pv-traded" class="pv-book"></table></div><figcaption id="pv-traded-cap"></figcaption></figure>
         </div>
       </section>
 
