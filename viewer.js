@@ -256,7 +256,9 @@
     // left margin wide enough for the longest axis number (e.g. 1,200,000 €)
     const tickW = Math.max(...ticks.map(t => t.toLocaleString("en-GB").length)) * 6.6 + 12;
     const endW = o.endLabels ? Math.max(...o.series.map(q => String(q.name).length)) * 7.6 + 16 : 8;
-    const m = { l: Math.max(40, tickW), r: o.endLabels ? Math.max(66, endW) : 8, t: o.yUnit ? 26 : 8, b: (o.band || o.colorBand ? 34 : 0) + 22 };
+    const cbs = o.colorBand ? [].concat(o.colorBand) : [];
+    const BS = o.band ? 34 : cbs.length ? 12 + cbs.length * 16 : 0;   // room under the x axis for the strips
+    const m = { l: Math.max(40, tickW), r: o.endLabels ? Math.max(66, endW) : 8, t: o.yUnit ? 26 : 8, b: BS + 22 };
     const pw = W - m.l - m.r, ph = H - m.t - m.b;
     const n = o.n;
     const x = i => m.l + (n === 1 ? pw / 2 : (i / (n - 1)) * pw);
@@ -272,7 +274,7 @@
     const xb = m.t + ph;
     for (const t of o.xTicks) {
       svg("line", { x1: x(t.i), x2: x(t.i), y1: xb, y2: xb + 4, stroke: "var(--axis)" }, s);
-      const tx = svg("text", { x: x(t.i), y: xb + (o.band || o.colorBand ? 34 : 0) + 16, "text-anchor": "middle" }, s);
+      const tx = svg("text", { x: x(t.i), y: xb + BS + 16, "text-anchor": "middle" }, s);
       tx.textContent = t.label;
     }
 
@@ -288,15 +290,15 @@
       const bl = svg("text", { x: m.l - 6, y: by + 11, "text-anchor": "end" }, s);
       bl.textContent = "AC";
     }
-    if (o.colorBand) {
-      const by = xb + 10, bh = 14, bw = Math.max(1, pw / Math.max(n, 1));
+    cbs.forEach((cb, j) => {
+      const by = xb + 10 + j * 16, bh = 12, bw = Math.max(1, pw / Math.max(n, 1));
       svg("rect", { x: m.l, y: by, width: pw, height: bh, fill: "var(--surface-2)", rx: 2 }, s);
-      o.colorBand.colors.forEach((c, i) => {
+      cb.colors.forEach((c, i) => {
         if (c) svg("rect", { x: x(i) - bw / 2, y: by, width: bw + 0.4, height: bh, fill: c }, s);
       });
-      const bl = svg("text", { x: m.l - 6, y: by + 11, "text-anchor": "end" }, s);
-      bl.textContent = o.colorBand.label || "";
-    }
+      const bl = svg("text", { x: m.l - 6, y: by + 10, "text-anchor": "end" }, s);
+      bl.textContent = cb.label || "";
+    });
 
     for (const ser of o.series) {
       let d = "", pen = false;
@@ -332,7 +334,7 @@
     const guide = svg("line", { y1: m.t, y2: xb, stroke: "var(--axis)", "stroke-width": 1, visibility: "hidden" }, s);
     const dots = o.series.map(ser => svg("circle", { r: 4, fill: ser.color, stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }, s));
     const sel = svg("rect", { y: m.t, height: ph, fill: "var(--model)", opacity: 0.12, visibility: "hidden", "pointer-events": "none" }, s);
-    const hit = svg("rect", { x: m.l, y: m.t, width: pw, height: ph + (o.band || o.colorBand ? 34 : 0), fill: "transparent", tabindex: 0, "aria-label": o.label + ". Use the arrow keys to read values." }, s);
+    const hit = svg("rect", { x: m.l, y: m.t, width: pw, height: ph + BS, fill: "transparent", tabindex: 0, "aria-label": o.label + ". Use the arrow keys to read values." }, s);
     if (o.onZoom) { hit.style.cursor = "crosshair"; hit.style.touchAction = "pan-y"; }
     let cur = -1, drag = null;
     const idxAt = ev => { const r = s.getBoundingClientRect(); const px = (ev.clientX - r.left) * (W / r.width); return Math.max(0, Math.min(n - 1, Math.round(((px - m.l) / pw) * (n - 1)))); };
@@ -1455,20 +1457,22 @@
     const rv = hourly ? real : dailyMean(real, nd);
     const n = mv.length;
     const SB = r.setter && r.setter.stages[state.priceStage];
-    let band = null;
-    if (SB) {
-      const grp = hourly ? SB.group : [...Array(nd).keys()].map(d => {
-        const c = {}; let best = -1, bn = 0;
-        for (const g of SB.group.slice(d * 24, d * 24 + 24)) if (g != null && g >= 0 && (c[g] = (c[g] || 0) + 1) > bn) { bn = c[g]; best = g; }
-        return best;
-      });
-      band = { label: "Set by", colors: grp.map(g => g != null && g >= 0 ? SETTER_COLOR[g] : null) };
-      const seen = [...new Set(grp.filter(g => g != null && g >= 0))].sort((a, b) => a - b);
-      $("price-legend").innerHTML = `<span style="color:var(--muted)">Strip under the chart, the type that set the model's ${state.priceStage} price${hourly ? "" : " most often that day"}:</span>`
-        + seen.map(g => `<span><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i>${r.setter.groups[g]}</span>`).join("");
+    const RS = state.priceStage === "DA" ? realSetterFor(r) : null;
+    // per hour, or the type that set the price most often that day
+    const perRes = arr => hourly ? arr : [...Array(nd).keys()].map(d => {
+      const c = {}; let best = -1, bn = 0;
+      for (const g of arr.slice(d * 24, d * 24 + 24)) if (g != null && g >= 0 && (c[g] = (c[g] || 0) + 1) > bn) { bn = c[g]; best = g; }
+      return best;
+    });
+    const band = [], seen = new Set();
+    if (SB) { const g = perRes(SB.group); g.forEach(x => x >= 0 && seen.add(x)); band.push({ label: "Model", colors: g.map(x => x >= 0 ? SETTER_COLOR[x] : null) }); }
+    if (RS && RS.group.some(x => x >= 0)) { const g = perRes(RS.group); g.forEach(x => x >= 0 && seen.add(x)); band.push({ label: "Real", colors: g.map(x => x >= 0 ? SETTER_COLOR[x] : null) }); }
+    if (band.length) {
+      $("price-legend").innerHTML = `<span style="color:var(--muted)">Strip${band.length > 1 ? "s" : ""} under the chart, who set the ${band.map(b => b.label.toLowerCase()).join(" and the ")} ${state.priceStage} price${hourly ? "" : " most often that day"}:</span>`
+        + [...seen].sort((a, b) => a - b).map(g => `<span><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i>${SETTER_GROUPS[g]}</span>`).join("");
     }
     lineChart(host, {
-      n, height: state.tab === "price" ? 440 : 310, label: "Price, model vs real", endLabels: true, yUnit: "€/MWh", colorBand: band,
+      n, height: state.tab === "price" ? 440 : 310, label: "Price, model vs real", endLabels: true, yUnit: "€/MWh", colorBand: band.length ? band : null,
       onZoom: (a, b) => zoomFromChart(a, b, hourly),
       xTicks: dayTicks(r.days, hourly, host.clientWidth - 110),
       series: [
@@ -1484,7 +1488,8 @@
           <div class="row"><i class="sw-line" style="background:var(--real)"></i>${rName}<span class="v">${nf(a)} €/MWh</span></div>
           <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model ${state.priceStage}<span class="v">${nf(b)} €/MWh</span></div>
           <div class="row">Difference<span class="v">${a != null && b != null ? signed(b - a) + " €/MWh" : "–"}</span></div>`
-          + (g != null && g >= 0 ? `<div class="row"><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i>Set by<span class="v">${r.setter.groups[g]}${S.unit[i] >= 0 ? " · " + r.setter.units[S.unit[i]] : ""}</span></div>` : "");
+          + (g != null && g >= 0 ? `<div class="row"><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i>Model set by<span class="v">${r.setter.groups[g]}${S.unit[i] >= 0 ? " · " + r.setter.units[S.unit[i]] : ""}</span></div>` : "")
+          + (hourly && RS && RS.group[i] >= 0 ? `<div class="row"><i class="sw-box" style="background:${SETTER_COLOR[RS.group[i]]}"></i>Real set by<span class="v">${RS.groups[RS.group[i]]}${RS.unit[i] >= 0 ? " · " + RS.units[RS.unit[i]] : ""}</span></div>` : "");
       },
     });
   }
@@ -1492,36 +1497,38 @@
   // ---------- who sets the price (package `setter`, publish_run.py) ----------
   // colours follow the generation mix where the type is the same (hydro, CCGT, CHP, imports, nuclear, coal)
   const SETTER_COLOR = ["var(--cat-1)", "var(--cat-4)", "var(--cat-2)", "color-mix(in srgb, var(--cat-2) 45%, var(--surface))",
-    "var(--cat-8)", "var(--cat-7)", "var(--cat-3)", "var(--cat-5)", "var(--cat-6)", "var(--muted)"];
-  function renderSetter(r) {
-    const host = $("setter-chart"), tbl = $("setter-table"), note = $("setter-note"), leg = $("setter-legend");
-    const stages = r.setter ? PRICE_STAGES.filter(s => r.setter.stages[s]) : [];
-    if (stages.length && !stages.includes(state.setterStage)) state.setterStage = stages[0];
-    seg($("setter-stage"), stages.map(s => [s, s, s]), state.setterStage, v => { state.setterStage = v; renderSetter(view()); });
-    if (!r.setter || !stages.length) {
-      host.innerHTML = ""; tbl.innerHTML = ""; leg.innerHTML = "";
-      note.textContent = "This run's package has no price-setter data yet; publish it again with the current publish_run.py.";
-      return;
+    "var(--cat-8)", "var(--cat-7)", "var(--cat-3)", "var(--cat-5)", "var(--cat-6)", "var(--muted)",
+    "color-mix(in srgb, var(--cat-7) 40%, var(--surface))"];
+  // the model's groups (publish_run.py SETTER_GROUPS) + "Demand bid", which only the real side has
+  const SETTER_GROUPS = ["Hydro (water value)", "Storage", "CCGT", "Gas turbine & oil", "Coal", "Nuclear",
+    "Wind, solar, run-of-river", "CHP group", "Imports", "Shortage / unclear", "Demand bid"];
+  // the real day-ahead price setter (reference/price_setter_2024.js, OMIE bid curves) for the days shown
+  const realSetDay = window.PRICE_SETTER_REAL ? Object.fromEntries(window.PRICE_SETTER_REAL.days.map((d, i) => [d, i])) : {};
+  function realSetterFor(r) {
+    const R = window.PRICE_SETTER_REAL;
+    if (!R || r.scenario) return null;
+    const group = [], unit = [];
+    for (const d of r.days) {
+      const i = realSetDay[d];
+      for (let h = 0; h < 24; h++) { group.push(i == null ? -1 : R.group[i * 24 + h]); unit.push(i == null ? -1 : R.unit[i * 24 + h]); }
     }
-    const S = r.setter.stages[state.setterStage], G = r.setter.groups, price = r.price[state.setterStage] || [];
-    // one bar per month, or per day when the view covers a single month
-    const byMonth = new Set(r.days.map(d => d.slice(0, 7))).size > 1;
+    return { groups: R.groups, units: R.units, group, unit };
+  }
+  // 100 % bars per month (per day inside a month) of who set the price
+  function setterBars(host, grp, days, price) {
+    host.innerHTML = "";
+    const G = SETTER_GROUPS, byMonth = new Set(days.map(d => d.slice(0, 7))).size > 1;
     const keys = [], bucketOf = [];
-    r.days.forEach(d => { const k = byMonth ? d.slice(0, 7) : d; if (keys[keys.length - 1] !== k) keys.push(k); bucketOf.push(keys.length - 1); });
+    days.forEach(d => { const k = byMonth ? d.slice(0, 7) : d; if (keys[keys.length - 1] !== k) keys.push(k); bucketOf.push(keys.length - 1); });
     const cnt = keys.map(() => new Array(G.length).fill(0)), tot = keys.map(() => 0);
     const all = new Array(G.length).fill(0), psum = new Array(G.length).fill(0), pn = new Array(G.length).fill(0);
-    S.group.forEach((g, i) => {
+    grp.forEach((g, i) => {
       if (g == null || g < 0) return;
       const b = bucketOf[Math.floor(i / 24)];
       cnt[b][g]++; tot[b]++; all[g]++;
-      if (price[i] != null) { psum[g] += price[i]; pn[g]++; }
+      if (price && price[i] != null) { psum[g] += price[i]; pn[g]++; }
     });
-    const N = all.reduce((a, b) => a + b, 0);
-    const used = G.map((_, g) => g).filter(g => all[g] > 0);
-    leg.innerHTML = used.map(g => `<span><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i>${G[g]}</span>`).join("");
-    // stacked 100 % bars
-    host.innerHTML = "";
-    const W = Math.max(260, host.clientWidth), H = 230, m = { l: 44, r: 8, t: 22, b: 22 };
+    const W = Math.max(260, host.clientWidth), H = 200, m = { l: 44, r: 8, t: 10, b: 22 };
     const pw = W - m.l - m.r, ph = H - m.t - m.b, nb = keys.length, bw = pw / nb;
     const s = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Share of hours per price-setting plant type" }, host);
     for (const t of [0, 25, 50, 75, 100]) {
@@ -1534,20 +1541,45 @@
     keys.forEach((k, b) => {
       let y0 = m.t + ph;
       const x0 = m.l + b * bw + bw * 0.12, w = Math.max(1, bw * 0.76);
-      for (const g of used) {
+      for (let g = 0; g < G.length; g++) {
         if (!tot[b] || !cnt[b][g]) continue;
         const hgt = cnt[b][g] / tot[b] * ph;
         const rc = svg("rect", { x: x0, y: y0 - hgt, width: w, height: hgt, fill: SETTER_COLOR[g] }, s);
-        const ti = svg("title", {}, rc);
-        ti.textContent = `${byMonth ? k : dayLabel(k)}: ${G[g]} ${nf(100 * cnt[b][g] / tot[b], 0)} % (${cnt[b][g]} h)`;
+        svg("title", {}, rc).textContent = `${byMonth ? k : dayLabel(k)}: ${G[g]} ${nf(100 * cnt[b][g] / tot[b], 0)} % (${cnt[b][g]} h)`;
         y0 -= hgt;
       }
       if (b % every === 0) { const tx = svg("text", { x: x0 + w / 2, y: m.t + ph + 16, "text-anchor": "middle" }, s); tx.textContent = mlab(k); }
     });
-    tbl.innerHTML = `<thead><tr><th>Sets the price (${state.setterStage})</th><th>Share of hours</th><th>Hours</th><th>Mean price when setting it</th></tr></thead><tbody>`
-      + [...used].sort((a, b) => all[b] - all[a]).map(g => `<tr><td><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i> ${G[g]}</td><td>${nf(100 * all[g] / N, 1)} %</td><td>${nf(all[g], 0)}</td><td>${pn[g] ? nf(psum[g] / pn[g]) + " €/MWh" : "–"}</td></tr>`).join("")
+    return { all, psum, pn, N: all.reduce((a, b) => a + b, 0) };
+  }
+  function renderSetter(r) {
+    const host = $("setter-chart"), hostR = $("setter-chart-real"), tbl = $("setter-table"), note = $("setter-note"), leg = $("setter-legend");
+    const stages = r.setter ? PRICE_STAGES.filter(s => r.setter.stages[s]) : [];
+    if (stages.length && !stages.includes(state.setterStage)) state.setterStage = stages[0];
+    seg($("setter-stage"), (stages.length ? stages : ["DA"]).map(s => [s, s, s]), state.setterStage, v => { state.setterStage = v; renderSetter(view()); });
+    const RS = state.setterStage === "DA" ? realSetterFor(r) : null;
+    const hasReal = !!RS && RS.group.some(g => g >= 0);
+    const S = r.setter && r.setter.stages[state.setterStage];
+    $("setter-model-title").innerHTML = S ? `<span class="st-main"><i style="background:var(--model)"></i>Model</span><span class="st-sub">${state.setterStage}</span>` : "";
+    $("setter-real-title").innerHTML = hasReal ? `<span class="st-main"><i style="background:var(--real)"></i>Real</span><span class="st-sub">OMIE day-ahead, from the bid curves</span>` : "";
+    const M = S ? setterBars(host, S.group, r.days, r.price[state.setterStage] || []) : (host.innerHTML = "", null);
+    const Rl = hasReal ? setterBars(hostR, RS.group, r.days, r.real_price) : (hostR.innerHTML = "", null);
+    if (!M && !Rl) {
+      tbl.innerHTML = ""; leg.innerHTML = "";
+      note.textContent = "No price-setter data for this run and stage: the package has none (publish it again with the current publish_run.py) and the real one exists for the 2024 day-ahead only.";
+      return;
+    }
+    const used = SETTER_GROUPS.map((_, g) => g).filter(g => (M && M.all[g]) || (Rl && Rl.all[g]));
+    leg.innerHTML = used.map(g => `<span><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i>${SETTER_GROUPS[g]}</span>`).join("");
+    const pc = (X, g) => X && X.N ? nf(100 * X.all[g] / X.N, 1) + " %" : "–";
+    const mp = (X, g) => X && X.pn[g] ? nf(X.psum[g] / X.pn[g]) + " €/MWh" : "–";
+    const key = g => (M ? M.all[g] : 0) + (Rl ? Rl.all[g] : 0);
+    tbl.innerHTML = `<thead><tr><th>Sets the price (${state.setterStage})</th><th>Model, share of hours</th>${hasReal ? "<th>Real, share of hours</th>" : ""}<th>Model, mean price when setting it</th>${hasReal ? "<th>Real, mean price when setting it</th>" : ""}</tr></thead><tbody>`
+      + [...used].sort((a, b) => key(b) - key(a)).map(g => `<tr><td><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i> ${SETTER_GROUPS[g]}</td><td>${pc(M, g)}</td>${hasReal ? `<td>${pc(Rl, g)}</td>` : ""}<td>${mp(M, g)}</td>${hasReal ? `<td>${mp(Rl, g)}</td>` : ""}</tr>`).join("")
       + `</tbody>`;
-    note.textContent = `${nf(N, 0)} hours with a ${state.setterStage} price in the period shown. The marginal unit is the one running between its limits whose bid equals the price; reservoir hydro, storage and imports set it when no such unit exists. "Shortage / unclear": load shedding, or no single unit could be named. Hover over the price chart above to see the plant hour by hour; hover over a bar for its numbers.`;
+    note.textContent = `Model: the unit running between its limits whose bid equals the price; reservoir hydro, storage and imports set it when no such unit exists. `
+      + (hasReal ? `Real: from OMIE's per-unit bids, the bid at the Spanish price that was only partly matched; "Imports" = no Iberian bid at the price, so it was set elsewhere in the coupled European market; "Demand bid" = a buyer (retailer, export) set it, pumping counts as storage. ` : state.setterStage !== "DA" ? "The real price setter is known for the day-ahead (DA) only. " : "")
+      + `Hover over a bar for its numbers, or over the price chart for the plant hour by hour.`;
   }
 
   // ---------- traded volume per stage over time (Traded volume tab) ----------
