@@ -3,7 +3,7 @@
  "id": "2035-trinity-p3-optb",
  "name": "2035 Trinity (period 3), option B, full year",
  "note": "As the active run + measured CID shares and qualified balancing units. 2035-improvements f1c040e.",
- "published": "2026-10-28T17:09:22+01:00",
+ "published": "2026-10-28T17:23:15+01:00",
  "published_by": "Lars Erik Eide",
  "first_day": "2024-01-01",
  "last_day": "2024-12-29",
@@ -24,7 +24,7 @@
   "2024-11",
   "2024-12"
  ],
- "size_mb": 47.4,
+ "size_mb": 47.5,
  "info": {
   "ran_by": "Lars Erik Eide",
   "branch": "2035-improvements",

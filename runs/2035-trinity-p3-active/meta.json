@@ -3,7 +3,7 @@
  "id": "2035-trinity-p3-active",
  "name": "2035 Trinity (period 3), active, full year",
  "note": "EMPIRE period 3 (2030-35), SDDP with the market's nuclear/CHP and rule curves, 2024 mechanics. 2035-improvements f1c040e.",
- "published": "2026-10-28T17:05:36+01:00",
+ "published": "2026-10-28T17:19:36+01:00",
  "published_by": "Lars Erik Eide",
  "first_day": "2024-01-01",
  "last_day": "2024-12-29",
@@ -24,7 +24,7 @@
   "2024-11",
   "2024-12"
  ],
- "size_mb": 47.4,
+ "size_mb": 47.5,
  "info": {
   "ran_by": "Lars Erik Eide",
   "branch": "2035-improvements",
