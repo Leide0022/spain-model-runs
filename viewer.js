@@ -643,7 +643,7 @@
     const v = view();
     renderTabs(v);
     // sections that were hidden have no width yet, so draw them now that they are visible
-    renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v);
+    renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); renderSetter(v); renderTradeCharts(v);
     // if the page was scrolled down, jump back to the top of the new tab's content
     const headBottom = $("run-head").getBoundingClientRect().bottom;
     if (headBottom < 0) window.scrollTo({ top: window.scrollY + headBottom + 16 });
@@ -2752,7 +2752,7 @@
   start();
   // Redraw the charts whenever the report column changes width (also covers the frame
   // settling to its final size after the first render, and late web-font loads).
-  const redraw = () => { if (!run()) return; const v = view(); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); };
+  const redraw = () => { if (!run()) return; const v = view(); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); renderSetter(v); renderTradeCharts(v); };
   let rt, lastW = $("report").clientWidth;
   new ResizeObserver(() => {
     const w = $("report").clientWidth;
