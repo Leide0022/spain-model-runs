@@ -2,10 +2,144 @@
 window.RUN_MANIFEST = [
  {
   "schema": 1,
+  "id": "2035-trinity-p3-optb",
+  "name": "2035 Trinity (period 3), option B, full year",
+  "note": "As the active run + measured CID shares and qualified balancing units. 2035-improvements f1c040e.",
+  "published": "2026-10-28T17:09:22+01:00",
+  "published_by": "Lars Erik Eide",
+  "first_day": "2024-01-01",
+  "last_day": "2024-12-29",
+  "n_days": 364,
+  "ac_solved": 8736,
+  "ac_total": 8736,
+  "months": [
+   "2024-01",
+   "2024-02",
+   "2024-03",
+   "2024-04",
+   "2024-05",
+   "2024-06",
+   "2024-07",
+   "2024-08",
+   "2024-09",
+   "2024-10",
+   "2024-11",
+   "2024-12"
+  ],
+  "size_mb": 47.4,
+  "info": {
+   "ran_by": "Lars Erik Eide",
+   "branch": "2035-improvements",
+   "commit": "f1c040e",
+   "commit_message": "Merge cid-participation-balancing (§23) into 2035-improvements",
+   "uncommitted_files": [
+    "Data/BellmanValuesOUT_sddp4_Trinity.csv",
+    "Data/ExchangeSchedule_sddp4_Trinity.csv",
+    "Data/TurbineSchedule_sddp4_Trinity.csv",
+    "Data/Volume_Scen0_OUT_sddp4_Trinity.csv",
+    "Manifest.toml",
+    "Project.toml"
+   ],
+   "started": "2026-10-27 16:11:20",
+   "finished": "2026-10-28 16:26:27",
+   "runtime_min": 1455.1,
+   "power_flow": "AC",
+   "linear_solver": "ma57",
+   "label": "Trinity",
+   "reconstructed": false
+  },
+  "scenario": {
+   "label": "Trinity",
+   "period": 3,
+   "weather_years": [
+    2015
+   ]
+  },
+  "features": {
+   "res": "accepted",
+   "xb": true,
+   "gas": true,
+   "markup": true,
+   "hydro": false,
+   "participation": "measured",
+   "balancing": "qualified",
+   "rd": "ac",
+   "chain": "day"
+  }
+ },
+ {
+  "schema": 1,
+  "id": "2035-trinity-p3-active",
+  "name": "2035 Trinity (period 3), active, full year",
+  "note": "EMPIRE period 3 (2030-35), SDDP with the market's nuclear/CHP and rule curves, 2024 mechanics. 2035-improvements f1c040e.",
+  "published": "2026-10-28T17:05:36+01:00",
+  "published_by": "Lars Erik Eide",
+  "first_day": "2024-01-01",
+  "last_day": "2024-12-29",
+  "n_days": 364,
+  "ac_solved": 8735,
+  "ac_total": 8736,
+  "months": [
+   "2024-01",
+   "2024-02",
+   "2024-03",
+   "2024-04",
+   "2024-05",
+   "2024-06",
+   "2024-07",
+   "2024-08",
+   "2024-09",
+   "2024-10",
+   "2024-11",
+   "2024-12"
+  ],
+  "size_mb": 47.4,
+  "info": {
+   "ran_by": "Lars Erik Eide",
+   "branch": "2035-improvements",
+   "commit": "f1c040e",
+   "commit_message": "Merge cid-participation-balancing (§23) into 2035-improvements",
+   "uncommitted_files": [
+    "Data/BellmanValuesOUT_sddp4_Trinity.csv",
+    "Data/ExchangeSchedule_sddp4_Trinity.csv",
+    "Data/TurbineSchedule_sddp4_Trinity.csv",
+    "Data/Volume_Scen0_OUT_sddp4_Trinity.csv",
+    "Manifest.toml",
+    "Project.toml"
+   ],
+   "started": "2026-10-27 16:09:42",
+   "finished": "2026-10-28 16:30:04",
+   "runtime_min": 1460.4,
+   "power_flow": "AC",
+   "linear_solver": "ma57",
+   "label": "Trinity",
+   "reconstructed": false
+  },
+  "scenario": {
+   "label": "Trinity",
+   "period": 3,
+   "weather_years": [
+    2015
+   ]
+  },
+  "features": {
+   "res": "accepted",
+   "xb": true,
+   "gas": true,
+   "markup": true,
+   "hydro": false,
+   "participation": "active",
+   "balancing": "all",
+   "rd": "ac",
+   "chain": "day"
+  }
+ },
+ {
+  "schema": 1,
   "id": "2024-r5-cid-balancing-offered",
   "name": "2024 run 5: run 4 + CID participation and qualified balancing (offered)",
   "note": "Run 4 offered settings + §23 option B: CID shares measured from REE (wind/load 0.07, solar 0.06), balancing only with qualified units. Branch cid-participation-balancing 7aa88d4.",
-  "published": "2026-10-28T10:14:25+01:00",
+  "published": "2026-10-28T10:45:20+01:00",
   "published_by": "Lars Erik Eide",
   "first_day": "2024-01-01",
   "last_day": "2024-12-29",
@@ -26,7 +160,7 @@ window.RUN_MANIFEST = [
    "2024-11",
    "2024-12"
   ],
-  "size_mb": 44.9,
+  "size_mb": 45.1,
   "info": {
    "ran_by": "Lars Erik Eide",
    "branch": "HEAD",
