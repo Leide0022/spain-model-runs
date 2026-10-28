@@ -3,7 +3,7 @@
  "id": "2024-r5-cid-balancing-offered",
  "name": "2024 run 5: run 4 + CID participation and qualified balancing (offered)",
  "note": "Run 4 offered settings + §23 option B: CID shares measured from REE (wind/load 0.07, solar 0.06), balancing only with qualified units. Branch cid-participation-balancing 7aa88d4.",
- "published": "2026-10-28T10:14:25+01:00",
+ "published": "2026-10-28T10:45:20+01:00",
  "published_by": "Lars Erik Eide",
  "first_day": "2024-01-01",
  "last_day": "2024-12-29",
@@ -24,7 +24,7 @@
   "2024-11",
   "2024-12"
  ],
- "size_mb": 44.9,
+ "size_mb": 45.1,
  "info": {
   "ran_by": "Lars Erik Eide",
   "branch": "HEAD",
