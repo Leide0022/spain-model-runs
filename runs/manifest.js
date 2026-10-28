@@ -2,6 +2,59 @@
 window.RUN_MANIFEST = [
  {
   "schema": 1,
+  "id": "2024-r5-cid-balancing-offered",
+  "name": "2024 run 5: run 4 + CID participation and qualified balancing (offered)",
+  "note": "Run 4 offered settings + §23 option B: CID shares measured from REE (wind/load 0.07, solar 0.06), balancing only with qualified units. Branch cid-participation-balancing 7aa88d4.",
+  "published": "2026-10-28T10:14:25+01:00",
+  "published_by": "Lars Erik Eide",
+  "first_day": "2024-01-01",
+  "last_day": "2024-12-29",
+  "n_days": 364,
+  "ac_solved": 8721,
+  "ac_total": 8736,
+  "months": [
+   "2024-01",
+   "2024-02",
+   "2024-03",
+   "2024-04",
+   "2024-05",
+   "2024-06",
+   "2024-07",
+   "2024-08",
+   "2024-09",
+   "2024-10",
+   "2024-11",
+   "2024-12"
+  ],
+  "size_mb": 44.9,
+  "info": {
+   "ran_by": "Lars Erik Eide",
+   "branch": "HEAD",
+   "commit": "7aa88d43",
+   "commit_message": "Split-run options PARTICIPATION and BALANCING (§23)",
+   "uncommitted_files": [
+    "Manifest.toml",
+    "Project.toml"
+   ],
+   "started": "2026-10-27 15:55:48",
+   "finished": "2026-10-28 01:18:34",
+   "runtime_min": 562.8,
+   "power_flow": "AC",
+   "linear_solver": "ma57",
+   "label": "2024",
+   "reconstructed": false
+  },
+  "features": {
+   "res": "offered",
+   "xb": true,
+   "gas": true,
+   "markup": true,
+   "hydro": true,
+   "chain": "day"
+  }
+ },
+ {
+  "schema": 1,
   "id": "2035-trinity-impr-year",
   "name": "2035 Trinity, improvements, full year",
   "note": "2035 with CO2 fix, CCGTs closed oldest first, gas efficiency per plant, unit commitment + minimum-income check, gas/coal mark-ups, island plants, nuclear 0.85, CHP per month; weather 2015; full year, weeks run in order (unit commitment carried over).",
