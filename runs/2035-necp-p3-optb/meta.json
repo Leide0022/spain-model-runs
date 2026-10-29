@@ -1,0 +1,68 @@
+{
+ "schema": 1,
+ "id": "2035-necp-p3-optb",
+ "name": "2035 NECP (period 3), option B, full year",
+ "note": "As the active run + measured CID shares and qualified balancing units. 2035-improvements f1c040e; weeks 15-52 with the CID-gate fix 16c8b47.",
+ "published": "2026-10-29T10:40:17+01:00",
+ "published_by": "Lars Erik Eide",
+ "first_day": "2024-01-01",
+ "last_day": "2024-12-29",
+ "n_days": 364,
+ "ac_solved": 6742,
+ "ac_total": 8736,
+ "months": [
+  "2024-01",
+  "2024-02",
+  "2024-03",
+  "2024-04",
+  "2024-05",
+  "2024-06",
+  "2024-07",
+  "2024-08",
+  "2024-09",
+  "2024-10",
+  "2024-11",
+  "2024-12"
+ ],
+ "size_mb": 48.0,
+ "info": {
+  "ran_by": "Lars Erik Eide",
+  "branch": "HEAD",
+  "commit": "f1c040e",
+  "commit_message": "Merge cid-participation-balancing (§23) into 2035-improvements",
+  "uncommitted_files": [
+   "Data/BellmanValuesOUT_sddp4_NECPEssentials.csv",
+   "Data/ExchangeSchedule_sddp4_NECPEssentials.csv",
+   "Data/TurbineSchedule_sddp4_NECPEssentials.csv",
+   "Data/Volume_Scen0_OUT_sddp4_NECPEssentials.csv",
+   "Manifest.toml",
+   "Project.toml",
+   "config.toml"
+  ],
+  "started": "2026-10-27 16:22:19",
+  "finished": "2026-10-29 10:24:32",
+  "runtime_min": 2522.2,
+  "power_flow": "AC",
+  "linear_solver": "ma57",
+  "label": "NECPEssentials",
+  "reconstructed": false
+ },
+ "scenario": {
+  "label": "NECPEssentials",
+  "period": 3,
+  "weather_years": [
+   2015
+  ]
+ },
+ "features": {
+  "res": "accepted",
+  "xb": true,
+  "gas": true,
+  "markup": true,
+  "hydro": false,
+  "participation": "measured",
+  "balancing": "qualified",
+  "rd": "ac",
+  "chain": "day"
+ }
+}
