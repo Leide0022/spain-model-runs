@@ -2,10 +2,124 @@
 window.RUN_MANIFEST = [
  {
   "schema": 1,
+  "id": "2024-r6a-pumping-only",
+  "name": "2024 run 6a",
+  "note": "Run 5 + real pumping out of the load only (§24)",
+  "published": "2026-10-29T09:45:53+01:00",
+  "published_by": "Lars Erik Eide",
+  "first_day": "2024-01-01",
+  "last_day": "2024-12-29",
+  "n_days": 364,
+  "ac_solved": 8720,
+  "ac_total": 8736,
+  "months": [
+   "2024-01",
+   "2024-02",
+   "2024-03",
+   "2024-04",
+   "2024-05",
+   "2024-06",
+   "2024-07",
+   "2024-08",
+   "2024-09",
+   "2024-10",
+   "2024-11",
+   "2024-12"
+  ],
+  "size_mb": 45.1,
+  "info": {
+   "ran_by": "Lars Erik Eide",
+   "branch": "HEAD",
+   "commit": "70d8db6",
+   "commit_message": "Pumped storage pumps with its own pumping power ([da].pump_limits)",
+   "uncommitted_files": [
+    "Manifest.toml",
+    "Project.toml"
+   ],
+   "started": "2026-10-28 16:30:31",
+   "finished": "2026-10-29 02:08:50",
+   "runtime_min": 578.3,
+   "power_flow": "AC",
+   "linear_solver": "ma57",
+   "label": "2024",
+   "reconstructed": false
+  },
+  "features": {
+   "res": "offered",
+   "xb": true,
+   "gas": true,
+   "markup": true,
+   "hydro": true,
+   "pumping": true,
+   "pump_limits": false,
+   "chain": "day",
+   "participation": "measured",
+   "balancing": "qualified"
+  }
+ },
+ {
+  "schema": 1,
+  "id": "2024-r6-pumping",
+  "name": "2024 run 6",
+  "note": "Run 5 + real pumping out of the load + pump limits per plant (§24)",
+  "published": "2026-10-29T09:45:14+01:00",
+  "published_by": "Lars Erik Eide",
+  "first_day": "2024-01-01",
+  "last_day": "2024-12-29",
+  "n_days": 364,
+  "ac_solved": 8723,
+  "ac_total": 8736,
+  "months": [
+   "2024-01",
+   "2024-02",
+   "2024-03",
+   "2024-04",
+   "2024-05",
+   "2024-06",
+   "2024-07",
+   "2024-08",
+   "2024-09",
+   "2024-10",
+   "2024-11",
+   "2024-12"
+  ],
+  "size_mb": 45.1,
+  "info": {
+   "ran_by": "Lars Erik Eide",
+   "branch": "HEAD",
+   "commit": "70d8db6",
+   "commit_message": "Pumped storage pumps with its own pumping power ([da].pump_limits)",
+   "uncommitted_files": [
+    "Manifest.toml",
+    "Project.toml"
+   ],
+   "started": "2026-10-28 15:51:58",
+   "finished": "2026-10-29 01:07:33",
+   "runtime_min": 555.6,
+   "power_flow": "AC",
+   "linear_solver": "ma57",
+   "label": "2024",
+   "reconstructed": false
+  },
+  "features": {
+   "res": "offered",
+   "xb": true,
+   "gas": true,
+   "markup": true,
+   "hydro": true,
+   "pumping": true,
+   "pump_limits": true,
+   "chain": "day",
+   "participation": "measured",
+   "balancing": "qualified"
+  }
+ },
+ {
+  "schema": 1,
   "id": "2035-trinity-p3-optb",
   "name": "2035 Trinity (period 3), option B, full year",
   "note": "As the active run + measured CID shares and qualified balancing units. 2035-improvements f1c040e.",
-  "published": "2026-10-28T17:09:22+01:00",
+  "published": "2026-10-28T17:23:15+01:00",
   "published_by": "Lars Erik Eide",
   "first_day": "2024-01-01",
   "last_day": "2024-12-29",
@@ -26,7 +140,7 @@ window.RUN_MANIFEST = [
    "2024-11",
    "2024-12"
   ],
-  "size_mb": 47.4,
+  "size_mb": 47.5,
   "info": {
    "ran_by": "Lars Erik Eide",
    "branch": "2035-improvements",
@@ -72,7 +186,7 @@ window.RUN_MANIFEST = [
   "id": "2035-trinity-p3-active",
   "name": "2035 Trinity (period 3), active, full year",
   "note": "EMPIRE period 3 (2030-35), SDDP with the market's nuclear/CHP and rule curves, 2024 mechanics. 2035-improvements f1c040e.",
-  "published": "2026-10-28T17:05:36+01:00",
+  "published": "2026-10-28T17:19:36+01:00",
   "published_by": "Lars Erik Eide",
   "first_day": "2024-01-01",
   "last_day": "2024-12-29",
@@ -93,7 +207,7 @@ window.RUN_MANIFEST = [
    "2024-11",
    "2024-12"
   ],
-  "size_mb": 47.4,
+  "size_mb": 47.5,
   "info": {
    "ran_by": "Lars Erik Eide",
    "branch": "2035-improvements",

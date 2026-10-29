@@ -128,7 +128,8 @@
     f_len: ["Period", "Length of the run: a full year, about a month, or a week or less."],
     f_part: ["Intraday trading", "How much of each source re-trades in the intraday markets. The original model (PowerVision's active case) lets every unit re-trade at every stage; the measured shares come from REE's schedules for June–December 2024 (model change §23)."],
     f_bal: ["Balancing", "Which units may change their output in the balancing stage. Qualified: only those REE has qualified for balancing services, plus batteries (model change §23)."],
-    f_pump: ["Pumped-storage load", "OMIE's 2024 load already contains the real pumping. Taking it out lets the model decide when to pump without counting the same pumping twice."],
+    f_pump: ["Pumped-storage load", "OMIE's 2024 load already contains the real pumping. Taking it out lets the model decide when to pump without counting the same pumping twice (model change §24)."],
+    f_pumplim: ["Pumping power", "How much power a pumped-storage plant can draw when it pumps. Real pumps are smaller than the turbines; the per-plant figures come from the JRC Hydro-power database, checked against Iberdrola and OMIE bids (model change §24)."],
     f_rd: ["Redispatch", "How the grid stage fixes the market schedule. AC: one power-flow solve per hour at marginal cost. The REE way: REE's phases I and II with bids, as in P.O. 3.2 (model change §20)."],
   };
   const term = (label, key) => `<span class="term" tabindex="0" data-tip="${key}">${label}</span>`;
@@ -773,6 +774,7 @@
     ["participation", "Intraday trading", "f_part", v => v === "measured" ? "Measured from REE: about 7 % of wind and demand and 6 % of solar re-trade in continuous intraday" : v === "passive" ? "No re-trading after the day-ahead (PowerVision's passive case)" : "Every unit re-trades at every stage (PowerVision's active case)"],
     ["balancing", "Balancing", "f_bal", v => v === "qualified" ? "Only units qualified for balancing (REE's list, plus batteries)" : "Every unit can balance"],
     ["pumping", "Pumped-storage load", "f_pump", v => v ? "Real 2024 pumping taken out of the load; the model pumps itself" : "Kept in the load as in OMIE's data"],
+    ["pump_limits", "Pumping power", "f_pumplim", v => v ? "Each plant's own pumping power (JRC Hydro-power database, 5.1 GW in all)" : "Plants pump at their full turbine power (8.2 GW in all)"],
     ["rd", "Redispatch", "f_rd", v => v === "ree" ? "The REE way: phases I and II, pay-as-bid (model change §20)" : "AC power flow at marginal cost"],
   ];
   // a setting counts as switched on when it differs from the original model
