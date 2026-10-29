@@ -195,6 +195,10 @@ button { font: inherit; color: inherit; }
 .settings .s-val { color: var(--ink-2); }
 .scenario-flag { display: flex; align-items: center; gap: 6px; margin: 0; padding: 7px 12px; border-radius: 8px; background: var(--note-bg); color: var(--note-ink); font-size: 14px; }
 .tech-note p { font-size: 13px; color: var(--muted); }
+/* a run replaced by a newer one (e.g. 2035 runs with the wrong EMPIRE period) */
+.scenario-flag.old-flag { flex-wrap: wrap; background: color-mix(in srgb, var(--critical) 12%, var(--surface)); color: var(--ink); }
+.run-item.ri-old { opacity: 0.6; }
+.run-item.ri-old[aria-current="true"] { opacity: 1; }
 .flag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 1px 7px; border-radius: 4px; background: var(--note-bg); color: var(--note-ink); }
 
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }

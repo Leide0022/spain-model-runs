@@ -126,6 +126,7 @@
     f_hydro: ["Improved hydro planning", "Improved hydro planning: real starting reservoir level (REE), seasonal limits (rule curves) and monthly inflow (§15)."],
     f_margin: ["Trading margin", "Money from selling electricity minus money paid for the electricity it bought. Not profit: the investment (heater, tank or battery), staff, maintenance, insurance, wear, grid charges and taxes still have to be paid out of it. Here it is also a best case: perfect knowledge of the day's prices, day-ahead market only."],
     f_len: ["Period", "Length of the run: a full year, about a month, or a week or less."],
+    f_empire: ["EMPIRE period", "Which period of the EMPIRE capacity-expansion results a scenario run takes its power system from (capacities, demand). Period 1 = 2020–25, 2 = 2025–30, 3 = 2030–35. A 2035 run should use period 3; runs before model commit c0cd4b4 used period 2, a system of about 2030, with the 2035 CO₂ price."],
     f_part: ["Intraday trading", "How much of each source re-trades in the intraday markets. The original model (PowerVision's active case) lets every unit re-trade at every stage; the measured shares come from REE's schedules for June–December 2024 (model change §23)."],
     f_bal: ["Balancing", "Which units may change their output in the balancing stage. Qualified: only those REE has qualified for balancing services, plus batteries (model change §23)."],
     f_pump: ["Pumped-storage load", "OMIE's 2024 load already contains the real pumping. Taking it out lets the model decide when to pump without counting the same pumping twice (model change §24)."],
@@ -685,11 +686,13 @@
     ["markup", "Tax and mark-ups", "f_markup", ON_OFF, "mark-ups"],
     ["hydro", "Improved hydro planning", "f_hydro", ON_OFF, "hydro"],
     ["len", "Period", "f_len", [["any", "Any"], ["year", "Year"], ["month", "Month"], ["week", "≤ Week"]], null],
+    ["empire", "EMPIRE period (2035 runs)", "f_empire", [["any", "Any"], ["2", "2 (old)"], ["3", "3"]], null],
   ];
   const filters = Object.fromEntries(FEATS.map(f => [f[0], "any"]));
   try { const sf = JSON.parse(localStorage.getItem("runviewer.filters") || "{}"); for (const [k, opts] of FEATS.map(f => [f[0], f[3]])) if (opts.some(o => o[0] === sf[k])) filters[k] = sf[k]; } catch (e) {}
   function featValue(m, key) {
     if (key === "len") return m.n_days >= 300 ? "year" : m.n_days >= 20 ? "month" : "week";
+    if (key === "empire") return m.scenario && m.scenario.period != null ? String(m.scenario.period) : null;
     const v = (m.features || {})[key];
     return v == null ? null : typeof v === "boolean" ? (v ? "on" : "off") : v;
   }
@@ -733,7 +736,8 @@
     const shown = MANIFEST.filter(m => runMatches(m));
     const groupOfRun = m => RUN_GROUPS.find(g => g[2](m))[0];
     for (const [gk, glabel] of RUN_GROUPS) {
-      const runs = shown.filter(m => groupOfRun(m) === gk);
+      const runs = shown.filter(m => groupOfRun(m) === gk)
+        .sort((a, b) => !!(a.scenario && a.scenario.superseded_by) - !!(b.scenario && b.scenario.superseded_by));
       if (!runs.length) continue;
       const det = document.createElement("details"); det.className = "run-group";
       // the group of the run on screen is always open
@@ -747,7 +751,7 @@
       for (const m of runs) {
         const pct = m.ac_total ? 100 * m.ac_solved / m.ac_total : 0;
         const b = document.createElement("button");
-        b.type = "button"; b.className = "run-item";
+        b.type = "button"; b.className = "run-item" + (m.scenario && m.scenario.superseded_by ? " ri-old" : "");
         b.setAttribute("aria-current", String(m.id === state.run));
         b.title = m.name;
         b.innerHTML = `<span class="ri-name">${esc(m.name)}</span>
@@ -782,6 +786,9 @@
   function renderHead(r) {
     const i = r.info, f = r.meta.features;
     const sc = r.scenario;
+    const EMPIRE_YEARS = { 1: "2020–25", 2: "2025–30", 3: "2030–35" };
+    const replacedBy = r.meta && r.meta.scenario && r.meta.scenario.superseded_by;   // set in the run list (manifest), not in the package
+    const empireRow = sc && sc.period != null ? [`<li class="${sc.period === 3 ? "on" : "off"}"><span class="s-mark" aria-hidden="true">${sc.period === 3 ? "✓" : "–"}</span><span><span class="s-name">${term("EMPIRE period", "f_empire")}:</span> <span class="s-val">${esc(String(sc.period))}, the ${EMPIRE_YEARS[sc.period] || "?"} power system${sc.period === 2 ? " (about 2030), with the 2035 CO₂ price" : ""}</span></span></li>`] : [];
     const rows = f ? SETTINGS.filter(([k]) => k in f || ["participation", "balancing", "rd"].includes(k)).map(([k, label, tip, words]) => {
       const v = f[k], on = k === "participation" ? v === "measured" || v === "passive" : k in SETTING_ON ? v === SETTING_ON[k] : !!v;
       return `<li class="${on ? "on" : "off"}"><span class="s-mark" aria-hidden="true">${on ? "✓" : "–"}</span><span><span class="s-name">${term(label, tip)}:</span> <span class="s-val">${esc(words(v))}</span></span></li>`;
@@ -789,9 +796,10 @@
     $("run-head").innerHTML = `
       <h2>${esc(r.name)}</h2>
       ${sc ? `<p class="scenario-flag">${icon("warn")} <b>Scenario run: ${esc(sc.label)}</b>${sc.period ? `, EMPIRE period ${esc(String(sc.period))}` : ""}${(sc.weather_years || []).length ? `, weather year ${esc(sc.weather_years.join(", "))}` : ""}. No real data to compare with; the dates follow the 2024 calendar the model uses.</p>` : ""}
+      ${replacedBy ? `<p class="scenario-flag old-flag">${icon("bad")} <b>Old run, wrong EMPIRE period:</b>&nbsp;period ${esc(String(sc.period))} is the ${EMPIRE_YEARS[sc.period] || "?"} power system (capacities, demand), here run with the 2035 CO₂ price, so it shows about a 2030 system, not 2035. Replaced by the period-3 runs:&nbsp;<button type="button" class="linkbtn" id="superseded-link">open ${esc((MANIFEST.find(m => m.id === replacedBy) || {}).name || replacedBy)}</button></p>` : ""}
       <div class="settings-box">
         <h3>Settings in this run</h3>
-        ${rows.length ? `<ul class="settings">${rows.join("")}</ul>` : `<p class="fineprint" style="margin:0">This run was published before runs recorded their settings; see the technical note below.</p>`}
+        ${rows.length || empireRow.length ? `<ul class="settings">${[...empireRow, ...rows].join("")}</ul>` : `<p class="fineprint" style="margin:0">This run was published before runs recorded their settings; see the technical note below.</p>`}
       </div>
       <dl class="facts">
         <div><dt>Period</dt><dd>${period(r.days)} · ${r.days.length} days</dd></div>
@@ -805,6 +813,8 @@
         <p>${term("Uncommitted changes", "dirty")}: ${i.dirty.length ? i.dirty.map(x => `<span class="mono">${esc(x)}</span>`).join(", ") : "none"}.
           ${i.commit_msg ? `Commit message: “${esc(i.commit_msg)}”. ` : ""}${i.reconstructed ? "This run was made before runs recorded their own info, so it was filled in by hand when it was published. " : ""}Published ${esc((r.meta.published || "").slice(0, 10))} by ${esc(r.meta.published_by || "–")}.</p>
       </details>`;
+    const sl = $("superseded-link");
+    if (sl) sl.onclick = () => selectRun(replacedBy);
   }
 
   function renderTabs(v) {

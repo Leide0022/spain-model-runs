@@ -363,7 +363,7 @@ window.RUN_MANIFEST = [
  {
   "schema": 1,
   "id": "2035-trinity-impr-year",
-  "name": "2035 Trinity, improvements, full year",
+  "name": "2035 Trinity, improvements, full year (EMPIRE period 2 ≈ 2030 system)",
   "note": "2035 with CO2 fix, CCGTs closed oldest first, gas efficiency per plant, unit commitment + minimum-income check, gas/coal mark-ups, island plants, nuclear 0.85, CHP per month; weather 2015; full year, weeks run in order (unit commitment carried over).",
   "published": "2026-10-26T10:01:18+01:00",
   "published_by": "Lars Erik Eide",
@@ -413,7 +413,8 @@ window.RUN_MANIFEST = [
    "period": 2,
    "weather_years": [
     2015
-   ]
+   ],
+   "superseded_by": "2035-trinity-p3-active"
   },
   "features": {
    "res": "accepted",
@@ -484,7 +485,7 @@ window.RUN_MANIFEST = [
  {
   "schema": 1,
   "id": "2035-trinity-impr-wk1",
-  "name": "2035 Trinity, improvements, week 1",
+  "name": "2035 Trinity, improvements, week 1 (EMPIRE period 2 ≈ 2030 system)",
   "note": "2035 with CO2 fix, CCGTs closed oldest first, gas efficiency per plant, unit commitment + minimum-income check, gas/coal mark-ups, island plants, nuclear 0.85, CHP per month; weather 2015, 1-7 Jan.",
   "published": "2026-10-23T13:54:30+02:00",
   "published_by": "Lars Erik Eide",
@@ -523,7 +524,8 @@ window.RUN_MANIFEST = [
    "period": 2,
    "weather_years": [
     2015
-   ]
+   ],
+   "superseded_by": "2035-trinity-p3-active"
   },
   "features": {
    "res": "accepted",
@@ -537,7 +539,7 @@ window.RUN_MANIFEST = [
  {
   "schema": 1,
   "id": "2035-trinity-ref-wk1",
-  "name": "2035 Trinity, reference, week 1",
+  "name": "2035 Trinity, reference, week 1 (EMPIRE period 2 ≈ 2030 system)",
   "note": "First 2035 run: EMPIRE Trinity period 2 as Ehsan shipped it, weather 2015, 1-7 Jan.",
   "published": "2026-10-23T13:15:10+02:00",
   "published_by": "Lars Erik Eide",
@@ -576,7 +578,8 @@ window.RUN_MANIFEST = [
    "period": 2,
    "weather_years": [
     2015
-   ]
+   ],
+   "superseded_by": "2035-trinity-p3-active"
   },
   "features": {
    "res": "accepted",
