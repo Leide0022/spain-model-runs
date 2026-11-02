@@ -2165,7 +2165,9 @@
     const nd = r.days.length, hourly = nd <= 3, E = k => esiosFor(r, k);
     const agg = a => hourly ? a : dailyMean(a, nd);
     const PR = [["Model, balancing (BAL)", r.price.BAL, "var(--model)", 2], ["REE, RR price", E("rr_price"), "var(--real)", 1.5],
-                ["REE, aFRR up", E("afrr_up_price"), "var(--cat-2)", 1.2], ["REE, aFRR down", E("afrr_down_price"), "var(--cat-3)", 1.2]];
+                ["REE, aFRR up", E("afrr_up_price"), "var(--cat-2)", 1.2], ["REE, aFRR down", E("afrr_down_price"), "var(--cat-3)", 1.2],
+                // mFRR has a price only in hours it was activated (~55–60 % of 2024): gaps = not activated
+                ["REE, mFRR up", E("mfrr_up_price"), "var(--cat-4)", 1.2], ["REE, mFRR down", E("mfrr_down_price"), "var(--cat-7)", 1.2]];
     $("bal-legend").innerHTML = `<span style="color:var(--muted)">${hourly ? "each hour" : "daily mean"}</span>`;
     const host = $("bal-chart");
     const ser = PR.map(([name, v, color, width]) => ({ name, values: agg(v), color, width }));
@@ -2199,19 +2201,23 @@
     const add = (...a) => a[0].map((_, i) => a.reduce((s, x) => s + (x[i] || 0), 0));
     const rUp = add(E("afrr_up"), E("mfrr_up"), E("rr_up")), rDn = add(E("afrr_down"), E("mfrr_down"), E("rr_down"));
     const unit = hourly ? "MW" : "GWh/day", ag = a => hourly ? a : dailySum(a, nd);
-    vhost.innerHTML = `<div class="rd-pair"><div><h4>Balancing up</h4><div class="chart" id="bal-up"></div></div><div><h4>Balancing down</h4><div class="chart" id="bal-down"></div></div></div>`;
-    const draw = (id, label, real, model) => {
-      const rv = ag(real), mv = ag(model);
-      lineChart($(id), {
-        n: rv.length, height: 220, yTicks: 4, yUnit: unit, label, endLabels: true,
-        xTicks: dayTicks(r.days, hourly, $(id).clientWidth - 110), onZoom: (a, b) => zoomFromChart(a, b, hourly),
-        series: [{ name: "REE", values: rv, color: "var(--real)", width: 1.5 }, { name: "Model", values: mv, color: "var(--model)", width: 2 }],
-        tooltip: i => `<b>${hourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i])}</b>
-          <div class="row"><i class="sw-line" style="background:var(--real)"></i>REE<span class="v">${nf(rv[i], hourly ? 0 : 1)} ${unit}</span></div>
-          <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model<span class="v">${nf(mv[i], hourly ? 0 : 1)} ${unit}</span></div>`,
+    // one chart: up above the x axis, down below it (down drawn negative)
+    vhost.innerHTML = `<h4>Balancing up (above 0) and down (below 0)</h4><div class="chart" id="bal-updown"></div>`;
+    const neg = a => a.map(v => v == null ? null : -Math.abs(v));
+    const dp = hourly ? 0 : 1;
+    requestAnimationFrame(() => {
+      const ser = [{ name: "REE up", values: ag(rUp), color: "var(--real)", width: 1.5 },
+                   { name: "REE down", values: neg(ag(rDn)), color: "var(--real)", width: 1.5 },
+                   { name: "Model up", values: ag(B.up), color: "var(--model)", width: 2 },
+                   { name: "Model down", values: neg(ag(B.down)), color: "var(--model)", width: 2 }];
+      lineChart($("bal-updown"), {
+        n: ser[0].values.length, height: 300, yTicks: 6, yUnit: unit, label: "Balancing up and down, REE vs model", endLabels: true,
+        xTicks: dayTicks(r.days, hourly, $("bal-updown").clientWidth - 110), onZoom: (a, b) => zoomFromChart(a, b, hourly),
+        series: ser,
+        tooltip: i => `<b>${hourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i])}</b>`
+          + ser.map(q => `<div class="row"><i class="sw-line" style="background:${q.color}"></i>${q.name}<span class="v">${nf(q.values[i] == null ? null : Math.abs(q.values[i]), dp)} ${unit}</span></div>`).join(""),
       });
-    };
-    requestAnimationFrame(() => { draw("bal-up", "Balancing up, REE vs model", rUp, B.up); draw("bal-down", "Balancing down, REE vs model", rDn, B.down); });
+    });
   }
 
   // ---------- redispatch: model vs what REE really did (e·sios) ----------
