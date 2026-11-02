@@ -97,6 +97,10 @@ th.picked .colbtn[class*="mode-"] { border-color: var(--mc); border-top-width: 4
 table.modes tr[class*="mode-"] td:first-child { border-left: 4px solid var(--mc); }
 table.modes tr[class*="mode-"] td:first-child b { color: var(--mc); }
 .detail-head h3 .mname { color: var(--mc); }
+/* embedded in index.html (settings.html?embed=1): no own header, no page padding */
+.embed .site-top { display: none; }
+.embed main { padding: 0 0 24px; max-width: none; }
+html.embed, .embed body { background: transparent; }
 /* site header (this page sits next to index.html) */
 .site-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--hair); }
 .site-top a { color: var(--ink); text-decoration: none; }
@@ -314,6 +318,7 @@ table.names tr.sep td { font-size: 11px; letter-spacing: .06em; text-transform: 
 </main>
 <div class="tip" id="tip" role="tooltip"></div>
 
+<script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add("embed");</script>
 <script src="runs/manifest.js"></script>
 <script>
 // short hover explanations: settings (by key), values (key:value), terms
@@ -613,7 +618,7 @@ function renderFullYear() {
       n++;
       const cols = FY_COLS.filter(c => !(r.scen !== "2024" && c.y24));
       const got = cols.filter(c => r.has[c.k]).length;
-      h += `<tr class="${r.oldrun ? "oldrun" : ""}"><td class="run"><b><a class="open-run" href="index.html#${encodeURIComponent(r.id)}">${esc(r.name)}</a></b><span class="old">was: ${esc(r.old)}</span></td><td>${modeChip(r.mode)}</td>` +
+      h += `<tr class="${r.oldrun ? "oldrun" : ""}"><td class="run"><b><a class="open-run" target="_top" href="index.html#${encodeURIComponent(r.id)}">${esc(r.name)}</a></b><span class="old">was: ${esc(r.old)}</span></td><td>${modeChip(r.mode)}</td>` +
         FY_COLS.map(c => r.scen !== "2024" && c.y24 ? `<td><span class="na" tabindex="0" data-tip="na">2024 only</span></td>`
           : r.has[c.k] ? `<td><span class="hasmark" tabindex="0" data-tip="${c.tip}">✓</span></td>` : `<td class="miss"><span class="missmark" tabindex="0" data-tip="${c.tip}">✗</span></td>`).join("") +
         `<td class="score">${got} / ${cols.length}<span class="bar"><i style="width:${Math.round(100 * got / cols.length)}%"></i></span></td></tr>`;
@@ -707,7 +712,7 @@ function renderDetail(v) {
       return `<li><span class="m" style="color:var(--diff-ink)">≠</span><span><span tabindex="0" data-tip="${s.key}">${esc(s.name)}</span>: <span class="chip diff" tabindex="0" data-tip="${s.key}${typeof a === "string" ? ":" + a : ""}">${esc(txt)}</span></span></li>`;
     });
     body = `
-    <div class="detail-head mode-${r.f.participation}"><h3><span class="mname">${esc(r.name)}</span> <span class="fine" style="font-size:13px">was: ${esc(r.old)}</span></h3><a class="open-run" href="index.html#${encodeURIComponent(r.id)}">Open this run →</a></div>
+    <div class="detail-head mode-${r.f.participation}"><h3><span class="mname">${esc(r.name)}</span> <span class="fine" style="font-size:13px">was: ${esc(r.old)}</span></h3><a class="open-run" target="_top" href="index.html#${encodeURIComponent(r.id)}">Open this run →</a></div>
     <p class="desc">${esc(r.why)}</p>
     <div class="cols2">
       <div><p class="h4">Differs from ${esc(m.name)}</p><ul class="slist">${diffs.join("") || `<li class="off"><span class="m">=</span><span>Nothing</span></li>`}</ul></div>
@@ -804,6 +809,11 @@ renderView(VIEWS.main); renderView(VIEWS.side); renderGuide(); renderNames();
 document.getElementById("n-side").textContent = SIDE.length;
 renderChanges(); document.getElementById("n-changes").textContent = CHANGES.length;
 renderFullYear();
+// embedded: tell index.html how tall the page is, whenever it changes (tabs, open rows)
+if (document.documentElement.classList.contains("embed") && window.parent !== window) {
+  const post = () => window.parent.postMessage({ runSettingsHeight: document.documentElement.scrollHeight }, "*");
+  new ResizeObserver(post).observe(document.body); post();
+}
 </script>
 </body>
 </html>

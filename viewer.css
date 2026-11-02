@@ -114,7 +114,8 @@ button { font: inherit; color: inherit; }
   border-radius: 8px; background: var(--surface); font-size: 14px; font-weight: 600; cursor: pointer; color: var(--ink); text-align: left; }
 .home-btn svg { color: var(--accent); }
 .home-btn:hover { background: var(--surface-2); }
-a.home-btn { color: var(--ink); text-decoration: none; box-sizing: border-box; }
+.report.settings-on > :not(#settings-view):not(#status-note) { display: none !important; }
+.settings-view iframe { display: block; width: 100%; min-height: 70vh; border: 0; background: transparent; }
 .home-btn[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
 /* the home page replaces the run report while it is open */
 .report.home-on > :not(#home):not(#status-note) { display: none !important; }
