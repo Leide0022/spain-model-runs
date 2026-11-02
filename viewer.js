@@ -1669,7 +1669,7 @@
     const rv = hourly ? real : dailyMean(real, nd);
     const n = mv.length;
     const SB = r.setter && r.setter.stages[state.priceStage];
-    const RS = state.priceStage === "DA" ? realSetterFor(r) : null;
+    const RS = realSetterFor(r, state.priceStage);
     // per hour, or the type that set the price most often that day
     const perRes = arr => hourly ? arr : [...Array(nd).keys()].map(d => {
       const c = {}; let best = -1, bn = 0;
@@ -1718,19 +1718,27 @@
   // colours follow the generation mix where the type is the same (hydro, CCGT, CHP, imports, nuclear, coal)
   const SETTER_COLOR = ["var(--cat-1)", "var(--cat-4)", "var(--cat-2)", "color-mix(in srgb, var(--cat-2) 45%, var(--surface))",
     "var(--cat-8)", "var(--cat-7)", "var(--cat-3)", "var(--cat-5)", "var(--cat-6)", "var(--muted)",
-    "color-mix(in srgb, var(--cat-7) 40%, var(--surface))"];
-  // the model's groups (publish_run.py SETTER_GROUPS) + "Demand bid", which only the real side has
+    "color-mix(in srgb, var(--cat-7) 40%, var(--surface))",
+    "color-mix(in srgb, var(--cat-3) 70%, var(--ink))", "color-mix(in srgb, var(--cat-4) 55%, var(--surface))",
+    "color-mix(in srgb, var(--cat-3) 40%, var(--surface))"];
+  // the groups (publish_run.py SETTER_GROUPS, build_price_setter.py): "Wind, solar, run-of-river" is the joint group of
+  // packages before 2 Nov 2026 and of real hours where they tie at the price; "Demand bid" and "Other renewables" are real only
   const SETTER_GROUPS = ["Hydro (water value)", "Storage", "CCGT", "Gas turbine & oil", "Coal", "Nuclear",
-    "Wind, solar, run-of-river", "CHP group", "Imports", "Shortage / unclear", "Demand bid"];
+    "Wind, solar, run-of-river", "CHP group", "Imports", "Shortage / unclear", "Demand bid",
+    "Wind", "Solar, run-of-river", "Other renewables"];
+  // the real stages with a price setter: day-ahead, and the intraday auctions IDA2 (model ID2) and IDA3 (model ID3)
+  const REAL_SETTER_STAGES = ["DA", "ID2", "ID3"];
   // the real day-ahead price setter (reference/price_setter_2024.js, OMIE bid curves) for the days shown
   const realSetDay = window.PRICE_SETTER_REAL ? Object.fromEntries(window.PRICE_SETTER_REAL.days.map((d, i) => [d, i])) : {};
-  function realSetterFor(r) {
+  function realSetterFor(r, stage = "DA") {
     const R = window.PRICE_SETTER_REAL;
-    if (!R || r.scenario) return null;
+    if (!R || r.scenario || !REAL_SETTER_STAGES.includes(stage)) return null;
+    const S = R.stages ? R.stages[stage] : stage === "DA" ? R : null;
+    if (!S) return null;
     const group = [], unit = [];
     for (const d of r.days) {
       const i = realSetDay[d];
-      for (let h = 0; h < 24; h++) { group.push(i == null ? -1 : R.group[i * 24 + h]); unit.push(i == null ? -1 : R.unit[i * 24 + h]); }
+      for (let h = 0; h < 24; h++) { group.push(i == null ? -1 : S.group[i * 24 + h]); unit.push(i == null ? -1 : S.unit[i * 24 + h]); }
     }
     return { groups: R.groups, units: R.units, group, unit };
   }
@@ -1749,14 +1757,18 @@
     const stages = r.setter ? PRICE_STAGES.filter(s => r.setter.stages[s]) : [];
     if (stages.length && !stages.includes(state.setterStage)) state.setterStage = stages[0];
     seg($("setter-stage"), (stages.length ? stages : ["DA"]).map(s => [s, s, s]), state.setterStage, v => { state.setterStage = v; renderSetter(view()); });
-    const RS = state.setterStage === "DA" ? realSetterFor(r) : null;
+    const RS = realSetterFor(r, state.setterStage);
     const hasReal = !!RS && RS.group.some(g => g >= 0);
     const S = r.setter && r.setter.stages[state.setterStage];
-    const M = S ? setterCounts(S.group, r.price[state.setterStage] || []) : null;
-    const Rl = hasReal ? setterCounts(RS.group, r.real_price) : null;
+    // the mean real price when each type set it: the day-ahead price, or the auction's own price (e·sios IDA2 / IDA3)
+    const realP = state.setterStage === "DA" ? r.real_price : (esiosFor(r, state.setterStage === "ID2" ? "ida2" : "ida3") || []);
+    // compare the same hours: for the intraday auctions only the hours that have a real price setter
+    const mGroup = S && hasReal && state.setterStage !== "DA" ? S.group.map((g, i) => RS.group[i] >= 0 ? g : -1) : S && S.group;
+    const M = S ? setterCounts(mGroup, r.price[state.setterStage] || []) : null;
+    const Rl = hasReal ? setterCounts(RS.group, realP) : null;
     if (!M && !Rl) {
       tbl.innerHTML = "";
-      note.textContent = "No price-setter data for this run and stage: the package has none (publish it again with the current publish_run.py) and the real one exists for the 2024 day-ahead only.";
+      note.textContent = "No price-setter data for this run and stage: the package has none (publish it again with the current publish_run.py) and the real one exists for the 2024 day-ahead, IDA2 and IDA3 only.";
       return;
     }
     const used = SETTER_GROUPS.map((_, g) => g).filter(g => (M && M.all[g]) || (Rl && Rl.all[g]));
@@ -1767,7 +1779,10 @@
       + [...used].sort((a, b) => key(b) - key(a)).map(g => `<tr><td><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i> ${SETTER_GROUPS[g]}</td><td>${pc(M, g)}</td>${hasReal ? `<td>${pc(Rl, g)}</td>` : ""}<td>${mp(M, g)}</td>${hasReal ? `<td>${mp(Rl, g)}</td>` : ""}</tr>`).join("")
       + `</tbody>`;
     note.textContent = `Model: the unit running between its limits whose bid equals the price; reservoir hydro, storage and imports set it when no such unit exists. `
-      + (hasReal ? `Real: from OMIE's per-unit bids, the bid at the Spanish price that was only partly matched; "Imports" = no Iberian bid at the price, so it was set elsewhere in the coupled European market; "Demand bid" = a buyer (retailer, export) set it, pumping counts as storage. ` : state.setterStage !== "DA" ? "The real price setter is known for the day-ahead (DA) only. " : "")
+      + (hasReal ? `Real: from OMIE's per-unit bids${state.setterStage === "DA" ? "" : ` in the intraday auction ${state.setterStage === "ID2" ? "IDA2" : "IDA3"} (from 14 June 2024; the model column counts the same hours)`}, the bid at the Spanish price that was only partly matched; "Imports" = no Iberian bid at the price, so it was set elsewhere in the coupled European market; "Demand bid" = a buyer (retailer, export) set it; a generator buying back counts as its own type, pumping as storage; "Wind, solar, run-of-river" = several renewable types tied at the price. `
+        : state.setterStage === "CID" ? "Real: the continuous intraday has no clearing price (each trade has its own price), so no single plant sets it. "
+        : state.setterStage === "BAL" ? "Real: REE does not publish who set the balancing prices. "
+        : state.setterStage !== "DA" ? "The real price setter is known for the day-ahead, IDA2 and IDA3, from 14 June 2024 for the auctions. " : "")
       + `Hover over the price chart for the plant hour by hour.`;
   }
 
