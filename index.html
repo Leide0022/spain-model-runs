@@ -347,7 +347,7 @@
         <div class="sec-head">
           <div>
             <h3>Balancing: the model's BAL stage vs REE's balancing markets</h3>
-            <p>The model's balancing price next to REE's balancing energy prices, and how much balancing energy REE used. Spain has no single balancing price: RR (replacement reserve) is the hourly market closest to the model's BAL stage; aFRR is the automatic reserve; mFRR (manual, called within about 15 minutes) has a price only in the hours it was used, so its lines have gaps. Below, up is drawn above the x axis and down below it.</p>
+            <p>The model's balancing price next to REE's balancing energy prices, and how much balancing energy REE used. Spain has no single balancing price, so REE's line is one number per hour: the volume-weighted mean price of all balancing energy REE used (aFRR, mFRR and RR) in the hour's main direction, up prices if more was turned up than down, else down prices. The model's price is the cost of its last MW (marginal), REE's an average over all activations, so REE's line is somewhat less extreme. Per product prices and volumes are in the table. Below, up is drawn above the x axis and down below it.</p>
           </div>
         </div>
         <div class="legend" id="bal-legend"></div>

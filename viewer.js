@@ -2164,11 +2164,23 @@
     if ($("sec-bal").hidden || !window.ESIOS) return;
     const nd = r.days.length, hourly = nd <= 3, E = k => esiosFor(r, k);
     const agg = a => hourly ? a : dailyMean(a, nd);
-    const PR = [["Model, balancing (BAL)", r.price.BAL, "var(--model)", 2], ["REE, RR price", E("rr_price"), "var(--real)", 1.5],
-                ["REE, aFRR up", E("afrr_up_price"), "var(--cat-2)", 1.2], ["REE, aFRR down", E("afrr_down_price"), "var(--cat-3)", 1.2],
-                // mFRR has a price only in hours it was activated (~55–60 % of 2024): gaps = not activated
-                ["REE, mFRR up", E("mfrr_up_price"), "var(--cat-4)", 1.2], ["REE, mFRR down", E("mfrr_down_price"), "var(--cat-7)", 1.2]];
-    $("bal-legend").innerHTML = `<span style="color:var(--muted)">${hourly ? "each hour" : "daily mean"}</span>`;
+    // REE in one number per hour, like the model's one BAL price: the volume-weighted mean price of all
+    // balancing energy REE activated (aFRR + mFRR + RR) in the hour's main direction (more up than down
+    // MWh = up prices, else down prices; RR has one price for both). Hours without priced activation: gap.
+    const PRODUCTS = [["afrr_up", "afrr_down", "afrr_up_price", "afrr_down_price"], ["mfrr_up", "mfrr_down", "mfrr_up_price", "mfrr_down_price"],
+                      ["rr_up", "rr_down", "rr_price", "rr_price"]].map(([u, d, pu, pd]) => ({ u: E(u), d: E(d), pu: E(pu), pd: E(pd) }));
+    const reeDir = [], reeW = PRODUCTS[0].u.map((_, h) => {
+      const up = PRODUCTS.reduce((t, q) => t + Math.abs(q.u[h] || 0), 0), dn = PRODUCTS.reduce((t, q) => t + Math.abs(q.d[h] || 0), 0);
+      const isUp = up >= dn; reeDir.push(up + dn > 0 ? (isUp ? "up" : "down") : null);
+      let num = 0, vol = 0;
+      for (const q of PRODUCTS) {
+        const v = Math.abs((isUp ? q.u : q.d)[h] || 0), pz = (isUp ? q.pu : q.pd)[h];
+        if (v > 0 && pz != null) { num += v * pz; vol += v; }
+      }
+      return vol > 0 ? num / vol : null;
+    });
+    const PR = [["Model, balancing (BAL)", r.price.BAL, "var(--model)", 2],
+                ["REE, balancing energy (weighted)", reeW, "var(--real)", 1.5]];
     const host = $("bal-chart");
     const ser = PR.map(([name, v, color, width]) => ({ name, values: agg(v), color, width }));
     lineChart(host, {
@@ -2176,7 +2188,7 @@
       xTicks: dayTicks(r.days, hourly, host.clientWidth - 60), onZoom: (a, b) => zoomFromChart(a, b, hourly),
       series: ser,
       tooltip: i => `<b>${hourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i]) + " (daily mean)"}</b>`
-        + ser.map(s => `<div class="row"><i class="sw-line" style="background:${s.color}"></i>${s.name}<span class="v">${nf(s.values[i])} €/MWh</span></div>`).join(""),
+        + ser.map((s, k) => `<div class="row"><i class="sw-line" style="background:${s.color}"></i>${s.name}${k === 1 && hourly && reeDir[i] ? ` (${reeDir[i]})` : ""}<span class="v">${nf(s.values[i])} €/MWh</span></div>`).join(""),
     });
     const sum = a => a ? a.reduce((s, x) => s + (x || 0), 0) / 1000 : 0;
     const sumAbs = a => a ? a.reduce((s, x) => s + Math.abs(x || 0), 0) / 1000 : 0;
