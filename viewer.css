@@ -32,7 +32,7 @@ img { max-width: 100%; }
   --mp-prov: #d6d3ca; --mp-label: #4f4c46; --mp-halo: #faf9f4; --mp-tsea: #d3e4ec; --mp-tland: #eef0e0;
   --relief-blend: multiply; --relief-op: 0.85; --soto: #c2410c; --mp-sel: #141413;
   --buy: #0f8f86; --sell: #c2410c;   /* storage: charges (buys) and discharges (sells); blue stays the model */
-  --font-ui: "Avenir Next", Avenir, "Nunito Sans", system-ui, -apple-system, "Segoe UI", sans-serif;   /* Avenir where installed (Mac); Nunito Sans (Google Fonts) is the free stand-in */
+  --font-ui: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;   /* Source Sans 3 (Google Fonts) on every system */
   --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
