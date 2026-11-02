@@ -16,9 +16,9 @@
 
   const state = { run: MANIFEST.length ? MANIFEST[0].id : null, priceStage: "DA", priceShow: { real: true, model: true }, priceRes: "hour", setterStage: "DA", tradeRes: "day", mixStage: "DA", mixRes: "hour", mixRef: "omie", zoom: null, tab: "overview", gridMode: "max", gridHour: null, gridSel: null, mapStyle: "terrain", plantSize: "cap", plantTime: "period", plantHour: null, plantSel: null, plantHidden: [], playSpeed: 2,
     gridLayers: ["hv", "lv", "trafo", "border"], gridSort: ["max", -1], gridQuery: "", gridAll: false };
-  const TABS = [["overview", "All"], ["price", "Price"], ["mix", "Generation mix"], ["trading", "Traded volume"], ["status", "Redispatch: failed hours"], ["grid", "Line loading map"], ["plants", "Power plant map"], ["esios", "Redispatch & balancing vs REE"], ["flex", "Trading margin"], ["invest", "Investment case"], ["stages", "Market stages"], ["compare", "Compare runs"]];
+  const TABS = [["overview", "All"], ["price", "Price"], ["mix", "Generation mix"], ["trading", "Traded volume"], ["balancing", "Balancing"], ["status", "Redispatch: failed hours"], ["grid", "Line loading map"], ["plants", "Power plant map"], ["esios", "Redispatch & balancing vs REE"], ["flex", "Trading margin"], ["invest", "Investment case"], ["stages", "Market stages"], ["compare", "Compare runs"]];
   // the menu: a top row of groups, and the group's own tabs in a second row (keys as in TABS and data-tabs)
-  const GROUPS = [["summary", "All", ["overview"]], ["market", "Market", ["price", "mix", "trading"]],
+  const GROUPS = [["summary", "All", ["overview"]], ["market", "Market", ["price", "mix", "trading", "balancing"]],
     ["grid", "Grid", ["status", "grid", "plants", "esios"]], ["storage", "Storage", ["flex", "invest"]],
     ["model", "Model", ["stages"]], ["compare", "Compare runs", ["compare"]]];
   const groupOf = key => GROUPS.find(g => g[2].includes(key));
@@ -64,6 +64,8 @@
     model_bal: ["Model balancing", "What the model's balancing stage moved compared with the continuous intraday schedule, summed up and down over the plants that respond (wind, solar and the fixed cross-border flows left out: their forecast change is what has to be balanced)."],
     ree_imb: ["REE net imbalance", "e·sios indicator 1338: the net imbalance of generation and demand in each hour, which REE covers with balancing energy."],
     model_imb: ["Model forecast change", "Load minus wind minus solar at the balancing stage, minus the same at the continuous intraday stage: the forecast change the model's balancing stage has to cover. It is the model's counterpart of the imbalance."],
+    led_gap: ["Caused the gap", "What wind, solar and demand missed after the last trading stage (CID): the balancing stage's value minus the CID value. Wind or solar producing less, or demand using more, leaves the system short. In the model only these three miss their plan, with one national forecast change each."],
+    led_cover: ["Covered it", "What each plant type moved in the balancing stage compared with its CID schedule: up when the system was short, down when it was long. In every hour the covers add up to the net gap."],
     rd_cost: ["Extra cost of redispatch", "What the redispatch costs on top of the market: paid for energy turned up minus what is saved or refunded for energy turned down. REE: its settled cost of technical constraints (P.O. 14.4), pay-as-bid with start-up costs. Model: marginal cost × change, with no start-ups or bids."],
     model_rd: ["Model redispatch", "The model's redispatch minus its balancing schedule, summed over all units except the fixed border flows. It includes the grid losses the copper-plate markets do not see. Failed redispatch hours have no value."],
     real_mix: ["Real generation", "OMIE's day-ahead programme per technology (the 'Energía horaria por tecnologías' report)."],
@@ -169,6 +171,7 @@
       real_mix: each(r.real_mix, sl), mix: each(r.mix, m => each(m, sl)),
       real_phys: each(r.real_phys, sl), mix_phys: each(r.mix_phys, m => each(m, sl)),
       balancing: r.balancing ? each(r.balancing, sl) : null,
+      ledger: r.ledger ? { ...r.ledger, gap: each(r.ledger.gap, sl), cover: each(r.ledger.cover, sl) } : null,
       traded: r.traded ? each(r.traded, sl) : null,
       setter: r.setter ? { ...r.setter, stages: each(r.setter.stages, st => ({ group: sl(st.group), unit: sl(st.unit) })) } : null,
       exchange: r.exchange ? each(r.exchange, sl) : null,
@@ -856,7 +859,7 @@
     const v = view();
     renderTabs(v); renderKpis(v);
     // sections that were hidden have no width yet, so draw them now that they are visible
-    renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); renderSetter(v); renderTradeCharts(v);
+    renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); renderSetter(v); renderTradeCharts(v); renderLedger(v);
     // if the page was scrolled down, jump back to the top of the new tab's content
     const headBottom = $("run-head").getBoundingClientRect().bottom;
     if (headBottom < 0) window.scrollTo({ top: window.scrollY + headBottom + 16 });
@@ -1819,6 +1822,229 @@
     $("trade-note").textContent = (scen ? "One side of each trade, as in the table. "
       : "One side of each trade, as in the table. Only hours where both model and real have a value are compared, so days before 14 June 2024 (no real IDA2/IDA3) show no IDA lines. ")
       + (hod ? "By hour of day: the mean over the days shown, in MW (= MWh per hour)." : "Drag across a chart to zoom the whole report to those days.");
+  }
+
+  // ---------- balancing ledger: who left the gap after CID, and who covered it in BAL ----------
+  // r.ledger (publish_run.py): gap per source (BAL − CID of wind, solar, load), cover per
+  // fuel:technology (BAL − CID of the responding units), the units that ever move; their hourly
+  // moves come from the month files (ledgerCache, filled in loadRun).
+  const ledgerCache = {};
+  const LED_SRC = [["wind", "Wind", "var(--cat-3)"], ["solar", "Solar", "var(--cat-4)"], ["load", "Demand", "color-mix(in srgb, var(--ink) 55%, var(--surface))"]];
+  const LED_TECH = {
+    "Gas:Combined_cycle": ["CCGT", "var(--cat-2)"], "Gas:Gas_turbine": ["Gas turbine", "color-mix(in srgb, var(--cat-2) 55%, var(--surface))"],
+    "Gas:CHP": ["Gas CHP", "var(--cat-5)"], "Oil:Combined_cycle": ["Oil", "color-mix(in srgb, var(--cat-8) 55%, var(--surface))"],
+    "Coal:Coal": ["Coal", "var(--cat-8)"], "Hydro:reservoir": ["Reservoir hydro", "var(--cat-1)"],
+    "Hydro:pumped_storage": ["Pumped storage", "color-mix(in srgb, var(--cat-1) 50%, var(--surface))"],
+    "Hydro:run_of_river": ["Run-of-river hydro", "color-mix(in srgb, var(--cat-1) 30%, var(--surface))"],
+    "Hydro:mini_hydro": ["Mini hydro", "color-mix(in srgb, var(--cat-1) 30%, var(--surface))"],
+    "Battery:Battery": ["Battery", "var(--cat-7)"], "Nuclear:Nuclear": ["Nuclear", "color-mix(in srgb, var(--cat-7) 50%, var(--surface))"],
+    "Biomass:Biomass": ["Biomass", "color-mix(in srgb, var(--cat-5) 55%, var(--surface))"],
+    "Biomass:CHP_Waste": ["Waste CHP", "color-mix(in srgb, var(--cat-5) 55%, var(--surface))"],
+  };
+  const ledTech = t => LED_TECH[t] || [t.replace(":", " · ").replace(/_/g, " "), "var(--axis)"];
+  const ledTechs = L => Object.keys(L.cover).sort((a, b) => { const k = Object.keys(LED_TECH); return (k.indexOf(a) < 0 ? 99 : k.indexOf(a)) - (k.indexOf(b) < 0 ? 99 : k.indexOf(b)); });
+  // effect on the system: wind and solar producing more = surplus (+), demand using more = shortage (−)
+  const ledEffect = (L, i) => ({ wind: L.gap.wind[i], solar: L.gap.solar[i], load: L.gap.load[i] == null ? null : -L.gap.load[i] });
+  const ledUnitName = u => u.site ? esc(u.site) : `Unit ${esc(u.code)}`;
+  const ledUnitSub = u => (u.site ? `unit ${esc(u.code)} · ` : "") + (u.bus == null ? "" : `grid node ${u.bus}`);
+  function ledgerMoves(r, g) {   // [unit index, MW] for a global hour of the run
+    const c = ledgerCache[r.id]; if (!c) return [];
+    const out = []; for (let k = c.start[g]; k < c.start[g + 1]; k++) out.push([c.u[k], c.mw[k]]); return out;
+  }
+  function buildLedgerCache(id, pkg, parts, H) {
+    if (!pkg.ledger || !parts.every(p => p && p.ledger)) return;
+    const hs = [], us = [], ms = [];
+    for (const p of parts) {
+      hs.push(Array.from(new Uint16Array(decodeB64(p.ledger.h).buffer), h => h + p.h0));
+      us.push(new Uint16Array(decodeB64(p.ledger.u).buffer)); ms.push(new Int16Array(decodeB64(p.ledger.mw).buffer));
+    }
+    const n = hs.reduce((s, a) => s + a.length, 0), u = new Uint16Array(n), mw = new Int16Array(n), start = new Uint32Array(H + 1);
+    let off = 0;
+    for (let k = 0; k < hs.length; k++) { u.set(us[k], off); mw.set(ms[k], off); for (const h of hs[k]) start[h + 1]++; off += hs[k].length; }
+    for (let h = 0; h < H; h++) start[h + 1] += start[h];
+    ledgerCache[id] = { start, u, mw };
+  }
+
+  // mirrored bars: the gap by source above its zero line, the cover by technology below its own;
+  // one scale for both. o: { n, top: [{name, color, values}], bot: [...], net, xTicks, label, unit, onPick, sel, tip }
+  function mirrorChart(host, o) {
+    host.innerHTML = "";
+    const W = Math.max(320, host.clientWidth), half = o.half || 120, gapY = 34, m = { l: 62, r: 8, t: 24, b: 22 };
+    const H = m.t + 2 * half + gapY + m.b;
+    let mx = 1;
+    for (let i = 0; i < o.n; i++) for (const band of [o.top, o.bot]) {
+      let p = 0, q = 0; for (const L of band) { const v = L.values[i]; if (v > 0) p += v; else if (v < 0) q -= v; }
+      mx = Math.max(mx, p, q);
+    }
+    const ticks = niceTicks(0, mx, 2), hi = ticks[ticks.length - 1], sc = (half / 2 - 2) / hi;
+    const z1 = m.t + half / 2, z2 = m.t + half + gapY + half / 2, pw = W - m.l - m.r, cw = pw / o.n;
+    const bw = Math.max(1, Math.min(28, cw - (cw > 6 ? 3 : 1)));
+    const s = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": o.label }, host);
+    if (o.sel != null) svg("rect", { x: m.l + o.sel * cw, y: m.t - 4, width: cw, height: 2 * half + gapY + 8, fill: "color-mix(in srgb, var(--ink) 7%, var(--surface))" }, s);
+    [[z1, "Gap after CID: ▲ too much, ▼ too little"], [z2, "Cover in BAL: ▲ plants up, ▼ plants down"]].forEach(([z, title]) => {
+      for (const t of [-hi, -hi / 2, 0, hi / 2, hi]) {
+        const y = z - t * sc;
+        svg("line", { x1: m.l, x2: m.l + pw, y1: y, y2: y, stroke: t === 0 ? "var(--axis)" : "var(--grid)" }, s);
+        const tx = svg("text", { x: m.l - 6, y: y + 4, "text-anchor": "end" }, s); tx.textContent = (t > 0 ? "+" : t < 0 ? "−" : "") + Math.abs(t).toLocaleString("en-GB");
+      }
+      const tt = svg("text", { x: m.l, y: z - half / 2 - 6, class: "y-unit" }, s); tt.textContent = title;
+    });
+    const u = svg("text", { x: 0, y: 12, class: "y-unit" }, s); u.textContent = o.unit;
+    const stack = (x, z, band, i) => {
+      let up = 0, dn = 0;
+      for (const L of band) {
+        const v = L.values[i]; if (v == null || Math.abs(v) < 1e-9) continue;
+        const h = Math.abs(v) * sc, y = v > 0 ? z - (up + v) * sc : z + dn * sc;
+        if (v > 0) up += v; else dn -= v;
+        svg("rect", { x, y: y + 0.5, width: bw, height: Math.max(0, h - 1), fill: L.color }, s);
+      }
+    };
+    for (let i = 0; i < o.n; i++) {
+      const x = m.l + i * cw + (cw - bw) / 2;
+      stack(x, z1, o.top, i); stack(x, z2, o.bot, i);
+      if (o.net && o.net[i] != null) svg("circle", { cx: x + bw / 2, cy: z1 - o.net[i] * sc, r: Math.min(4, Math.max(2, bw / 3)), fill: "var(--surface)", stroke: "var(--ink)", "stroke-width": 1.5 }, s);
+    }
+    for (const tk of o.xTicks) { const t = svg("text", { x: m.l + (tk.i + 0.5) * cw, y: H - 6, "text-anchor": "middle" }, s); t.textContent = tk.label; }
+    const tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; host.appendChild(tip);
+    const hit = svg("rect", { x: m.l, y: m.t - 4, width: pw, height: 2 * half + gapY + 8, fill: "transparent", tabindex: 0, style: "cursor:pointer" }, s);
+    const at = ev => { const b = s.getBoundingClientRect(); return Math.max(0, Math.min(o.n - 1, Math.floor(((ev.clientX - b.left) * W / b.width - m.l) / cw))); };
+    hit.addEventListener("pointermove", ev => {
+      const i = at(ev), b = s.getBoundingClientRect(), hb = host.getBoundingClientRect();
+      tip.innerHTML = o.tip(i); tip.hidden = false;
+      const left = b.left - hb.left + (m.l + (i + 0.5) * cw) * b.width / W;
+      tip.style.left = Math.max(0, Math.min(hb.width - tip.offsetWidth, left + 12)) + "px"; tip.style.top = "4px";
+    });
+    hit.addEventListener("pointerleave", () => { tip.hidden = true; });
+    if (o.onPick) {
+      hit.addEventListener("click", ev => o.onPick(at(ev)));
+      hit.addEventListener("keydown", ev => {
+        if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return;
+        ev.preventDefault(); o.onPick(Math.max(0, Math.min(o.n - 1, (o.sel ?? 0) + (ev.key === "ArrowRight" ? 1 : -1))));
+      });
+    }
+    chartTools(host, { title: o.label, unit: o.unit, legend: [...o.top, ...o.bot].map(L => ({ name: L.name, color: L.color })),
+      cols: [...o.top.map(L => ({ name: "gap: " + L.name, values: L.values })), ...o.bot.map(L => ({ name: "cover: " + L.name, values: L.values }))], x: o.x });
+  }
+
+  function renderLedger(v) {
+    const sec = $("sec-ledger"); if (!sec || sec.hidden) return;
+    const body = $("led-body"), L = v.ledger, r = run();
+    if (!L) { body.innerHTML = `<p class="pv-tbc">The balancing ledger is not in this run's package yet; publish it again with the current publish_run.py.</p>`; return; }
+    const nd = v.days.length, techs = ledTechs(L), off = v.offset * 24;
+    const sum = (a, i0, i1, f) => { let s = 0, n = 0; for (let i = i0; i < i1; i++) if (a[i] != null) { s += f(a[i]); n++; } return n ? s : null; };
+    // buckets for the period chart: days, or months when the period is long
+    const byMonth = nd > 62, buckets = [];
+    if (byMonth) { let cur = null; v.days.forEach((d, k) => { if (!cur || cur.key !== d.slice(0, 7)) { cur = { key: d.slice(0, 7), d0: k, d1: k }; buckets.push(cur); } else cur.d1 = k; }); }
+    else v.days.forEach((d, k) => buckets.push({ key: d, d0: k, d1: k }));
+    const bVal = (a, b, f = x => x) => sum(a, b.d0 * 24, (b.d1 + 1) * 24, f) == null ? null : sum(a, b.d0 * 24, (b.d1 + 1) * 24, f) / 1000;
+    const effSeries = k => k === "load" ? L.gap.load.map(x => x == null ? null : -x) : L.gap[k];
+    // the day shown hour by hour: kept while it is in the period, else the day with the largest gap
+    let dayAbs = state.ledDay;
+    if (dayAbs == null || dayAbs < v.offset || dayAbs >= v.offset + nd) {
+      let best = -1; dayAbs = v.offset;
+      for (let d = 0; d < nd; d++) { const g = sum(L.gap.load, d * 24, d * 24 + 24, x => 0) == null ? -1 : [...Array(24).keys()].reduce((s, h) => { const e = ledEffect(L, d * 24 + h); return s + Math.abs((e.wind || 0) + (e.solar || 0) + (e.load || 0)); }, 0); if (g > best) { best = g; dayAbs = v.offset + d; } }
+      state.ledDay = dayAbs; state.ledHour = null;
+    }
+    const d = dayAbs - v.offset, h0 = d * 24;
+    if (state.ledHour == null) { let best = -1; for (let h = 0; h < 24; h++) { const e = ledEffect(L, h0 + h), g = Math.abs((e.wind || 0) + (e.solar || 0) + (e.load || 0)); if (g > best) { best = g; state.ledHour = h; } } }
+    const hr = state.ledHour, scope = state.ledScope || "hour";
+
+    // totals over the period
+    const tot = LED_SRC.map(([k, name, color]) => { const e = effSeries(k); return { name, color, short: -(sum(e, 0, e.length, x => Math.min(0, x)) || 0) / 1000, long: (sum(e, 0, e.length, x => Math.max(0, x)) || 0) / 1000 }; });
+    const cov = techs.map(t => { const a = L.cover[t], [name, color] = ledTech(t); return { name, color, up: (sum(a, 0, a.length, x => Math.max(0, x)) || 0) / 1000, down: -(sum(a, 0, a.length, x => Math.min(0, x)) || 0) / 1000 }; })
+      .sort((a, b) => (b.up + b.down) - (a.up + a.down));
+    const totRow = (c, a, b) => `<tr><td><i class="sw-box" style="background:${c.color}"></i> ${c.name}</td><td>${nf(a, 1)}</td><td>${nf(b, 1)}</td><td>${nf(a + b, 1)}</td></tr>`;
+    body.innerHTML = `
+      <div class="led-cols">
+        <div class="table-wrap"><table><thead><tr><th>${term("Caused the gap", "led_gap")}</th><th>Too little, GWh</th><th>Too much, GWh</th><th>Total, GWh</th></tr></thead>
+          <tbody>${tot.map(c => totRow(c, c.short, c.long)).join("")}</tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>${term("Covered it", "led_cover")}</th><th>Up, GWh</th><th>Down, GWh</th><th>Total, GWh</th></tr></thead>
+          <tbody>${cov.map(c => totRow(c, c.up, c.down)).join("") || `<tr><td colspan="4" class="pv-tbc">No plant moved in the balancing stage.</td></tr>`}</tbody></table></div>
+      </div>
+      <h4 class="led-h">${byMonth ? "Per month" : "Per day"}, GWh <span>${byMonth ? "" : "click a day to show it hour by hour"}</span></h4>
+      <div class="chart" id="led-period"></div>
+      <div class="led-dayhead">
+        <h4 class="led-h">Hour by hour, MW</h4>
+        <div class="led-daypick"><button type="button" id="led-prev" aria-label="Previous day">‹</button><select id="led-day" aria-label="Day shown hour by hour">${v.days.map((dd, k) => `<option value="${v.offset + k}"${v.offset + k === dayAbs ? " selected" : ""}>${dayLabel(dd)} ${dd.slice(0, 4)}</option>`).join("")}</select><button type="button" id="led-next" aria-label="Next day">›</button></div>
+      </div>
+      <div class="legend" id="led-legend"></div>
+      <div class="chart" id="led-hours"></div>
+      <div class="led-detail" id="led-detail"></div>
+      <div class="sec-head led-plants-head"><div><h4 class="led-h" id="led-plants-title"></h4></div><div class="controls"><div class="seg" id="led-scope" role="group" aria-label="Period for the plant list"></div></div></div>
+      <div class="table-wrap"><table id="led-plants" class="led-plants"></table></div>
+      <p class="fineprint">Plant names come from the ENTSO-E crosswalk (reference/sites.json); other units show their model code and grid node. Wind and solar are not in this list: they caused the gap. In the model every wind (solar) unit misses its plan by the same share, so the gap is shown per source.</p>`;
+    $("led-legend").innerHTML = [...LED_SRC.map(([, n, c]) => [n, c]), ...techs.map(t => ledTech(t))].map(([n, c]) => `<span><i class="sw-box" style="background:${c}"></i>${n}</span>`).join("")
+      + `<span><i class="sw-box" style="background:var(--surface);border:1.5px solid var(--ink);border-radius:50%"></i>Net gap</span>`;
+    const pick = abs => { state.ledDay = abs; state.ledHour = null; renderLedger(view()); };
+    $("led-day").onchange = e => pick(+e.target.value);
+    $("led-prev").onclick = () => { if (dayAbs > v.offset) pick(dayAbs - 1); };
+    $("led-next").onclick = () => { if (dayAbs < v.offset + nd - 1) pick(dayAbs + 1); };
+
+    // period chart (GWh per day or month)
+    const top = LED_SRC.map(([k, name, color]) => ({ name, color, values: buckets.map(b => bVal(effSeries(k), b)) }));
+    const bot = techs.map(t => { const [name, color] = ledTech(t); return { name, color, values: buckets.map(b => bVal(L.cover[t], b)) }; });
+    const net = buckets.map((_, i) => top.reduce((s, Lr) => s + (Lr.values[i] || 0), 0));
+    const lab = b => byMonth ? MON[+b.key.slice(5, 7) - 1] + " " + b.key.slice(0, 4) : dayLabel(b.key);
+    const every = Math.max(1, Math.ceil(buckets.length / 12));
+    const tipRows = (bands, i, u, d0) => bands.map(Lr => Lr.values[i] == null || Math.abs(Lr.values[i]) < 0.05 ? "" : `<div class="row"><i class="sw-box" style="background:${Lr.color}"></i>${Lr.name}<span class="v">${signed(Lr.values[i], d0)} ${u}</span></div>`).join("");
+    requestAnimationFrame(() => mirrorChart($("led-period"), {
+      n: buckets.length, top, bot, net, half: 100, unit: "GWh", label: `Balancing gap and cover per ${byMonth ? "month" : "day"}`,
+      sel: byMonth ? null : d, xTicks: buckets.map((b, i) => ({ i, label: lab(b) })).filter((_, i) => i % every === 0),
+      x: { head: [byMonth ? "month" : "date"], at: i => [buckets[i].key] },
+      onPick: byMonth ? null : i => pick(v.offset + i),
+      tip: i => `<b>${lab(buckets[i])}</b><div class="row">Net gap<span class="v">${signed(net[i], 1)} GWh</span></div>${tipRows(top, i, "GWh", 1)}${tipRows(bot, i, "GWh", 1)}`,
+    }));
+
+    // hour chart (MW) for the picked day
+    const hTop = LED_SRC.map(([k, name, color]) => ({ name, color, values: [...Array(24).keys()].map(h => ledEffect(L, h0 + h)[k]) }));
+    const hBot = techs.map(t => { const [name, color] = ledTech(t); return { name, color, values: L.cover[t].slice(h0, h0 + 24) }; });
+    const hNet = [...Array(24).keys()].map(h => { const e = ledEffect(L, h0 + h); return e.wind == null ? null : e.wind + e.solar + e.load; });
+    requestAnimationFrame(() => mirrorChart($("led-hours"), {
+      n: 24, top: hTop, bot: hBot, net: hNet, unit: "MW", label: `Balancing gap and cover, ${dayLabel(v.days[d])} ${v.days[d].slice(0, 4)}`,
+      sel: hr, xTicks: [0, 3, 6, 9, 12, 15, 18, 21].map(h => ({ i: h, label: hh(h) })),
+      x: { head: ["date", "hour"], at: i => [v.days[d], hh(i)] },
+      onPick: h => { state.ledHour = h; renderLedger(view()); },
+      tip: i => `<b>${hh(i)}</b><div class="row">Net gap<span class="v">${signed(hNet[i], 0)} MW</span></div>${tipRows(hTop, i, "MW", 0)}${tipRows(hBot, i, "MW", 0)}`,
+    }));
+
+    // the picked hour in words and as a table
+    const e = ledEffect(L, h0 + hr), g = L.gap, i0 = h0 + hr, ng = hNet[hr];
+    const words = [];
+    if (Math.abs(g.wind[i0]) >= 1) words.push(`wind produced <b>${nf(Math.abs(g.wind[i0]), 0)} MW ${g.wind[i0] < 0 ? "less" : "more"}</b> than planned`);
+    if (Math.abs(g.solar[i0]) >= 1) words.push(`solar <b>${nf(Math.abs(g.solar[i0]), 0)} MW ${g.solar[i0] < 0 ? "less" : "more"}</b>`);
+    if (Math.abs(g.load[i0]) >= 1) words.push(`demand used <b>${nf(Math.abs(g.load[i0]), 0)} MW ${g.load[i0] > 0 ? "more" : "less"}</b>`);
+    const covH = techs.map(t => [t, L.cover[t][i0]]).filter(([, x]) => x != null && Math.abs(x) >= 1).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+    $("led-detail").innerHTML = ng == null ? `<p class="pv-tbc">No balancing result in this hour.</p>` : `
+      <p class="led-sentence"><b>${dayLabel(v.days[d])}, ${hh(hr)}</b> <span class="led-pill ${ng < 0 ? "short" : "long"}">${ng < 0 ? "system short" : "system long"} ${nf(Math.abs(ng), 0)} MW</span><br>
+      ${words.length ? "In this hour " + words.join(", ") + ". " : "No source missed its plan. "}${covH.length ? "BAL covered it with " + covH.map(([t, x]) => `${ledTech(t)[0].replace(/^[A-Z](?=[a-z])/, c => c.toLowerCase())} <b>${signed(x, 0)} MW</b>`).join(", ") + "." : "No plant moved."}</p>
+      <div class="table-wrap"><table><thead><tr><th>Who</th><th>vs plan, MW</th><th>Effect on the system</th></tr></thead><tbody>
+        ${LED_SRC.map(([k, n, c]) => `<tr><td><i class="sw-box" style="background:${c}"></i> ${n}</td><td>${signed(g[k][i0], 0)}</td><td>${Math.abs(e[k]) < 1 ? "0" : (e[k] < 0 ? "short " : "long ") + nf(Math.abs(e[k]), 0)}</td></tr>`).join("")}
+        ${covH.map(([t, x]) => { const [n, c] = ledTech(t); return `<tr><td><i class="sw-box" style="background:${c}"></i> ${n}</td><td>${signed(x, 0)}</td><td>covers</td></tr>`; }).join("")}
+      </tbody></table></div>`;
+
+    // plant by plant, for the picked hour or the whole picked day
+    seg($("led-scope"), [["hour", "This hour"], ["day", "Whole day"]], scope, s2 => { state.ledScope = s2; renderLedger(view()); });
+    const rows = new Map(), hrs = scope === "hour" ? [hr] : [...Array(24).keys()];
+    for (const h of hrs) for (const [ui, mw] of ledgerMoves(r, off + h0 + h)) {
+      const q = rows.get(ui) || { up: 0, down: 0, net: 0 }; if (mw > 0) q.up += mw; else q.down -= mw; q.net += mw; rows.set(ui, q);
+    }
+    const list = [...rows.keys()].sort((a, b) => (rows.get(b).up + rows.get(b).down) - (rows.get(a).up + rows.get(a).down));
+    const hasMoves = !!ledgerCache[r.id];
+    $("led-plants-title").textContent = scope === "hour" ? `Plants that covered the gap, ${hh(hr)} (${list.length})` : `Plants that covered the gap, whole day (${list.length})`;
+    let mxp = 1; for (const ui of list) { const q = rows.get(ui); mxp = Math.max(mxp, scope === "hour" ? Math.abs(q.net) : Math.max(q.up, q.down)); }
+    const w = x => (50 * x / mxp).toFixed(2) + "%";
+    $("led-plants").innerHTML = `<thead><tr><th>Plant</th><th class="led-type">Type</th><th>Capacity, MW</th>${scope === "hour" ? "<th>Move, MW</th><th>% of capacity</th>" : "<th>Up, MWh</th><th>Down, MWh</th>"}<th class="led-barh">Down ◂ ▸ Up</th></tr></thead><tbody>`
+      + (!hasMoves ? `<tr><td colspan="6" class="pv-tbc">The plant moves are not in this run's package yet; publish it again with the current publish_run.py.</td></tr>`
+        : !list.length ? `<tr><td colspan="6" class="pv-tbc">No plant moved.</td></tr>`
+        : list.map(ui => {
+          const u = L.units[ui], q = rows.get(ui), [tn, tc] = ledTech(u.t);
+          const bars = scope === "hour"
+            ? (q.net >= 0 ? `<span style="left:50%;width:${w(q.net)};background:${tc}"></span>` : `<span style="right:50%;width:${w(-q.net)};background:${tc};opacity:.6"></span>`)
+            : `<span style="left:50%;width:${w(q.up)};background:${tc}"></span><span style="right:50%;width:${w(q.down)};background:${tc};opacity:.6"></span>`;
+          return `<tr><td class="led-name">${ledUnitName(u)}<small>${ledUnitSub(u)}</small></td><td class="led-type"><i class="sw-box" style="background:${tc}"></i> ${tn}</td><td>${nf(u.cap, 0)}</td>`
+            + (scope === "hour" ? `<td>${signed(q.net, 0)}</td><td>${u.cap ? nf(100 * Math.abs(q.net) / u.cap, 0) + " %" : "–"}</td>` : `<td>${nf(q.up, 0)}</td><td>${nf(q.down, 0)}</td>`)
+            + `<td class="led-bar"><div class="led-track"><i></i>${bars}</div></td></tr>`;
+        }).join("")) + "</tbody>";
   }
 
   function renderMix(r) {
@@ -2902,7 +3128,7 @@
     const v = view();
     renderRunList(); renderHead(run()); renderTabs(v); renderPeriod(); renderKpis(v); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); renderStages(); renderStageOrder(run());
     $("pv-capacity").closest(".pv-block").hidden = !!run().scenario;   // 2024 capacity vs ENTSO-E: says nothing about a 2035 run
-    renderTraded(v); renderSetter(v); renderTradeCharts(v);
+    renderTraded(v); renderSetter(v); renderTradeCharts(v); renderLedger(v);
   }
 
   // ---------- loading runs ----------
@@ -2953,13 +3179,14 @@
     pkg.plants.groups.forEach((p, i) => { for (let h = 0; h < H; h++) { const v = chg[i * H + h]; if (v !== -128) maxChg = Math.max(maxChg, Math.abs(v) / 127 * p.cap); } });
     plantCache[id] = { H, out, chg, maxChg };
     realCache[id] = { H, model: join("site_model", Uint16Array, NS), real: join("site_real", Uint16Array, NS) };
+    buildLedgerCache(id, pkg, parts, H);
     const meta = MANIFEST.find(m => m.id === id) || {};
     D.runs.push({ ...pkg, name: meta.name || id, note: meta.note || "", info: runInfo(meta), meta });
     delete pending.run[id]; delete pending.months[id];
   }
   async function selectRun(id) {
     stopPlay("gh"); stopPlay("ph");
-    state.run = id; state.zoom = null; state.gridHour = null; state.gridSel = null; state.plantHour = null; state.plantSel = null;
+    state.run = id; state.zoom = null; state.ledDay = null; state.ledHour = null; state.gridHour = null; state.gridSel = null; state.plantHour = null; state.plantSel = null;
     if (!state.home) try { history.replaceState(null, "", "#" + id); } catch (e) {}
     renderRunList();
     const note = $("status-note");
@@ -3040,7 +3267,7 @@
   start();
   // Redraw the charts whenever the report column changes width (also covers the frame
   // settling to its final size after the first render, and late web-font loads).
-  const redraw = () => { if (!run()) return; const v = view(); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); renderSetter(v); renderTradeCharts(v); };
+  const redraw = () => { if (!run()) return; const v = view(); renderPrice(v); renderMix(v); renderStatus(v); renderRedispatch(v); renderBalancing(v); renderGrid(v); renderPlants(v); renderFlex(v); renderInvest(v); renderCompare(v); renderSetter(v); renderTradeCharts(v); renderLedger(v); };
   let rt, lastW = $("report").clientWidth;
   new ResizeObserver(() => {
     const w = $("report").clientWidth;

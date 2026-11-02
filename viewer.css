@@ -641,3 +641,27 @@ details.howto.more p.fineprint { margin-top: 6px; }
 
 /* "All" tab: one heading per menu group */
 .all-head { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin: 14px 0 -8px; padding-bottom: 6px; border-bottom: 2px solid var(--ink); }
+
+/* balancing ledger (Market > Balancing) */
+.led-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; }
+@media (max-width: 900px) { .led-cols { grid-template-columns: 1fr; } }
+.led-h { margin: 22px 0 6px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+.led-h span { color: var(--muted); font-weight: 400; }
+.led-dayhead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 8px 16px; }
+.led-daypick { display: inline-flex; align-items: center; gap: 4px; margin-top: 16px; }
+.led-daypick select { font: inherit; font-size: 13px; color: var(--ink); background: var(--surface-2); border: 0; border-radius: 6px; padding: 4px 6px; }
+.led-daypick button { border: 1px solid var(--hair); background: var(--surface); color: var(--ink-2); border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 16px; line-height: 1; }
+.led-detail { margin-top: 12px; display: grid; gap: 8px; }
+.led-sentence { margin: 0; max-width: 85ch; line-height: 1.6; }
+.led-pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; color: #fff; margin-left: 6px; }
+.led-pill.short { background: var(--critical); } .led-pill.long { background: var(--good); }
+.led-plants-head { margin: 18px 0 4px; align-items: center; }
+.led-plants-head .led-h { margin: 0; }
+td.led-name { font-weight: 500; white-space: normal; min-width: 12rem; }
+td.led-name small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
+th.led-barh { text-align: center; }
+.led-plants th.led-type, .led-plants td.led-type { text-align: left; }
+td.led-bar { min-width: 10rem; width: 30%; }
+.led-track { position: relative; height: 12px; background: var(--surface-2); border-radius: 2px; }
+.led-track i { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--axis); }
+.led-track span { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
