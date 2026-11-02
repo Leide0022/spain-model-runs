@@ -2192,16 +2192,28 @@
     });
     const sum = a => a ? a.reduce((s, x) => s + (x || 0), 0) / 1000 : 0;
     const sumAbs = a => a ? a.reduce((s, x) => s + Math.abs(x || 0), 0) / 1000 : 0;
+    // volume-weighted mean price: Σ |MWh| · price / Σ |MWh| over the hours with both
+    const wmean = (vol, price) => {
+      let num = 0, v = 0;
+      if (vol && price) vol.forEach((x, h) => { const q = Math.abs(x || 0); if (q > 0 && price[h] != null) { num += q * price[h]; v += q; } });
+      return v > 0 ? num / v : null;
+    };
     const V = [["aFRR (secondary)", "afrr"], ["mFRR (tertiary)", "mfrr"], ["RR (replacement)", "rr"]];
-    const rows = V.map(([l, k]) => [l, sum(E(k + "_up")), sum(E(k + "_down")), mean(E(k === "rr" ? "rr_price" : k + "_up_price"))]);
-    const ru = rows.reduce((s, x) => s + x[1], 0), rd = rows.reduce((s, x) => s + x[2], 0);
+    const pr = (k, dir) => k === "rr" ? "rr_price" : `${k}_${dir}_price`;
+    const rows = V.map(([l, k]) => ({ l, up: sum(E(k + "_up")), dn: Math.abs(sum(E(k + "_down"))),
+                                      pu: wmean(E(k + "_up"), E(pr(k, "up"))), pd: wmean(E(k + "_down"), E(pr(k, "down"))) }));
+    const ru = rows.reduce((t, x) => t + x.up, 0), rd = rows.reduce((t, x) => t + x.dn, 0);
+    // REE total: the products' prices weighted by their volumes
+    const wtot = (key, pkey) => { const w = rows.filter(x => x[pkey] != null && x[key] > 0); const v = w.reduce((t, x) => t + x[key], 0);
+                                  return v > 0 ? w.reduce((t, x) => t + x[key] * x[pkey], 0) / v : null; };
     const B = r.balancing;
     const pct = (a, b) => b ? ` <span class="pv-muted-txt">(${nf(100 * a / b, 0)} % of REE)</span>` : "";
-    $("bal-table").innerHTML = `<thead><tr><th>Balancing energy, ${nd} day${nd > 1 ? "s" : ""}</th><th>Up, GWh</th><th>Down, GWh</th><th>Mean price up, €/MWh (RR: its one price)</th></tr></thead><tbody>`
-      + rows.map(([l, u, d, pz]) => `<tr><td>REE, ${l}</td><td>${nf(u, 0)}</td><td>${nf(d, 0)}</td><td>${nf(pz, 1)}</td></tr>`).join("")
-      + `<tr class="total-row"><td>REE, total</td><td>${nf(ru, 0)}</td><td>${nf(rd, 0)}</td><td></td></tr>`
-      + (B ? `<tr class="total-row"><td>${term("Model, balancing stage", "model_bal")}</td><td>${nf(sum(B.up), 0)}${pct(sum(B.up), ru)}</td><td>${nf(sum(B.down), 0)}${pct(sum(B.down), rd)}</td><td>${nf(mean(r.price.BAL), 1)} <span class="pv-muted-txt">(BAL price)</span></td></tr>`
-           : `<tr><td colspan="4" class="pv-tbc">The model's balancing volume is not in this run's package yet; publish it again with the current publish_run.py.</td></tr>`)
+    const td = (x, d) => `<td class="num">${nf(x, d)}</td>`;
+    $("bal-table").innerHTML = `<thead><tr><th>Balancing energy, ${nd} day${nd > 1 ? "s" : ""}</th><th class="num">Up, GWh</th><th class="num">Down, GWh</th><th class="num">Price up, €/MWh</th><th class="num">Price down, €/MWh</th></tr></thead><tbody>`
+      + rows.map(x => `<tr><td>REE, ${x.l}</td>${td(x.up, 0)}${td(x.dn, 0)}${td(x.pu, 1)}${td(x.pd, 1)}</tr>`).join("")
+      + `<tr class="total-row"><td>REE, total</td>${td(ru, 0)}${td(rd, 0)}${td(wtot("up", "pu"), 1)}${td(wtot("dn", "pd"), 1)}</tr>`
+      + (B ? `<tr class="total-row"><td>${term("Model, balancing stage", "model_bal")}</td><td class="num">${nf(sum(B.up), 0)}${pct(sum(B.up), ru)}</td><td class="num">${nf(sum(B.down), 0)}${pct(sum(B.down), rd)}</td>${td(wmean(B.up, r.price.BAL), 1)}${td(wmean(B.down, r.price.BAL), 1)}</tr>`
+           : `<tr><td colspan="5" class="pv-tbc">The model's balancing volume is not in this run's package yet; publish it again with the current publish_run.py.</td></tr>`)
       + "</tbody>";
     $("imb-table").innerHTML = `<thead><tr><th>What had to be balanced, ${nd} day${nd > 1 ? "s" : ""}</th><th>Sum of hourly absolute values, GWh</th></tr></thead><tbody>`
       + `<tr><td>${term("REE, net imbalance of generation and demand", "ree_imb")}</td><td>${nf(sumAbs(E("imbalance")), 0)}</td></tr>`
@@ -2213,23 +2225,19 @@
     const add = (...a) => a[0].map((_, i) => a.reduce((s, x) => s + (x[i] || 0), 0));
     const rUp = add(E("afrr_up"), E("mfrr_up"), E("rr_up")), rDn = add(E("afrr_down"), E("mfrr_down"), E("rr_down"));
     const unit = hourly ? "MW" : "GWh/day", ag = a => hourly ? a : dailySum(a, nd);
-    // one chart: up above the x axis, down below it (down drawn negative)
-    vhost.innerHTML = `<h4>Balancing up (above 0) and down (below 0)</h4><div class="chart" id="bal-updown"></div>`;
-    const neg = a => a.map(v => v == null ? null : -Math.abs(v));
-    const dp = hourly ? 0 : 1;
-    requestAnimationFrame(() => {
-      const ser = [{ name: "REE up", values: ag(rUp), color: "var(--real)", width: 1.5 },
-                   { name: "REE down", values: neg(ag(rDn)), color: "var(--real)", width: 1.5 },
-                   { name: "Model up", values: ag(B.up), color: "var(--model)", width: 2 },
-                   { name: "Model down", values: neg(ag(B.down)), color: "var(--model)", width: 2 }];
-      lineChart($("bal-updown"), {
-        n: ser[0].values.length, height: 300, yTicks: 6, yUnit: unit, label: "Balancing up and down, REE vs model", endLabels: true,
-        xTicks: dayTicks(r.days, hourly, $("bal-updown").clientWidth - 110), onZoom: (a, b) => zoomFromChart(a, b, hourly),
-        series: ser,
-        tooltip: i => `<b>${hourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i])}</b>`
-          + ser.map(q => `<div class="row"><i class="sw-line" style="background:${q.color}"></i>${q.name}<span class="v">${nf(q.values[i] == null ? null : Math.abs(q.values[i]), dp)} ${unit}</span></div>`).join(""),
+    vhost.innerHTML = `<div class="rd-pair"><div><h4>Balancing up</h4><div class="chart" id="bal-up"></div></div><div><h4>Balancing down</h4><div class="chart" id="bal-down"></div></div></div>`;
+    const draw = (id, label, real, model) => {
+      const rv = ag(real), mv = ag(model);
+      lineChart($(id), {
+        n: rv.length, height: 220, yTicks: 4, yUnit: unit, label, endLabels: true,
+        xTicks: dayTicks(r.days, hourly, $(id).clientWidth - 110), onZoom: (a, b) => zoomFromChart(a, b, hourly),
+        series: [{ name: "REE", values: rv, color: "var(--real)", width: 1.5 }, { name: "Model", values: mv, color: "var(--model)", width: 2 }],
+        tooltip: i => `<b>${hourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i])}</b>
+          <div class="row"><i class="sw-line" style="background:var(--real)"></i>REE<span class="v">${nf(rv[i], hourly ? 0 : 1)} ${unit}</span></div>
+          <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model<span class="v">${nf(mv[i], hourly ? 0 : 1)} ${unit}</span></div>`,
       });
-    });
+    };
+    requestAnimationFrame(() => { draw("bal-up", "Balancing up, REE vs model", rUp, B.up); draw("bal-down", "Balancing down, REE vs model", rDn, B.down); });
   }
 
   // ---------- redispatch: model vs what REE really did (e·sios) ----------
