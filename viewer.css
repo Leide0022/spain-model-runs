@@ -267,6 +267,12 @@ td .tag { font-size: 11px; color: var(--muted); margin-left: 6px; }
 .ref-note { margin: 0 0 12px; padding: 8px 12px; border-radius: 6px; background: var(--note-bg); color: var(--note-ink); font-size: 13px; max-width: 110ch; }
 .ref-note b { font-weight: 600; }
 tr.total-row td { border-top: 1px solid var(--axis); font-weight: 600; }
+/* tables with a headline comparison: section labels, key rows (bold, larger), detail rows (muted) */
+tr.sect-row td { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding-top: 14px; border-bottom: 1px solid var(--axis); }
+tr.key-row td { font-weight: 600; font-size: 15px; }
+tr.key-row.model td:first-child { box-shadow: inset 3px 0 0 var(--model); }
+tr.key-row:not(.model) td:first-child { box-shadow: inset 3px 0 0 var(--real); }
+tr.sub-row td { color: var(--ink-2); font-size: 13.5px; }
 .tip table { border-collapse: collapse; width: auto; }
 .tip td, .tip th { border: 0; padding: 1px 0 1px 12px; font-size: 13.5px; text-align: right; text-transform: none; letter-spacing: 0; }
 .tip td:first-child, .tip th:first-child { padding-left: 0; text-align: left; }

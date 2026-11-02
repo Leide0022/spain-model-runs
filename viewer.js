@@ -2209,15 +2209,19 @@
     const B = r.balancing;
     const pct = (a, b) => b ? ` <span class="pv-muted-txt">(${nf(100 * a / b, 0)} % of REE)</span>` : "";
     const td = (x, d) => `<td class="num">${nf(x, d)}</td>`;
+    // totals first (model vs REE, the comparison that matters), then REE per product
+    const sect = t => `<tr class="sect-row"><td colspan="5">${t}</td></tr>`;
     $("bal-table").innerHTML = `<thead><tr><th>Balancing energy, ${nd} day${nd > 1 ? "s" : ""}</th><th class="num">Up, GWh</th><th class="num">Down, GWh</th><th class="num">Price up, €/MWh</th><th class="num">Price down, €/MWh</th></tr></thead><tbody>`
-      + rows.map(x => `<tr><td>REE, ${x.l}</td>${td(x.up, 0)}${td(x.dn, 0)}${td(x.pu, 1)}${td(x.pd, 1)}</tr>`).join("")
-      + `<tr class="total-row"><td>REE, total</td>${td(ru, 0)}${td(rd, 0)}${td(wtot("up", "pu"), 1)}${td(wtot("dn", "pd"), 1)}</tr>`
-      + (B ? `<tr class="total-row"><td>${term("Model, balancing stage", "model_bal")}</td><td class="num">${nf(sum(B.up), 0)}${pct(sum(B.up), ru)}</td><td class="num">${nf(sum(B.down), 0)}${pct(sum(B.down), rd)}</td>`
+      + sect("Totals: model vs REE")
+      + `<tr class="key-row"><td>REE, all balancing (aFRR + mFRR + RR)</td>${td(ru, 0)}${td(rd, 0)}${td(wtot("up", "pu"), 1)}${td(wtot("dn", "pd"), 1)}</tr>`
+      + (B ? `<tr class="key-row model"><td>${term("Model, balancing stage", "model_bal")}</td><td class="num">${nf(sum(B.up), 0)}${pct(sum(B.up), ru)}</td><td class="num">${nf(sum(B.down), 0)}${pct(sum(B.down), rd)}</td>`
              + `<td class="num">${nf(wmean(B.up, r.price.BAL), 1)} <span class="pv-muted-txt">(hours turned up)</span></td>`
              + `<td class="num">${nf(wmean(B.down, r.price.BAL), 1)} <span class="pv-muted-txt">(hours turned down)</span></td></tr>`
              // the model has one BAL price per hour for both directions; REE has an up and a down price
              + `<tr><td colspan="5" class="pv-tbc">The model has <b>one</b> balancing price per hour, for both directions: its two price cells are that same price, averaged over the hours it turned plants up or down (weighted by MWh). REE has separate up and down prices.</td></tr>`
            : `<tr><td colspan="5" class="pv-tbc">The model's balancing volume is not in this run's package yet; publish it again with the current publish_run.py.</td></tr>`)
+      + sect("REE by product")
+      + rows.map(x => `<tr class="sub-row"><td>${x.l}</td>${td(x.up, 0)}${td(x.dn, 0)}${td(x.pu, 1)}${td(x.pd, 1)}</tr>`).join("")
       + "</tbody>";
     $("imb-table").innerHTML = `<thead><tr><th>What had to be balanced, ${nd} day${nd > 1 ? "s" : ""}</th><th>Sum of hourly absolute values, GWh</th></tr></thead><tbody>`
       + `<tr><td>${term("REE, net imbalance of generation and demand", "ree_imb")}</td><td>${nf(sumAbs(E("imbalance")), 0)}</td></tr>`
