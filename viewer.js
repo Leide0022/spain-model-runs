@@ -133,6 +133,9 @@
     f_bal: ["Balancing", "Which units may change their output in the balancing stage. Qualified: only those REE has qualified for balancing services, plus batteries (model change §23)."],
     f_pump: ["Pumped-storage load", "OMIE's 2024 load already contains the real pumping. Taking it out lets the model decide when to pump without counting the same pumping twice (model change §24)."],
     f_pumplim: ["Pumping power", "How much power a pumped-storage plant can draw when it pumps. Real pumps are smaller than the turbines; the per-plant figures come from the JRC Hydro-power database, checked against Iberdrola and OMIE bids (model change §24)."],
+    f_topup: ["Extra hydro when short", "If an intraday market or balancing runs short (the 1000 €/MWh emergency supply is needed), the day's hydro budget is raised by the missing energy and the market solved again. Real reservoirs hold weeks of water; REE calls extra hydro when short."],
+    f_idstart: ["Intraday starts", "Gas and coal units that are off after the day-ahead may start in ID2 and ID3 if the start pays at that auction's prices, like OMIE's intraday block orders. CID and balancing still cannot start units."],
+    f_bess: ["Batteries", "The 2035 batteries with a round-trip efficiency, a wear cost per MWh discharged and a usable range, instead of lossless and free. Each day still starts and ends half full."],
     f_rd: ["Redispatch", "How the grid stage fixes the market schedule. AC: one power-flow solve per hour at marginal cost. The REE way: REE's phases I and II with bids, as in P.O. 3.2 (model change §20)."],
   };
   const term = (label, key) => `<span class="term" tabindex="0" data-tip="${key}">${label}</span>`;
@@ -782,6 +785,9 @@
     ["balancing", "Balancing", "f_bal", v => v === "qualified" ? "Only units qualified for balancing (REE's list, plus batteries)" : "Every unit can balance"],
     ["pumping", "Pumped-storage load", "f_pump", v => v ? "Real 2024 pumping taken out of the load; the model pumps itself" : "Kept in the load as in OMIE's data"],
     ["pump_limits", "Pumping power", "f_pumplim", v => v ? "Each plant's own pumping power (JRC Hydro-power database, 5.1 GW in all)" : "Plants pump at their full turbine power (8.2 GW in all)"],
+    ["hydro_topup", "Extra hydro when short", "f_topup", v => v ? "On: a short market gets the missing energy as extra hydro instead of the 1000 €/MWh emergency supply" : "Off: the emergency supply (1000 €/MWh) covers shortages"],
+    ["intraday_starts", "Intraday starts", "f_idstart", v => v ? "On: units may start in ID2 and ID3 if the start pays" : "Off: only the day-ahead starts units"],
+    ["bess", "Batteries", "f_bess", v => v ? `On: round trip ${Math.round(100 * v.eff)} %, wear ${v.wear} €/MWh discharged, usable ${Math.round(100 * v.soc[0])}–${Math.round(100 * v.soc[1])} %` : "Lossless and free to cycle (as before)"],
     ["rd", "Redispatch", "f_rd", v => v === "ree" ? "The REE way: phases I and II, pay-as-bid (model change §20)" : "AC power flow at marginal cost"],
   ];
   // a setting counts as switched on when it differs from the original model
@@ -792,7 +798,7 @@
     const EMPIRE_YEARS = { 1: "2020–25", 2: "2025–30", 3: "2030–35" };
     const replacedBy = r.meta && r.meta.scenario && r.meta.scenario.superseded_by;   // set in the run list (manifest), not in the package
     const empireRow = sc && sc.period != null ? [`<li class="${sc.period === 3 ? "on" : "off"}"><span class="s-mark" aria-hidden="true">${sc.period === 3 ? "✓" : "–"}</span><span><span class="s-name">${term("EMPIRE period", "f_empire")}:</span> <span class="s-val">${esc(String(sc.period))}, the ${EMPIRE_YEARS[sc.period] || "?"} power system${sc.period === 2 ? " (about 2030), with the 2035 CO₂ price" : ""}</span></span></li>`] : [];
-    const rows = f ? SETTINGS.filter(([k]) => k in f || ["participation", "balancing", "rd"].includes(k)).map(([k, label, tip, words]) => {
+    const rows = f ? SETTINGS.filter(([k]) => (k in f || ["participation", "balancing", "rd"].includes(k)) && (k !== "bess" || sc)).map(([k, label, tip, words]) => {
       const v = f[k], on = k === "participation" ? v === "measured" || v === "passive" : k in SETTING_ON ? v === SETTING_ON[k] : !!v;
       return `<li class="${on ? "on" : "off"}"><span class="s-mark" aria-hidden="true">${on ? "✓" : "–"}</span><span><span class="s-name">${term(label, tip)}:</span> <span class="s-val">${esc(words(v))}</span></span></li>`;
     }) : [];

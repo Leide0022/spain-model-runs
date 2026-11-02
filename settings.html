@@ -339,6 +339,7 @@ const TIP = {
   hydro: "Hydro plans its water from real 2024 reservoir levels.",
   pump_limits: "Each pumped-storage plant pumps at its real pumping power.",
   hydro_topup: "If the system runs short, hydro may use extra water instead of the 1000 €/MWh emergency supply.",
+  bess: "Batteries lose 15 % per cycle, pay a wear cost per MWh and use their full size, instead of being lossless and free.",
   participation: "How much of each forecast change is traded in the intraday markets. The rest goes to balancing.",
   "participation:active": "Every forecast change is traded in the intraday markets.",
   "participation:measured_all": "Only the share seen in real 2024 data is traded; the rest goes to balancing.",
@@ -351,6 +352,7 @@ const TIP = {
   "rd:ree": "As REE does it: phases I and II, plants paid what they bid. Placeholder: not in the model yet.",
   "rd:ac": "The cheapest fix of grid limits, at the plants' costs.",
   on: "On in this run.", off: "Off in this run.", na: "Only exists for 2024 data, so it does not apply to 2035.",
+  na35: "Only the 2035 systems have batteries, so it does not apply to 2024.",
   placeholder: "Not in the model yet: it waits for Magnus's redispatch code.",
   ID2: "Intraday auction 2 in the model = real IDA1 + IDA2, the afternoon before.",
   ID3: "Intraday auction 3 = real IDA3, on the day itself, hours 12–23 only.",
@@ -385,6 +387,9 @@ const SETTINGS = [
   { key: "hydro_topup", group: "Hydro and storage", name: "Extra hydro when the system runs short", sec: "new, 2 Nov", sw: "HYDROTOPUP=on", def: "off",
     what: "If an intraday market or balancing runs short (the 1000 €/MWh emergency supply is needed), the day's hydro budget is raised by the missing energy and the market solved again. Real reservoirs hold weeks of water, and REE calls extra hydro when short.",
     more: "Tests: removes all 1000 €/MWh hours on 20 May and 11 Dec 2024, with at most 10 GWh extra water a day. Normal days are unchanged." },
+  { key: "bess", group: "Hydro and storage", name: "Batteries with losses and wear", sec: "new, 2 Nov", sw: "BESS=on", def: "off", y35: true,
+    what: "The 2035 batteries (EMPIRE: 2-hour Li-ion, 6.4 GW Trinity, 25 GW NECP) get a round-trip efficiency of 85 %, a wear cost of 10 €/MWh discharged and use 0–100 % of their size. Off, they are lossless and free to cycle. Each day still starts and ends half full.",
+    more: "Sources: NREL Annual Technology Baseline (85 %), Xu et al. 2018 (wear cost in market bids), Rystad 2026 (battery cell and block costs). Sensitivities: BESSEFF, BESSWEAR, BESSSOC. On branch batteries-2035, not in main yet." },
   { key: "participation", group: "Trading", name: "Intraday trading mode", sec: "§23", sw: "PARTICIPATION=active | measured_all | passive   (old: measured)", def: "Active",
     vals: MODES, on: v => v !== "active", modes: true,
     what: "How much of each forecast change (demand, wind, solar) is traded in the intraday markets. What is not traded is left to balancing.",
@@ -405,8 +410,8 @@ const FIXED = [
 ];
 
 // main runs: everything on; only system and trading mode change
-const MAIN24 = { res: "offered", pumping: true, gas: true, markup: true, intraday_starts: true, hydro: true, pump_limits: true, hydro_topup: true, balancing: "qualified", rd: "ree" };
-const MAIN35 = { res: null, pumping: null, gas: true, markup: true, intraday_starts: true, hydro: null, pump_limits: null, hydro_topup: true, balancing: "qualified", rd: "ree" };
+const MAIN24 = { res: "offered", pumping: true, gas: true, markup: true, intraday_starts: true, hydro: true, pump_limits: true, hydro_topup: true, bess: null, balancing: "qualified", rd: "ree" };
+const MAIN35 = { res: null, pumping: null, gas: true, markup: true, intraday_starts: true, hydro: null, pump_limits: null, hydro_topup: true, bess: false, balancing: "qualified", rd: "ree" };   // bess: not decided yet
 const MDESC = {
   active: "every forecast change is traded in the intraday markets (PowerVision's active case).",
   measured_all: "each intraday market trades only its measured share of the forecast change; the rest goes to balancing.",
@@ -453,7 +458,7 @@ function fromManifest(m) {
   return { id: m.id, name: t[0], short: t[1], why: t[2], old: m.name, scen, superseded: !!(m.scenario && m.scenario.superseded_by), n_days: m.n_days,
     f: { res: y24 ? ft.res || "accepted" : null, pumping: y24 ? !!ft.pumping : null, gas: !!ft.gas, markup: !!ft.markup,
          intraday_starts: !!ft.intraday_starts, hydro: y24 ? !!ft.hydro : null, pump_limits: y24 ? !!ft.pump_limits : null,
-         hydro_topup: !!ft.hydro_topup, balancing: ft.balancing || "all", rd: ft.rd || "ac", participation: ft.participation || "active",
+         hydro_topup: !!ft.hydro_topup, bess: y24 ? null : !!ft.bess, balancing: ft.balancing || "all", rd: ft.rd || "ac", participation: ft.participation || "active",
          chain: ft.chain === "day", days366: m.n_days >= 366 } };
 }
 const BY_ID = Object.fromEntries(MANIFEST.map(m => [m.id, fromManifest(m)]));
@@ -534,6 +539,8 @@ const CHANGES = [
     what: "Pumping power per plant from the JRC Hydro-power database: 5.1 GW in all, instead of pumping at full turbine power (8.2 GW)." },
   { area: "Pumped storage", name: "Pumped storage keeps water across days", short: "Experiment: tested, made prices worse, not used.", st: "dropped", sec: "§25", since: "28 Oct",
     what: "Pumped storage carried its water to the next day. On 27 Feb it raised the day-ahead price from 14 to 32 €/MWh (real 4), so it was dropped. Kept as tag archive/pumping-out-of-load-incl-carry." },
+  { area: "Batteries", name: "Batteries with losses and wear", short: "2035 batteries lose 15 % per cycle and pay 10 €/MWh wear.", st: "branch", sw: "BESS=on", sec: "new", since: "2 Nov",
+    what: "The 2035 Li-ion batteries get a round-trip efficiency of 85 % (NREL ATB), a wear cost of 10 €/MWh discharged (Xu et al. 2018; Rystad 2026 costs) and a usable range of 0–100 %. Each day still starts and ends half full. On branch batteries-2035; a one-week NECP test is running." },
 
   { area: "Grid and redispatch", name: "Border split chosen by the redispatch", short: "Fixes most failed grid hours at the French border.", st: "always", sec: "§11", since: "7 Oct",
     what: "The redispatch chooses how the exchange with France and Portugal splits over the border lines. Before, a 240 MW transformer limit at the French border made about 12 % of hours fail." },
@@ -636,7 +643,7 @@ function label(key, v) { const s = setting(key); return s.vals ? s.vals[v] || v 
 function cell(key, run) {
   if (key === "scenario") return `<span class="chip${run.scen === "2024" ? "" : " scen"}" tabindex="0" data-tip="scenario:${run.scen}">${run.scen}</span>`;
   const v = run.f[key];
-  if (v === null || v === undefined) return `<span class="na" tabindex="0" data-tip="na">2024 only</span>`;
+  if (v === null || v === undefined) return setting(key) && setting(key).y35 ? `<span class="na" tabindex="0" data-tip="na35">2035 only</span>` : `<span class="na" tabindex="0" data-tip="na">2024 only</span>`;
   if (key === "participation") return modeChip(v);
   const todo = setting(key).todo && isOn(key, v) ? " todo" : "";
   if (typeof v === "string") return `<span class="chip${todo || (isOn(key, v) ? " on" : "")}" tabindex="0" data-tip="${key}:${v}">${esc(label(key, v))}</span>`;
@@ -653,6 +660,7 @@ function startLine(run) {
   }
   if (f.intraday_starts) p.push("IDSTARTS=on");
   if (f.hydro_topup) p.push("HYDROTOPUP=on");
+  if (f.bess) p.push("BESS=on");
   if (f.participation !== "active") p.push("PARTICIPATION=" + f.participation);
   if (f.balancing === "qualified") p.push("BALANCING=qualified");
   if (f.rd === "ree") p.push("REDISPATCH=ree");
@@ -739,7 +747,7 @@ function modesTable() {
 }
 function renderGuide() {
   const groups = [...new Set(SETTINGS.map(s => s.group))];
-  const mainUse = s => s.key === "scenario" || s.key === "participation" ? "differs per run" : s.y24 ? "on in the three 2024 runs (2024 only)" : "on in all nine";
+  const mainUse = s => s.key === "scenario" || s.key === "participation" ? "differs per run" : s.y24 ? "on in the three 2024 runs (2024 only)" : s.key === "bess" ? "not decided for the main runs yet (2035 only)" : "on in all nine";
   let h = "";
   for (const g of groups) {
     h += `<div class="sgroup"><h3>${esc(g)}</h3><div class="rows">` + SETTINGS.filter(s => s.group === g).map(s => `
