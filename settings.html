@@ -174,10 +174,14 @@ table.side td.why { color: var(--ink-2); font-size: 13.5px; max-width: 34ch; }
 .gcard dd { margin: 0; }
 .gcard.fixed { background: var(--surface-2); }
 .modes-wrap { overflow-x: auto; }
-table.modes { border-collapse: collapse; font-size: 13.5px; width: 100%; min-width: 640px; }
+table.modes { border-collapse: collapse; font-size: 13.5px; width: 100%; min-width: 760px; }
 table.modes th, table.modes td { padding: 6px 10px; border-bottom: 1px solid var(--hair); text-align: left; vertical-align: top; }
 table.modes th { font-size: 12px; color: var(--muted); font-weight: 600; }
 table.modes td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.modes th.grp { text-align: center; border-left: 1px solid var(--hair); }
+table.modes tr.sub th { font-weight: 500; font-size: 11.5px; }
+table.modes th.num, table.modes td.num { text-align: center; }
+table.modes .g0 { border-left: 1px solid var(--hair); }
 @media (prefers-reduced-motion: reduce) { .gcard { transition: none; } }
 
 /* all settings: one row per setting, click to expand */
@@ -738,12 +742,21 @@ function renderDetail(v) {
 }
 function renderView(v) { renderGrid(v); renderDetail(v); }
 function modesTable() {
-  return `<div class="modes-wrap"><table class="modes"><thead><tr><th>Mode</th><th>What happens</th><th><span data-tip="ID2" tabindex="0">ID2</span> <span data-tip="alpha" tabindex="0">α</span></th><th><span data-tip="ID3" tabindex="0">ID3</span> α</th><th><span data-tip="CID" tabindex="0">CID</span> α</th><th>Switch</th></tr></thead><tbody>
-    <tr class="mode-active"><td><b data-tip="participation:active" tabindex="0">Active</b></td><td>Every forecast change is traded in every intraday market</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td><code>active</code> (default)</td></tr>
-    <tr class="mode-measured_all"><td><b data-tip="participation:measured_all" tabindex="0">Partial</b></td><td>Every intraday market trades its measured share; the rest goes to balancing</td><td class="num">0.32 / 0.22 / 0.13</td><td class="num">0.07 / 0.15 / 0.10</td><td class="num">0.07 / 0.07 / 0.06</td><td><code>measured_all</code></td></tr>
-    <tr class="mode-passive"><td><b data-tip="participation:passive" tabindex="0">Passive</b></td><td>Nothing is traded after the day-ahead; all goes to balancing</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td><code>passive</code></td></tr>
-    <tr class="mode-measured"><td><b data-tip="participation:measured" tabindex="0">Partial CID</b> <span class="fine">(side runs)</span></td><td>Auctions as Active; only CID trades its measured share</td><td class="num">1</td><td class="num">1</td><td class="num">0.07 / 0.07 / 0.06</td><td><code>measured</code></td></tr>
-  </tbody></table></div><p class="fine">α = share of the forecast change that is traded, for demand / wind / solar. ID3 trades hours 12–23 only.</p>`;
+  // α per market and source: demand / wind / solar each get their own column
+  const SRC = ["Demand", "Wind", "Solar"];
+  const group = m => `<th colspan="3" class="grp"><span data-tip="${m}" tabindex="0">${m}</span> <span data-tip="alpha" tabindex="0">α</span></th>`;
+  const vals = a => a.map((x, k) => `<td class="num${k === 0 ? " g0" : ""}">${x === 0 || x === 1 ? x : x.toFixed(2)}</td>`).join("");
+  const row = (cls, mode, what, id2, id3, cid, sw) =>
+    `<tr class="${cls}"><td>${mode}</td><td>${what}</td>${vals(id2)}${vals(id3)}${vals(cid)}<td>${sw}</td></tr>`;
+  const ONE = [1, 1, 1], ZERO = [0, 0, 0], CIDM = [0.07, 0.07, 0.06];
+  return `<div class="modes-wrap"><table class="modes"><thead>
+    <tr><th rowspan="2">Mode</th><th rowspan="2">What happens</th>${group("ID2")}${group("ID3")}${group("CID")}<th rowspan="2">Switch</th></tr>
+    <tr class="sub">${[0, 1, 2].map(() => SRC.map((x, k) => `<th class="num${k === 0 ? " g0" : ""}">${x}</th>`).join("")).join("")}</tr></thead><tbody>
+    ${row("mode-active", `<b data-tip="participation:active" tabindex="0">Active</b>`, "Every forecast change is traded in every intraday market", ONE, ONE, ONE, `<code>active</code> (default)`)}
+    ${row("mode-measured_all", `<b data-tip="participation:measured_all" tabindex="0">Partial</b>`, "Every intraday market trades its measured share; the rest goes to balancing", [0.32, 0.22, 0.13], [0.07, 0.15, 0.10], CIDM, `<code>measured_all</code>`)}
+    ${row("mode-passive", `<b data-tip="participation:passive" tabindex="0">Passive</b>`, "Nothing is traded after the day-ahead; all goes to balancing", ZERO, ZERO, ZERO, `<code>passive</code>`)}
+    ${row("mode-measured", `<b data-tip="participation:measured" tabindex="0">Partial CID</b> <span class="fine">(side runs)</span>`, "Auctions as Active; only CID trades its measured share", ONE, ONE, CIDM, `<code>measured</code>`)}
+  </tbody></table></div><p class="fine">α = the share of each source's forecast change that is traded in that market, measured separately for demand, wind and solar from REE's 2024 schedules. ID3 trades hours 12–23 only.</p>`;
 }
 function renderGuide() {
   const groups = [...new Set(SETTINGS.map(s => s.group))];
