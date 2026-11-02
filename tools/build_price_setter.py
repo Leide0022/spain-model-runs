@@ -25,7 +25,8 @@ YEAR = 2024
 # same order as the model packages (publish_run.py SETTER_GROUPS) + demand
 GROUPS = ["Hydro (water value)", "Storage", "CCGT", "Gas turbine & oil", "Coal", "Nuclear",
           "Wind, solar, run-of-river", "CHP group", "Imports", "Shortage / unclear", "Demand bid",
-          "Wind", "Solar, run-of-river", "Other renewables", "Generator buy-back"]
+          "Wind", "Solar, run-of-river", "Other renewables", "Generator buy-back",
+          "Pumped storage, generating", "Pumped storage, pumping", "Battery, discharging", "Battery, charging"]
 IDA_OF = {"ID2": 2, "ID3": 3}   # model stage -> IDA session
 
 
