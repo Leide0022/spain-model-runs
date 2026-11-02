@@ -759,7 +759,7 @@
         b.title = m.name;
         b.innerHTML = `<span class="ri-name">${esc(m.name)}</span>
           <span class="ri-meta"><span>${period([m.first_day, m.last_day])}</span><span>${nf(pct, 0)} % solved</span></span>`;
-        b.addEventListener("click", () => { const wasHome = state.home; showHome(false); if (m.id !== state.run || !run()) selectRun(m.id); else if (wasHome) renderAll(); });
+        b.addEventListener("click", () => { const wasHome = state.home || state.settings; showHome(false); if (m.id !== state.run || !run()) selectRun(m.id); else if (wasHome) renderAll(); });
         list.appendChild(b);
       }
       det.appendChild(list); host.appendChild(det);
@@ -3187,7 +3187,7 @@
   async function selectRun(id) {
     stopPlay("gh"); stopPlay("ph");
     state.run = id; state.zoom = null; state.ledDay = null; state.ledHour = null; state.gridHour = null; state.gridSel = null; state.plantHour = null; state.plantSel = null;
-    if (!state.home) try { history.replaceState(null, "", "#" + id); } catch (e) {}
+    if (!state.home && !state.settings) try { history.replaceState(null, "", "#" + id); } catch (e) {}
     renderRunList();
     const note = $("status-note");
     note.hidden = false; note.textContent = "Loading the run …";
@@ -3238,7 +3238,23 @@
   }
   // ---------- home page: what the project and the site are; shown first when the link names no run ----------
   state.home = !location.hash || location.hash === "#home";
+  // ---------- run settings page (settings.html) shown in the report column, so the run list stays ----------
+  state.settings = location.hash === "#run-settings";
+  function showSettings(on) {
+    state.settings = on;
+    $("report").classList.toggle("settings-on", on);
+    $("settings-view").hidden = !on;
+    $("settings-btn").setAttribute("aria-pressed", String(on));
+    if (on) {
+      state.home = false; $("report").classList.remove("home-on"); $("home").hidden = true; $("home-btn").setAttribute("aria-pressed", "false");
+      const f = $("settings-frame"); if (!f.getAttribute("src")) f.setAttribute("src", "settings.html?embed=1");
+      try { history.replaceState(null, "", "#run-settings"); } catch (e) {} window.scrollTo({ top: 0 });
+    }
+  }
+  // the page reports its height, so the frame grows with it (no scrollbar inside the report)
+  window.addEventListener("message", e => { if (e.data && e.data.runSettingsHeight) $("settings-frame").style.height = e.data.runSettingsHeight + "px"; });
   function showHome(on) {
+    if (state.settings) showSettings(false);
     state.home = on;
     $("report").classList.toggle("home-on", on);
     $("home").hidden = !on;
@@ -3248,7 +3264,10 @@
   }
   function start() {
     $("home-btn").addEventListener("click", () => showHome(true));
+    $("settings-btn").addEventListener("click", () => showSettings(true));
+    const wantSettings = state.settings;
     showHome(state.home);
+    if (wantSettings) showSettings(true);
     orderSections();
     foldExplanations();
     // the mix section's note on how the model is grouped sits inside its "How to read this"

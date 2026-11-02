@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run settings · Spanish Power Market Model</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Nunito+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Same tokens as the results website (viewer.css). Layout: website top bar, then the "Settings" view with
+   four tabs: Main runs (9 thesis runs, grid → picked run) · Side runs (checks, "differs from main") ·
+   All settings (guide) · Old names. */
+:root {
+  --page: #f4f4f1; --surface: #fcfcfb; --surface-2: #ecebe6; --ink: #141413; --ink-2: #52514e; --muted: #66645e;
+  --hair: rgba(11,11,11,0.10); --model: #0097a7; --accent: #2a78d6; --good: #0c7a0c; --critical: #d03b3b;
+  --note-bg: #fbf1d9; --note-ink: #6b4a00; --sel-bg: #141413; --sel-ink: #fcfcfb;
+  --on-bg: #dff1f3; --off-ink: #a3a19a; --scen-bg: #ece7f8; --scen-ink: #4a3aa7; --diff-bg: #fbe4ee; --diff-ink: #a3365f;
+  --m-active: #2a78d6; --m-active-bg: #e3eefb; --m-partial: #b57a00; --m-partial-bg: #fbf0d6; --m-passive: #4a3aa7; --m-passive-bg: #ece9f8;
+  --font-ui: "Avenir Next", Avenir, "Nunito Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #0f0f0e; --surface: #1a1a19; --surface-2: #262624; --ink: #f2f1ec; --ink-2: #c3c2b7; --muted: #a3a19a;
+    --hair: rgba(255,255,255,0.10); --model: #26c6da; --accent: #3987e5; --good: #0ca30c;
+    --note-bg: #33290f; --note-ink: #f0c96e; --sel-bg: #f2f1ec; --sel-ink: #141413;
+    --on-bg: #103a40; --off-ink: #6b6a64; --scen-bg: #2a2448; --scen-ink: #b9b0f2; --diff-bg: #3a1a28; --diff-ink: #f09ab9; --m-active: #6aa6f0; --m-active-bg: #16273d; --m-partial: #f0b93a; --m-partial-bg: #33280c; --m-passive: #a99ff0; --m-passive-bg: #241f3d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #0f0f0e; --surface: #1a1a19; --surface-2: #262624; --ink: #f2f1ec; --ink-2: #c3c2b7; --muted: #a3a19a;
+  --hair: rgba(255,255,255,0.10); --model: #26c6da; --accent: #3987e5; --good: #0ca30c;
+  --note-bg: #33290f; --note-ink: #f0c96e; --sel-bg: #f2f1ec; --sel-ink: #141413;
+  --on-bg: #103a40; --off-ink: #6b6a64; --scen-bg: #2a2448; --scen-ink: #b9b0f2; --diff-bg: #3a1a28; --diff-ink: #f09ab9; --m-active: #6aa6f0; --m-active-bg: #16273d; --m-partial: #f0b93a; --m-partial-bg: #33280c; --m-passive: #a99ff0; --m-passive-bg: #241f3d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--page); color: var(--ink); font: 15px/1.5 var(--font-ui); }
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+
+main { max-width: 1800px; margin: 0 auto; padding: 24px 16px 60px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
+.intro h1 { font-size: 26px; }
+.intro p { color: var(--ink-2); margin: 6px 0 0; }
+.subtabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--hair); }
+.subtabs button { border: 0; background: none; padding: 8px 14px; cursor: pointer; color: var(--ink-2); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.subtabs button .n { font-weight: 500; color: var(--muted); font-size: 12.5px; margin-left: 4px; }
+.subtabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--model); }
+.subtabs button:hover { color: var(--accent); }
+.panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.lead { color: var(--ink-2); margin: 0; font-size: 14px; }
+.card { background: var(--surface); border: 1px solid var(--hair); border-radius: 10px; }
+
+/* main-runs grid */
+.grid-wrap { overflow-x: auto; }
+table.runs { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 720px; font-size: 13.5px; }
+table.runs th, table.runs td { padding: 7px 8px; border-bottom: 1px solid var(--hair); text-align: center; vertical-align: middle; }
+table.runs thead th { vertical-align: bottom; font-weight: 600; }
+table.runs thead tr.sys th { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-2); border-bottom: 2px solid var(--hair); padding-bottom: 4px; }
+table.runs th.rowh { text-align: left; font-weight: 500; position: sticky; left: 0; background: var(--surface); z-index: 1; width: 17%; min-width: 140px; }
+table.runs tr.grp th { text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 14px; background: var(--surface); position: sticky; left: 0; }
+table.runs tr.differs th.rowh::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--model); margin-right: 6px; vertical-align: middle; }
+table.runs .chip { white-space: normal; }
+table.runs th, table.runs td { overflow-wrap: break-word; }
+table.runs td.gap, table.runs th.gap { border-left: 2px solid var(--hair); }
+.colbtn { border: 1px solid var(--hair); background: var(--surface); border-radius: 8px; padding: 6px 6px; width: 100%; min-width: 0; cursor: pointer; display: grid; gap: 1px; }
+.colbtn:hover { border-color: var(--accent); }
+.colbtn .nm { font-weight: 700; line-height: 1.2; }
+.colbtn .sub { font-size: 11px; color: var(--muted); font-weight: 500; }
+.rowbtn { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; border-bottom: 1px dotted var(--muted); line-height: 1.35; }
+.rowbtn:hover { color: var(--accent); border-color: var(--accent); }
+.yes { color: var(--model); font-weight: 700; font-size: 16px; }
+.no { color: var(--off-ink); }
+.na { color: var(--off-ink); font-size: 11.5px; }
+.chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+.chip.on { background: var(--on-bg); color: var(--model); }
+.chip.scen { background: var(--scen-bg); color: var(--scen-ink); }
+.chip.diff { background: var(--diff-bg); color: var(--diff-ink); }
+.chip.todo { background: var(--note-bg); color: var(--note-ink); }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); padding: 10px 12px; align-items: center; }
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--model); }
+
+/* trading modes: one colour each (Active blue, Partial amber, Passive violet) */
+.mode-active { --mc: var(--m-active); --mbg: var(--m-active-bg); }
+.mode-measured_all, .mode-measured { --mc: var(--m-partial); --mbg: var(--m-partial-bg); }
+.mode-passive { --mc: var(--m-passive); --mbg: var(--m-passive-bg); }
+.chip.mode { background: var(--mbg); color: var(--mc); }
+.colbtn[class*="mode-"] { border-top: 4px solid var(--mc); }
+.colbtn[class*="mode-"] .nm { color: var(--mc); }
+td.picked, th.picked .colbtn { background: var(--on-bg); }
+th.picked .colbtn[class*="mode-"] { border-color: var(--mc); border-top-width: 4px; }
+table.modes tr[class*="mode-"] td:first-child { border-left: 4px solid var(--mc); }
+table.modes tr[class*="mode-"] td:first-child b { color: var(--mc); }
+.detail-head h3 .mname { color: var(--mc); }
+/* embedded in index.html (settings.html?embed=1): no own header, no page padding */
+.embed .site-top { display: none; }
+.embed main { padding: 0 0 24px; max-width: none; }
+html.embed, .embed body { background: transparent; }
+/* site header (this page sits next to index.html) */
+.site-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--hair); }
+.site-top a { color: var(--ink); text-decoration: none; }
+.site-top .back { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+.site-top .back-btn { font-size: 14px; font-weight: 600; color: var(--accent); border: 1px solid var(--hair); border-radius: 8px; padding: 6px 12px; }
+.site-top .back-btn:hover { background: var(--surface-2); }
+a.open-run { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 14px; }
+a.open-run:hover { text-decoration: underline; }
+
+/* hover help */
+[data-tip] { cursor: help; }
+button[data-tip] { cursor: pointer; }
+.tip { position: fixed; z-index: 50; max-width: 280px; background: var(--sel-bg); color: var(--sel-ink); font-size: 13px; line-height: 1.4;
+  padding: 7px 10px; border-radius: 7px; box-shadow: 0 4px 14px rgba(0,0,0,.18); pointer-events: none; opacity: 0; transition: opacity .12s; }
+.tip.show { opacity: 1; }
+.tip b { display: block; font-size: 12px; opacity: .75; margin-bottom: 1px; }
+@media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
+
+/* side runs: cells that differ from the compared main run */
+td.diffcell { box-shadow: inset 0 0 0 999px var(--diff-bg); }
+td.diffcell .yes, td.diffcell .no { color: var(--diff-ink); }
+.diffswatch { display: inline-block; width: 14px; height: 10px; border-radius: 3px; background: var(--diff-bg); border: 1px solid var(--diff-ink); vertical-align: middle; }
+td.picked.diffcell { box-shadow: inset 0 0 0 999px var(--diff-bg), inset 0 0 0 2px var(--model); }
+
+/* picked run detail */
+.detail { padding: 18px 20px; display: grid; gap: 14px; }
+.detail-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+.detail-head h3 { font-size: 20px; }
+.detail-head .open-run { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 14px; }
+.detail p.desc { margin: 0; color: var(--ink-2); }
+.cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 760px) { .cols2 { grid-template-columns: 1fr; } }
+.h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; }
+ul.slist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+ul.slist li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; }
+ul.slist li .m { font-weight: 700; color: var(--model); }
+ul.slist li.off { color: var(--muted); }
+ul.slist li.off .m { color: var(--off-ink); }
+.startline { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
+.startline code { white-space: pre-wrap; word-break: break-word; font-size: 13px; }
+.copy { border: 1px solid var(--hair); background: var(--surface); border-radius: 6px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.copy:hover { border-color: var(--accent); }
+.fine { font-size: 12.5px; color: var(--muted); margin: 0; }
+.flag { background: var(--note-bg); color: var(--note-ink); border-radius: 8px; padding: 8px 12px; font-size: 13.5px; margin: 0; }
+
+/* side runs */
+.side-wrap { overflow-x: auto; }
+table.side { border-collapse: collapse; width: 100%; min-width: 820px; font-size: 14px; }
+table.side th, table.side td { padding: 9px 12px; border-bottom: 1px solid var(--hair); text-align: left; vertical-align: top; }
+table.side thead th { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+table.side td.nm b { display: block; }
+table.side td.nm .old { font-size: 12.5px; color: var(--muted); }
+table.side td.diffs { display: flex; flex-wrap: wrap; gap: 4px; }
+table.side tr.sep td { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 16px; font-weight: 700; }
+table.side td.why { color: var(--ink-2); font-size: 13.5px; max-width: 34ch; }
+
+/* guide */
+.ggroup h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; }
+.gcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+@media (max-width: 420px) { .gcards { grid-template-columns: 1fr; } }
+.gcard { padding: 14px 16px; display: grid; gap: 8px; align-content: start; scroll-margin-top: 16px; transition: box-shadow .3s; }
+.gcard.wide { grid-column: 1 / -1; }
+.gcard.flash { box-shadow: 0 0 0 3px var(--model); }
+.gcard h4 { margin: 0; font-size: 16px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.gcard h4 .sec { font-size: 12px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.gcard p { margin: 0; font-size: 14px; color: var(--ink-2); }
+.gcard dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 13px; }
+.gcard dt { color: var(--muted); }
+.gcard dd { margin: 0; }
+.gcard.fixed { background: var(--surface-2); }
+.modes-wrap { overflow-x: auto; }
+table.modes { border-collapse: collapse; font-size: 13.5px; width: 100%; min-width: 640px; }
+table.modes th, table.modes td { padding: 6px 10px; border-bottom: 1px solid var(--hair); text-align: left; vertical-align: top; }
+table.modes th { font-size: 12px; color: var(--muted); font-weight: 600; }
+table.modes td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .gcard { transition: none; } }
+
+/* all settings: one row per setting, click to expand */
+.slist-all { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.sgroup h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; }
+.sgroup .rows { background: var(--surface); border: 1px solid var(--hair); border-radius: 10px; overflow: hidden; }
+details.srow { border-top: 1px solid var(--hair); scroll-margin-top: 16px; transition: box-shadow .3s; }
+details.srow:first-child { border-top: 0; }
+details.srow.flash { box-shadow: inset 0 0 0 3px var(--model); }
+details.srow > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 18px 270px minmax(0, 1fr) 210px; gap: 4px 16px; align-items: baseline; padding: 11px 16px; }
+details.srow > summary::-webkit-details-marker { display: none; }
+details.srow > summary:hover { background: var(--surface-2); }
+details.srow > summary .chev { color: var(--muted); transition: transform .15s; display: inline-block; font-size: 12px; }
+details.srow[open] > summary .chev { transform: rotate(90deg); }
+details.srow > summary .sname { font-weight: 700; }
+details.srow > summary .sshort { color: var(--ink-2); font-size: 14px; }
+details.srow > summary code { justify-self: end; text-align: right; max-width: 100%; overflow-wrap: anywhere; color: var(--ink-2); font-size: 12px; background: var(--surface-2); padding: 2px 7px; border-radius: 5px; }
+details.srow[open] > summary { background: var(--surface-2); }
+.sbody { padding: 4px 16px 16px 48px; display: grid; gap: 10px; }
+.sbody p { margin: 0; font-size: 14px; color: var(--ink-2); }
+.sbody dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13.5px; }
+.sbody dt { color: var(--muted); }
+.sbody dd { margin: 0; }
+.fixedrow > summary code { visibility: hidden; }
+@media (max-width: 900px) { details.srow > summary { grid-template-columns: 18px 200px minmax(0, 1fr) 170px; } }
+@media (max-width: 700px) {
+  details.srow > summary { grid-template-columns: 18px 1fr; }
+  details.srow > summary .sshort, details.srow > summary code { grid-column: 2; justify-self: start; }
+  .sbody { padding-left: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { details.srow, details.srow > summary .chev { transition: none; } }
+
+/* all changes: status tags and filter */
+.stag { justify-self: end; max-width: 100%; overflow-wrap: anywhere; text-align: center; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+.stag.always { background: var(--on-bg); color: var(--model); }
+.stag.switch { background: var(--m-active-bg); color: var(--m-active); font-family: var(--font-mono); font-weight: 500; }
+.stag.output { background: var(--surface-2); color: var(--ink-2); }
+.stag.branch { background: var(--note-bg); color: var(--note-ink); }
+.stag.dropped { background: var(--surface-2); color: var(--muted); text-decoration: line-through; }
+.cfilter { display: flex; gap: 6px; flex-wrap: wrap; }
+.fbtn { border: 1px solid var(--hair); background: var(--surface); border-radius: 999px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+.fbtn[aria-pressed="true"] { background: var(--sel-bg); color: var(--sel-ink); border-color: var(--sel-bg); }
+.fbtn:hover { border-color: var(--accent); }
+@media (max-width: 700px) { details.srow > summary .stag { grid-column: 2; justify-self: start; } }
+
+/* full-year runs vs main-run inputs */
+table.fy { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 880px; font-size: 13.5px; }
+table.fy th, table.fy td { padding: 7px 6px; border-bottom: 1px solid var(--hair); text-align: center; vertical-align: middle; }
+table.fy thead th { font-size: 11.5px; font-weight: 600; color: var(--ink-2); vertical-align: bottom; line-height: 1.25; }
+table.fy thead th span[data-tip] { border-bottom: 1px dotted var(--muted); }
+table.fy th.run, table.fy td.run { text-align: left; position: sticky; left: 0; background: var(--surface); z-index: 1; width: 22%; min-width: 180px; padding-left: 14px; }
+table.fy td.run b { display: block; font-size: 14px; }
+table.fy td.run .old { font-size: 12px; color: var(--muted); }
+table.fy tr.sep td { text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; padding-top: 16px; padding-left: 14px; background: var(--surface); }
+table.fy tr.mainrow td { background: var(--on-bg); }
+table.fy tr.mainrow td.run { background: var(--on-bg); }
+table.fy tr.oldrun td.run b { color: var(--muted); }
+.hasmark { color: var(--model); font-weight: 700; }
+.missmark { color: var(--diff-ink); font-weight: 700; }
+td.miss { background: var(--diff-bg); }
+td.score { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; padding-right: 14px; }
+.bar { display: inline-block; width: 54px; height: 6px; border-radius: 3px; background: var(--surface-2); vertical-align: middle; margin-left: 6px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--model); }
+
+/* old names */
+.names-wrap { overflow-x: auto; }
+table.names { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 14px; }
+table.names th, table.names td { padding: 8px 12px; border-bottom: 1px solid var(--hair); text-align: left; vertical-align: top; }
+table.names thead th { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+table.names td.old { color: var(--muted); }
+table.names td.new { font-weight: 700; }
+table.names tr.sep td { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 16px; font-weight: 700; }
+</style>
+</head>
+<body>
+<header class="site-top">
+  <a class="back" href="index.html#home"><img src="logo.svg" alt="" width="34" height="34"><span>Spanish Power Market Model: Results Viewer</span></a>
+  <a class="back-btn" href="index.html#home">← Back to the results</a>
+</header>
+
+<main>
+  <div class="intro">
+    <h1>Run settings</h1>
+    <p>The thesis uses nine <b>main runs</b>: 2024, 2035 Trinity and 2035 NECP, each with three trading modes. Every main run has all our model improvements on. <b>Side runs</b> switch something off or try something new, to check one change or an issue.</p>
+  </div>
+
+  <div class="subtabs" role="tablist" aria-label="Settings sections">
+    <button role="tab" id="t-runs" aria-controls="p-runs" aria-selected="true">Main runs<span class="n">9</span></button>
+    <button role="tab" id="t-side" aria-controls="p-side" aria-selected="false">Side runs<span class="n" id="n-side"></span></button>
+    <button role="tab" id="t-full" aria-controls="p-full" aria-selected="false">Full-year runs<span class="n" id="n-full"></span></button>
+    <button role="tab" id="t-guide" aria-controls="p-guide" aria-selected="false">All settings</button>
+    <button role="tab" id="t-changes" aria-controls="p-changes" aria-selected="false">All changes<span class="n" id="n-changes"></span></button>
+    <button role="tab" id="t-names" aria-controls="p-names" aria-selected="false">Old names</button>
+  </div>
+
+  <section class="panel" id="p-runs" role="tabpanel" aria-labelledby="t-runs">
+    <p class="lead">Only two things change between the main runs: the year and power system, and the trading mode (rows marked <span class="dot"></span>). Pick a run for its start line; pick a setting to read what it means.</p>
+    <div class="card">
+      <div class="grid-wrap"><table class="runs" id="runs"></table></div>
+      <div class="legend"><span><span class="yes">✓</span> on</span><span><span class="no">–</span> off</span><span><span class="na">2024 only</span> does not apply</span><span><span class="dot"></span> differs between main runs</span><span>Modes: <span class="chip mode mode-active" tabindex="0" data-tip="participation:active">Active</span> <span class="chip mode mode-measured_all" tabindex="0" data-tip="participation:measured_all">Partial</span> <span class="chip mode mode-passive" tabindex="0" data-tip="participation:passive">Passive</span></span><span>Hover over anything for a short explanation</span><span><span class="chip todo" tabindex="0" data-tip="placeholder">placeholder</span> not in main yet</span></div>
+    </div>
+    <div class="card detail" id="detail" aria-live="polite"></div>
+  </section>
+
+  <section class="panel" id="p-side" role="tabpanel" aria-labelledby="t-side" hidden>
+    <p class="lead">Runs for checking one change or an issue. Rose cells differ from the main run with the same system and trading mode, so you can see at a glance what each one tests. Pick a run for details.</p>
+    <div class="card">
+      <div class="grid-wrap"><table class="runs" id="side"></table></div>
+      <div class="legend"><span><span class="yes">✓</span> on</span><span><span class="no">–</span> off</span><span><span class="na">2024 only</span> does not apply</span><span><span class="diffswatch"></span> differs from its main run</span><span>Modes: <span class="chip mode mode-active" tabindex="0" data-tip="participation:active">Active</span> <span class="chip mode mode-measured" tabindex="0" data-tip="participation:measured">Partial CID</span></span><span>Hover over anything for a short explanation</span></div>
+    </div>
+    <div class="card detail" id="side-detail" aria-live="polite"></div>
+  </section>
+
+  <section class="panel" id="p-full" role="tabpanel" aria-labelledby="t-full" hidden>
+    <p class="lead">Every published full-year run, checked against what the main runs have. <span class="hasmark">✓</span> = run with it, <span class="missmark">✗</span> = run without it. The count on the right says how close each run is to a main run. Hover over a column for what it means.</p>
+    <div class="card grid-wrap"><table class="fy" id="fy"></table></div>
+  </section>
+
+  <section class="panel" id="p-guide" role="tabpanel" aria-labelledby="t-guide" hidden>
+    <p class="lead">Click a setting to read more. On Solstorm, put the switch in front of the start line, e.g. <code>GAS=on MARKUP=on scripts/solstorm_start_markets.sh &lt;out&gt;</code>. Each run saves its settings, and the website reads them from there.</p>
+    <div id="guide" class="slist-all"></div>
+  </section>
+
+  <section class="panel" id="p-changes" role="tabpanel" aria-labelledby="t-changes" hidden>
+    <p class="lead">Everything we have changed in the model since Ehsan's version (4 Sep 2026). Click a change to read more. The tag on the right says if it is always on, a setting you switch on, only output, or not in the model yet.</p>
+    <div class="cfilter" role="group" aria-label="Show changes">
+      <button class="fbtn" data-f="all" aria-pressed="true">All</button>
+      <button class="fbtn" data-f="always" aria-pressed="false">Always on</button>
+      <button class="fbtn" data-f="switch" aria-pressed="false">Setting</button>
+      <button class="fbtn" data-f="output" aria-pressed="false">Output only</button>
+      <button class="fbtn" data-f="branch" aria-pressed="false">Not in model yet</button>
+    </div>
+    <div id="changes" class="slist-all"></div>
+  </section>
+
+  <section class="panel" id="p-names" role="tabpanel" aria-labelledby="t-names" hidden>
+    <p class="lead">Runs got new names on 2 Nov 2026. The run list on the results page still shows the old names. Week and month tests keep their names.</p>
+    <div class="card names-wrap"><table class="names" id="names"></table></div>
+  </section>
+</main>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add("embed");</script>
+<script src="runs/manifest.js"></script>
+<script>
+// short hover explanations: settings (by key), values (key:value), terms
+const TIP = {
+  scenario: "Which year we model: 2024, or a 2035 future from the EMPIRE model.",
+  "scenario:2024": "The year 2024, built from 2024 data on demand, plants and fuel prices.",
+  "scenario:Trinity": "A 2035 future from the EMPIRE model, scenario Trinity.",
+  "scenario:NECP": "A 2035 future from the EMPIRE model, close to Spain's national energy and climate plan (NECP).",
+  res: "Which solar and wind bids go in: all offered bids, or only the accepted ones.",
+  "res:offered": "All solar and wind bids, also rejected ones, so the model can cut them back when prices are low.",
+  "res:accepted": "Only the solar and wind volumes OMIE accepted.",
+  pumping: "Takes the real 2024 pumping out of demand, so pumping is not counted twice.",
+  gas: "Each gas and coal plant gets its own cost and start/stop rules.",
+  markup: "Adds the generation tax and an extra margin on gas and coal bids from market power.",
+  intraday_starts: "Plants that are off may start in the intraday auctions, if starting pays.",
+  hydro: "Hydro plans its water from real 2024 reservoir levels.",
+  pump_limits: "Each pumped-storage plant pumps at its real pumping power.",
+  hydro_topup: "If the system runs short, hydro may use extra water instead of the 1000 €/MWh emergency supply.",
+  participation: "How much of each forecast change is traded in the intraday markets. The rest goes to balancing.",
+  "participation:active": "Every forecast change is traded in the intraday markets.",
+  "participation:measured_all": "Only the share seen in real 2024 data is traded; the rest goes to balancing.",
+  "participation:passive": "Nothing is traded after the day-ahead; balancing covers every change.",
+  "participation:measured": "The auctions trade everything; only CID trades the measured share.",
+  balancing: "Which plants may help balance the system in real time.",
+  "balancing:qualified": "Only plants REE approves for balancing: gas, coal, hydro and storage.",
+  "balancing:all": "Every plant may balance.",
+  rd: "How grid problems are fixed after the market has cleared.",
+  "rd:ree": "As REE does it: phases I and II, plants paid what they bid. Placeholder: not in the model yet.",
+  "rd:ac": "The cheapest fix of grid limits, at the plants' costs.",
+  on: "On in this run.", off: "Off in this run.", na: "Only exists for 2024 data, so it does not apply to 2035.",
+  placeholder: "Not in the model yet: it waits for Magnus's redispatch code.",
+  ID2: "Intraday auction 2 in the model = real IDA1 + IDA2, the afternoon before.",
+  ID3: "Intraday auction 3 = real IDA3, on the day itself, hours 12–23 only.",
+  CID: "Continuous intraday: trading until 1 hour before delivery.",
+  alpha: "α = the share of a forecast change that is traded in that market.",
+};
+const MODES = { active: "Active", measured_all: "Partial", passive: "Passive", measured: "Partial CID" };
+// key in meta.features (publish_run.py) · descriptive label · model switch (unchanged) · y24: applies to 2024 only
+const SETTINGS = [
+  { key: "scenario", group: "Which system", name: "Year and power system", sec: "§21–22", sw: "SCENARIO=trinity   or   SCENARIO=necp", def: "2024",
+    what: "2024, or the 2035 system from EMPIRE: Trinity or NECP Essentials (period 3, weather year 2015).",
+    more: "A 2035 run also switches on plant costs, mark-ups, islands out and free cross-border flows by itself. Without SCENARIO a run is 2024, with no error." },
+  { key: "res", group: "Inputs", name: "Solar and wind bids", sec: "§12", sw: "RES=offered", def: "Accepted", y24: true,
+    vals: { offered: "Offered", accepted: "Accepted" }, on: v => v === "offered",
+    what: "Offered: solar and wind enter with everything they bid, also bids OMIE did not accept, so the model can curtail them when prices are low.",
+    more: "Accepted: only the volumes OMIE accepted. 2035 has no OMIE bids, so it uses EMPIRE's profiles." },
+  { key: "pumping", group: "Inputs", name: "Real pumping taken out of demand", sec: "§24", sw: "PUMPING=removed", def: "off", y24: true,
+    what: "OMIE's demand includes the real 2024 pumping. With this on, it is taken out, so pumping is not counted twice (once in demand, once by the model's own pumps).", more: "" },
+  { key: "gas", group: "Plant costs", name: "Gas and coal: own cost and start/stop", sec: "§14, §16", sw: "GAS=on", def: "off",
+    what: "Each gas plant gets its own efficiency; gas and coal plants get start/stop rules and a minimum-income check; coal cost from BAFA/VDKI plus CO₂; closed plants removed.",
+    more: "Also takes island plants out of the market and lets the redispatch move coal. On by itself in 2035." },
+  { key: "markup", group: "Plant costs", name: "Generation tax and market-power mark-ups", sec: "§17", sw: "MARKUP=on", def: "off",
+    what: "Adds the generation tax (IVPEE) and mark-ups on gas and coal bids, sized from market power (RSI): from the 2024 OMIE bids, or the model's own RSI in 2035.", more: "On by itself in 2035." },
+  { key: "intraday_starts", group: "Plant costs", name: "Starts allowed in the intraday auctions", sec: "new, 2 Nov", sw: "IDSTARTS=on", def: "off",
+    what: "Gas and coal units that are off may start in ID2 and ID3 if the start pays for itself at that auction's prices, like the block orders OMIE's intraday auctions allow. CID and balancing still cannot start units.",
+    more: "Needs GAS=on (or a 2035 scenario)." },
+  { key: "hydro", group: "Hydro and storage", name: "Hydro planning from real 2024 reservoirs", sec: "§15", sw: "HYDRO=aligned_rc_observed", def: "Basic", y24: true,
+    what: "Water values trained from REE's observed 2024 reservoir and inflow, with seasonal rule curves from 2014–2023.",
+    more: "2035 runs train their own water values with the scenario and use the same rule curves." },
+  { key: "pump_limits", group: "Hydro and storage", name: "Pumping power per plant (JRC)", sec: "§24", sw: "PUMPLIMIT=on", def: "off", y24: true,
+    what: "Each pumped-storage plant pumps with its own pumping power from the JRC Hydro-power database: 5.1 GW in all instead of 8.2 GW.", more: "" },
+  { key: "hydro_topup", group: "Hydro and storage", name: "Extra hydro when the system runs short", sec: "new, 2 Nov", sw: "HYDROTOPUP=on", def: "off",
+    what: "If an intraday market or balancing runs short (the 1000 €/MWh emergency supply is needed), the day's hydro budget is raised by the missing energy and the market solved again. Real reservoirs hold weeks of water, and REE calls extra hydro when short.",
+    more: "Tests: removes all 1000 €/MWh hours on 20 May and 11 Dec 2024, with at most 10 GWh extra water a day. Normal days are unchanged." },
+  { key: "participation", group: "Trading", name: "Intraday trading mode", sec: "§23", sw: "PARTICIPATION=active | measured_all | passive   (old: measured)", def: "Active",
+    vals: MODES, on: v => v !== "active", modes: true,
+    what: "How much of each forecast change (demand, wind, solar) is traded in the intraday markets. What is not traded is left to balancing.",
+    more: "The shares α are measured from REE's 2024 schedules: the trade in each market against the final forecast error. That is a cautious (low) estimate, since part of the error was not yet known at auction time." },
+  { key: "balancing", group: "Trading", name: "Units allowed to balance", sec: "§23", sw: "BALANCING=qualified", def: "All units",
+    vals: { all: "All units", qualified: "Qualified only" }, on: v => v === "qualified",
+    what: "Qualified only: like in Spain, only units REE qualifies take part in balancing: CCGTs, gas turbines, coal, reservoir hydro, pumped storage and batteries.",
+    more: "All units: every unit can balance." },
+  { key: "rd", group: "Network", name: "Redispatch the REE way", sec: "§20", sw: "REDISPATCH=ree   (placeholder)", def: "AC power flow at cost", todo: true,
+    vals: { ree: "REE way", ac: "AC at cost" }, on: v => v === "ree",
+    what: "Redispatch as REE does it: phase I (technical constraints on the day-ahead schedule) and phase II, pay-as-bid, with reactive power and voltage rules.",
+    more: "On Magnus's branch redispatch-realism, not in main yet. The switch name is a placeholder until it is merged." },
+];
+const FIXED = [
+  { name: "Day-by-day market chain", sec: "§16", what: "Each day runs day-ahead → ID2 → ID3 → CID → balancing before the next day." },
+  { name: "Cross-border split", sec: "§11", what: "The redispatch chooses how the exchange with France and Portugal splits over the border lines (2024)." },
+  { name: "All 366 days", sec: "§26", what: "Inputs for every day of 2024, including 30–31 December. Runs published before 29 Oct have 364 days." },
+];
+
+// main runs: everything on; only system and trading mode change
+const MAIN24 = { res: "offered", pumping: true, gas: true, markup: true, intraday_starts: true, hydro: true, pump_limits: true, hydro_topup: true, balancing: "qualified", rd: "ree" };
+const MAIN35 = { res: null, pumping: null, gas: true, markup: true, intraday_starts: true, hydro: null, pump_limits: null, hydro_topup: true, balancing: "qualified", rd: "ree" };
+const MDESC = {
+  active: "every forecast change is traded in the intraday markets (PowerVision's active case).",
+  measured_all: "each intraday market trades only its measured share of the forecast change; the rest goes to balancing.",
+  passive: "nothing is traded after the day-ahead; every forecast change goes to balancing (PowerVision's passive case).",
+};
+const SYS = [
+  { scen: "2024", title: "2024", base: MAIN24, text: "The 2024 model with every improvement on" },
+  { scen: "Trinity", title: "2035 Trinity", base: MAIN35, text: "The 2035 Trinity system from EMPIRE (period 3, weather year 2015) with every improvement on" },
+  { scen: "NECP", title: "2035 NECP", base: MAIN35, text: "The 2035 NECP Essentials system from EMPIRE (period 3, weather year 2015) with every improvement on" },
+];
+const MAIN_GROUPS = SYS.map(s => ({ title: s.title, runs: ["active", "measured_all", "passive"].map(m =>
+  ({ short: MODES[m], name: `${s.title} ${MODES[m]}`, sys: s.title, scen: s.scen, f: { ...s.base, participation: m }, desc: `${s.text}; ${MDESC[m]}` })) }));
+const RUNS = MAIN_GROUPS.flatMap(g => g.runs);
+
+// side runs (published): settings from runs/manifest.js meta.features; what it is for
+// Published runs, from runs/manifest.js (meta.features written by publish_run.py). Only the new name,
+// a short column name and what the run checks are written here, by run id; everything else is read.
+const MANIFEST = window.RUN_MANIFEST || [];
+const RUN_TEXT = {
+  "2024-01-01_2024-r1-original-offered": ["2024 Original", "Original", "Starting point: Ehsan's model with our 2024 data."],
+  "2024-01-01_2024-r2-gas-offered": ["2024 Original + plant costs", "+ Plant costs", "What the gas and coal plant costs do."],
+  "2024-01-01_2024-r3-markup-offered": ["2024 Original + plant costs + mark-ups", "+ Mark-ups", "What tax and mark-ups add."],
+  "2024-01-01_2024-r4-hydro-offered": ["2024 Active, first version", "Active v1", "What hydro planning adds; the Active run before pumping, top-up and qualified balancing."],
+  "2024-01-01_2024-r1-original": ["2024 Original, accepted solar/wind", "Original (acc.)", "Run 1 with accepted solar and wind bids."],
+  "2024-01-01_2024-r2-gas": ["2024 Original + plant costs, accepted", "+ Plant costs (acc.)", "Run 2 with accepted solar and wind bids."],
+  "2024-01-01_2024-r3-markup": ["2024 Original + plant costs + mark-ups, accepted", "+ Mark-ups (acc.)", "Run 3 with accepted solar and wind bids."],
+  "2024-01-01_2024-r4-hydro": ["2024 Active, first version, accepted solar/wind", "Active v1 (acc.)", "Run 4 with accepted solar and wind bids."],
+  "2024-r5-cid-balancing-offered": ["2024 Partial CID", "Partial CID", "First trading test: only CID trades a share. Balancing reached 81 % of REE's."],
+  "2024-r6-pumping": ["2024 Partial CID + pumping fix", "+ Pumping fix", "Both pumping fixes together."],
+  "2024-r6a-pumping-only": ["2024 Partial CID + pumping out of demand", "Pumping: demand", "One pumping fix alone: real pumping out of demand."],
+  "2024-r6b-pumplimit-only": ["2024 Partial CID + pumping power per plant", "Pumping: power", "The other pumping fix alone: each plant's own pumping power."],
+  "2024-01-01_2024-redispatch-ree-way": ["2024 Active v1 + REE-way redispatch", "REE redispatch", "Magnus's redispatch the REE way, on run 4's market results."],
+  "2024-01-01_2024-offered": ["2024 first full year, offered", "First year (off.)", "The first full 2024 year, before the run 1–4 series."],
+  "2024-01-01_2024-accepted": ["2024 first full year, accepted", "First year (acc.)", "The first full 2024 year, before the run 1–4 series."],
+  "2035-trinity-p3-active": ["2035 Trinity Active, first version", "Trinity Active v1", "First full 2035 Trinity year."],
+  "2035-trinity-p3-optb": ["2035 Trinity Partial CID", "Trinity Partial CID", "First 2035 trading test."],
+  "2035-necp-p3-active": ["2035 NECP Active, first version", "NECP Active v1", "First full 2035 NECP year."],
+  "2035-necp-p3-optb": ["2035 NECP Partial CID", "NECP Partial CID", "First 2035 trading test."],
+  "2035-trinity-impr-year": ["2035 Trinity, old period 2", "Trinity period 2", "Wrong EMPIRE period (about a 2030 system); replaced by the period-3 runs."],
+};
+const SCEN_OF = m => !m.scenario || !m.scenario.label || m.scenario.label === "2024" ? "2024" : /necp/i.test(m.scenario.label) ? "NECP" : m.scenario.label;
+function fromManifest(m) {
+  const ft = m.features || {}, scen = SCEN_OF(m), y24 = scen === "2024", t = RUN_TEXT[m.id] || [m.name, m.name, m.note || ""];
+  return { id: m.id, name: t[0], short: t[1], why: t[2], old: m.name, scen, superseded: !!(m.scenario && m.scenario.superseded_by), n_days: m.n_days,
+    f: { res: y24 ? ft.res || "accepted" : null, pumping: y24 ? !!ft.pumping : null, gas: !!ft.gas, markup: !!ft.markup,
+         intraday_starts: !!ft.intraday_starts, hydro: y24 ? !!ft.hydro : null, pump_limits: y24 ? !!ft.pump_limits : null,
+         hydro_topup: !!ft.hydro_topup, balancing: ft.balancing || "all", rd: ft.rd || "ac", participation: ft.participation || "active",
+         chain: ft.chain === "day", days366: m.n_days >= 366 } };
+}
+const BY_ID = Object.fromEntries(MANIFEST.map(m => [m.id, fromManifest(m)]));
+// side runs: chosen published runs, grouped; a run missing from the manifest is left out
+const SIDE_GROUPS = [
+  { title: "Steps to the 2024 model", ids: ["2024-01-01_2024-r1-original-offered", "2024-01-01_2024-r2-gas-offered", "2024-01-01_2024-r3-markup-offered", "2024-01-01_2024-r4-hydro-offered"] },
+  { title: "Trading and pumping, 2024", ids: ["2024-r5-cid-balancing-offered", "2024-r6-pumping", "2024-r6a-pumping-only", "2024-r6b-pumplimit-only", "2024-01-01_2024-redispatch-ree-way"] },
+  { title: "2035, first versions", ids: ["2035-trinity-p3-active", "2035-trinity-p3-optb", "2035-necp-p3-active", "2035-necp-p3-optb"] },
+].map(g => ({ title: g.title, runs: g.ids.map(id => BY_ID[id]).filter(Boolean) })).filter(g => g.runs.length);
+const SIDE = SIDE_GROUPS.flatMap(g => g.runs);
+const SCEN_SW = { Trinity: "SCENARIO=trinity", NECP: "SCENARIO=necp" };
+const NAMES = (() => {
+  const rows = [];
+  for (const [title, test] of [["2024", r => r.scen === "2024"], ["2035", r => r.scen !== "2024"]]) {
+    const runs = MANIFEST.filter(m => RUN_TEXT[m.id]).map(m => BY_ID[m.id]).filter(test);
+    if (!runs.length) continue;
+    rows.push([title + ", full year"]);
+    for (const r of runs) rows.push([r.old, r.name, SIDE.includes(r) ? "side run" : r.superseded ? "replaced" : "full-year run"]);
+  }
+  return rows;
+})();
+
+// every change since Ehsan's version: area, name, short line, status, switch, §, since, longer text
+// status: always = always on in main · switch = a setting · output = adds results only · branch = not in main yet · dropped
+const CHANGES = [
+  { area: "2024 data", name: "A full year of 2024 inputs", short: "Demand, bids, solar, wind and prices for every day of 2024.", st: "always", sec: "§1", since: "22 Sep",
+    what: "Every day of 2024 is built from OMIE (bids, demand, prices) and ENTSO-E (solar, wind, flows). Ehsan's model had two hand-calibrated days.", more: "Built by the OMIE conversion pipeline in the repo (omie_conversion/), so the inputs can be rebuilt from scratch." },
+  { area: "2024 data", name: "Cross-border flows for all of 2024", short: "Exchange with the neighbours from ENTSO-E's measured flows, hour by hour.", st: "always", sec: "§1", since: "22 Sep",
+    what: "The flows with France and Portugal come from ENTSO-E's measured physical flows for every hour of 2024." },
+  { area: "2024 data", name: "Nuclear and coal availability per day", short: "How much nuclear and coal can run, day by day.", st: "always", sec: "§1", since: "23 Sep",
+    what: "Nuclear and coal availability changes every day (outages, refuelling), instead of one value for the whole year." },
+  { area: "2024 data", name: "CHP and small hydro per day", short: "Combined heat-and-power and small hydro follow their 2024 output.", st: "always", sec: "§1, §4", since: "2 Oct",
+    what: "Waste CHP and mini-hydro follow their daily output. CHP on gas comes from OMIE per day instead of a flat 2,600 MW." },
+  { area: "2024 data", name: "Fuel prices from December 2023", short: "So 1–2 January can be priced.", st: "always", sec: "§4", since: "2 Oct",
+    what: "Gas and CO₂ prices from December 2023 are added, so the first days of 2024 have a price to start from." },
+  { area: "2024 data", name: "All 366 days", short: "30–31 December added; the year is complete.", st: "always", sec: "§26", since: "29 Oct",
+    what: "Inputs for 30–31 December 2024, with forecast changes taken from January 2025 data. Runs published before 29 Oct have 364 days." },
+  { area: "2024 data", name: "Offered solar and wind bids", short: "Use all solar and wind bids, so the model can cut them back.", st: "switch", sw: "RES=offered", sec: "§12", since: "12 Oct",
+    what: "Solar and wind enter with everything they bid to OMIE, also bids that were not accepted. The model can then curtail them when prices are low, as happens in reality." },
+
+  { area: "Forecasts", name: "Forecast changes rebuilt", short: "How forecasts change between the markets, rebuilt with PowerVision's code.", st: "always", sec: "§5", since: "4 Oct",
+    what: "The forecast updates from day-ahead to ID2, ID3, CID and balancing are rebuilt with Koks' (PowerVision's) code, now in the repo, in local time and without extreme values." },
+  { area: "Forecasts", name: "Clock changes and missing forecasts", short: "23- and 25-hour days work; gaps in the forecast data are handled.", st: "always", sec: "§5", since: "4 Oct",
+    what: "The days the clock changes have 23 or 25 hours and are handled correctly. Days with no ENTSO-E forecast (solar 7–11 Dec, wind 2 Jun) get no forecast change." },
+
+  { area: "Hydro", name: "Water values for all of 2024", short: "The hydro planning model is trained for the whole year.", st: "always", sec: "§2, §4", since: "23 Sep",
+    what: "The hydro planning model (SDDP), which sets what water is worth, is trained from 1 January for all of 2024. A crash on the leap day is fixed." },
+  { area: "Hydro", name: "Hydro planning from real reservoirs", short: "Hydro plans its water from 2024 reservoir levels.", st: "switch", sw: "HYDRO=aligned_rc_observed", sec: "§15", since: "14 Oct",
+    what: "Water values trained from REE's observed 2024 reservoir and inflow, with seasonal limits from 2014–2023. Built by Magnus." },
+  { area: "Hydro", name: "Extra hydro when the system runs short", short: "Hydro may use extra water instead of the 1000 €/MWh emergency supply.", st: "switch", sw: "HYDROTOPUP=on", sec: "new", since: "2 Nov",
+    what: "If an intraday market or balancing runs short, the day's hydro budget is raised by the missing energy. Removes all 1000 €/MWh hours on 20 May and 11 Dec 2024, with at most 10 GWh extra water a day." },
+
+  { area: "Plants and costs", name: "Gas plants: own efficiency and start/stop", short: "Each gas plant has its own cost and start/stop rules.", st: "switch", sw: "GAS=on", sec: "§14", since: "14 Oct",
+    what: "Each CCGT is priced from its own efficiency. Gas plants have on/off, minimum load, start costs and minimum up/down times, and Spain's minimum-income check." },
+  { area: "Plants and costs", name: "Coal: start/stop, coal price, closed plants", short: "Coal gets start/stop rules, a real coal price, and closed plants are removed.", st: "switch", sw: "GAS=on", sec: "§16", since: "15 Oct",
+    what: "Coal gets the same on/off rules as gas, a cost from the BAFA/VDKI coal price plus CO₂, and plants closed in 2024 (As Pontes, La Pereda) are removed." },
+  { area: "Plants and costs", name: "Island plants out of the market", short: "Balearic plants leave the mainland markets; Ceuta removed.", st: "switch", sw: "GAS=on", sec: "§13", since: "13 Oct",
+    what: "Balearic plants are taken out of the mainland market stages but stay in the redispatch. The Ceuta plant, not connected in 2024, is removed." },
+  { area: "Plants and costs", name: "Generation tax and mark-ups", short: "Adds the 7 % tax and a market-power margin to gas and coal bids.", st: "switch", sw: "MARKUP=on", sec: "§17", since: "16 Oct",
+    what: "Spain's 7 % generation tax goes into every fuel-burning plant's bid, and gas and coal add a mark-up that grows as the market gets tight (Residual Supply Index), measured on the 2024 OMIE bids." },
+  { area: "Plants and costs", name: "Starts in the intraday auctions", short: "Plants that are off may start in ID2/ID3 if it pays.", st: "switch", sw: "IDSTARTS=on", sec: "new", since: "2 Nov",
+    what: "Gas and coal units that are off after the day-ahead may start in the intraday auctions if the start pays for itself at that auction's prices. CID and balancing still cannot start units." },
+
+  { area: "Markets and trading", name: "Day-by-day market chain", short: "Each day runs all markets before the next day.", st: "always", sec: "§16", since: "15 Oct",
+    what: "Each day runs day-ahead → ID2 → ID3 → CID → balancing, then the next day, so plants carry their on/off state from day to day." },
+  { area: "Markets and trading", name: "Intraday trading modes", short: "Active, Partial or Passive: how much of each forecast change is traded.", st: "switch", sw: "PARTICIPATION=…", sec: "§23", since: "27 Oct",
+    what: "Each intraday market trades all (Active), a measured share (Partial) or none (Passive) of the forecast change; the rest goes to balancing. Shares measured from REE's 2024 schedules." },
+  { area: "Markets and trading", name: "Only approved plants balance", short: "Like in Spain, only plants REE approves take part in balancing.", st: "switch", sw: "BALANCING=qualified", sec: "§23", since: "27 Oct",
+    what: "Balancing uses only CCGTs, gas turbines, coal, reservoir hydro, pumped storage and batteries, as REE's rules allow. Other plants keep their schedule." },
+  { area: "Markets and trading", name: "Who sets the price", short: "Every market records which plant set the price, and why.", st: "output", sec: "§19", since: "19 Oct",
+    what: "Every market stage saves the plant that set the price each hour and the reason (its cost, water value, a limit). Shown on the website." },
+  { area: "Markets and trading", name: "Real price setter from OMIE bids", short: "Which plant really set the 2024 day-ahead price, for comparison.", st: "output", sec: "website", since: "28 Oct",
+    what: "Built from OMIE's 2024 bids, so the website can show the model's price setter next to the real one." },
+
+  { area: "Pumped storage", name: "Pumping out of demand", short: "Real 2024 pumping is taken out of demand so it is not counted twice.", st: "switch", sw: "PUMPING=removed", sec: "§24", since: "28 Oct",
+    what: "OMIE's demand already contains the real 2024 pumping. With this on it is taken out, and only the model's own pumps add pumping." },
+  { area: "Pumped storage", name: "Pumping power per plant", short: "Each pumped-storage plant pumps at its own power (5.1 GW in all).", st: "switch", sw: "PUMPLIMIT=on", sec: "§24", since: "28 Oct",
+    what: "Pumping power per plant from the JRC Hydro-power database: 5.1 GW in all, instead of pumping at full turbine power (8.2 GW)." },
+  { area: "Pumped storage", name: "Pumped storage keeps water across days", short: "Experiment: tested, made prices worse, not used.", st: "dropped", sec: "§25", since: "28 Oct",
+    what: "Pumped storage carried its water to the next day. On 27 Feb it raised the day-ahead price from 14 to 32 €/MWh (real 4), so it was dropped. Kept as tag archive/pumping-out-of-load-incl-carry." },
+
+  { area: "Grid and redispatch", name: "Border split chosen by the redispatch", short: "Fixes most failed grid hours at the French border.", st: "always", sec: "§11", since: "7 Oct",
+    what: "The redispatch chooses how the exchange with France and Portugal splits over the border lines. Before, a 240 MW transformer limit at the French border made about 12 % of hours fail." },
+  { area: "Grid and redispatch", name: "Failed grid hours explained", short: "For each failed hour, the reason is saved.", st: "output", sec: "§18", since: "19 Oct",
+    what: "When the AC power flow fails in an hour, the model saves why (ac_failures.csv), and the website shows it." },
+  { area: "Grid and redispatch", name: "Redispatch the REE way", short: "Fix grid problems like REE: phases I and II, pay-as-bid.", st: "branch", sw: "REDISPATCH=ree (placeholder)", sec: "§20", since: "23 Oct",
+    what: "Magnus's redispatch: losses out, reactive power only from running units, must-run by voltage zone, phase I/II with unit commitment and a voltage check, real-time starts and reserve, pay-as-bid. On branch redispatch-realism; the main runs wait for it." },
+  { area: "Grid and redispatch", name: "Voltage band from REE's rules", short: "Generator voltage 0.975–1.05 pu, as REE's grid code says.", st: "branch", sec: "§20", since: "21 Oct",
+    what: "The allowed generator voltage follows REE's 400 kV range (P.O. 1.4) instead of 0.98–1.03 pu with no source. Proposed for main (branch voltage-band-ree)." },
+
+  { area: "2035", name: "2035 scenario runs", short: "Run 2035 Trinity or NECP from EMPIRE instead of 2024.", st: "switch", sw: "SCENARIO=trinity | necp", sec: "§21", since: "20 Oct",
+    what: "A full 2035 year from EMPIRE (52 weeks, weather year 2015, period 3 = 2030–35), run in weekly pieces, with its own water values. The website shows scenario runs without real data." },
+  { area: "2035", name: "2024 mechanics in 2035", short: "Plant costs, mark-ups and start/stop rules also in 2035.", st: "switch", sw: "SCENARIO=…", sec: "§22", since: "23 Oct",
+    what: "CO₂ cost per plant efficiency, CCGTs closed oldest first, gas efficiency per plant, mark-ups from the model's own market power, island plants, start/stop rules, nuclear at 85 %, CHP per month. On by itself with SCENARIO." },
+
+  { area: "Running and results", name: "One model, run options", short: "All work is in one code version; runs differ only by settings.", st: "always", sec: "§27", since: "2 Nov",
+    what: "Everything is merged into main. 2024 or 2035 and every feature are chosen with run options, and each run saves its own settings." },
+  { area: "Running and results", name: "Run info saved with every run", short: "Every run saves its code version and settings.", st: "output", sec: "§10", since: "6 Oct",
+    what: "run_info.json records the code version and the settings, so every published result can be traced back to its exact code." },
+  { area: "Running and results", name: "Full-year runs on Solstorm", short: "Markets in order, grid in parallel on NTNU's cluster.", st: "always", sec: "§16", since: "15 Oct",
+    what: "A full year runs as a split run: the markets week by week in order (plants keep their on/off state), the redispatch in parallel, then the pieces are joined." },
+  { area: "Running and results", name: "Results website", short: "Every run published with prices, volumes, costs and comparisons.", st: "output", sec: "§10", since: "6 Oct",
+    what: "publish_run.py packs a run for the website: prices, generation, balancing and redispatch volumes and costs, traded volume, storage margin, comparisons, and who left the balancing gap and who covered it." },
+  { area: "Running and results", name: "Checks against real data", short: "Model results compared with what really happened in 2024.", st: "output", sec: "§8–9", since: "5 Oct",
+    what: "ENTSO-E measured generation per type and per plant, and REE e·sios balancing, redispatch and intraday data, all on the website next to the model." },
+];
+const STATUS = { always: "Always on", output: "Output only", branch: "Not in model yet", dropped: "Dropped" };
+let cfilter = "all";
+function renderChanges() {
+  const areas = [...new Set(CHANGES.map(c => c.area))];
+  const shown = c => cfilter === "all" || c.st === cfilter || (cfilter === "branch" && c.st === "dropped");
+  let h = "";
+  for (const a of areas) {
+    const rows = CHANGES.filter(c => c.area === a && shown(c));
+    if (!rows.length) continue;
+    h += `<div class="sgroup"><h3>${esc(a)}</h3><div class="rows">` + rows.map(c => `
+      <details class="srow">
+        <summary><span class="chev" aria-hidden="true">▶</span><span class="sname">${esc(c.name)}</span><span class="sshort">${esc(c.short)}</span><span class="stag ${c.st}">${esc(c.st === "switch" ? c.sw : STATUS[c.st])}</span></summary>
+        <div class="sbody">
+          <p>${esc(c.what)}</p>${c.more ? `<p class="fine">${esc(c.more)}</p>` : ""}
+          <dl><dt>Status</dt><dd>${c.st === "switch" ? "A setting: off by default, switched on with <code>" + esc(c.sw) + "</code>" : esc(STATUS[c.st])}</dd>
+              <dt>Model change</dt><dd>${esc(c.sec)}</dd>
+              <dt>Since</dt><dd>${esc(c.since)} 2026</dd></dl>
+        </div>
+      </details>`).join("") + `</div></div>`;
+  }
+  document.getElementById("changes").innerHTML = h;
+}
+// full-year runs (runs/manifest.js meta.features) against the main runs' inputs
+const FY_COLS = [
+  { k: "offered", label: "Solar/wind offered", tip: "res:offered", y24: true },
+  { k: "pumping", label: "Pumping out of demand", tip: "pumping", y24: true },
+  { k: "gas", label: "Gas & coal costs", tip: "gas" },
+  { k: "markup", label: "Tax & mark-ups", tip: "markup" },
+  { k: "intraday_starts", label: "Intraday starts", tip: "intraday_starts" },
+  { k: "hydro", label: "Hydro planning", tip: "hydro", y24: true },
+  { k: "pump_limits", label: "Pump power per plant", tip: "pump_limits", y24: true },
+  { k: "hydro_topup", label: "Extra hydro when short", tip: "hydro_topup" },
+  { k: "qualified", label: "Only approved plants balance", tip: "balancing:qualified" },
+  { k: "ree", label: "REE-way redispatch", tip: "rd:ree" },
+  { k: "chain", label: "Day by day", tip: "chain" },
+  { k: "days366", label: "All 366 days", tip: "days366" },
+];
+TIP.chain = "Each day runs all markets before the next day, so plants keep their on/off state.";
+TIP.days366 = "All 366 days of 2024, including 30–31 December. Runs before 29 Oct have 364.";
+const FY_HAS = r => ({ offered: r.f.res === "offered", pumping: !!r.f.pumping, gas: r.f.gas, markup: r.f.markup, intraday_starts: r.f.intraday_starts,
+  hydro: !!r.f.hydro, pump_limits: !!r.f.pump_limits, hydro_topup: r.f.hydro_topup, qualified: r.f.balancing === "qualified", ree: r.f.rd === "ree",
+  chain: r.f.chain, days366: r.f.days366 });
+const FY_SCORE = r => { const cols = FY_COLS.filter(c => !(r.scen !== "2024" && c.y24)); return cols.filter(c => r.has[c.k]).length / cols.length; };
+const FULLYEAR = [["2024", r => r.scen === "2024"], ["2035", r => r.scen !== "2024"]].map(([group, test]) => ({ group,
+  runs: MANIFEST.filter(m => m.n_days >= 300).map(m => BY_ID[m.id]).filter(test)
+    .map(r => ({ ...r, mode: r.f.participation, has: FY_HAS(r), oldrun: r.superseded }))
+    .sort((a, b) => FY_SCORE(b) - FY_SCORE(a)) })).filter(g => g.runs.length);
+function renderFullYear() {
+  let h = `<thead><tr><th class="run">Run</th><th>Trading</th>` +
+    FY_COLS.map(c => `<th><span data-tip="${c.tip}" tabindex="0">${esc(c.label)}</span></th>`).join("") + `<th style="text-align:right;padding-right:14px">Main-run inputs</th></tr></thead><tbody>`;
+  const main24 = { offered: 1, pumping: 1, gas: 1, markup: 1, intraday_starts: 1, hydro: 1, pump_limits: 1, hydro_topup: 1, qualified: 1, ree: 1, chain: 1, days366: 1 };
+  let n = 0;
+  for (const g of FULLYEAR) {
+    h += `<tr class="sep"><td colspan="${FY_COLS.length + 3}">${esc(g.group)}</td></tr>`;
+    h += `<tr class="mainrow"><td class="run"><b>Main runs ${g.group === "2024" ? "2024" : "2035 (Trinity, NECP)"}</b><span class="old">what the main runs will have · not run yet</span></td><td><span class="fine">all three</span></td>` +
+      FY_COLS.map(c => g.group === "2035" && c.y24 ? `<td><span class="na" tabindex="0" data-tip="na">2024 only</span></td>` : `<td><span class="hasmark">✓</span></td>`).join("") + `<td class="score"></td></tr>`;
+    for (const r of g.runs) {
+      n++;
+      const cols = FY_COLS.filter(c => !(r.scen !== "2024" && c.y24));
+      const got = cols.filter(c => r.has[c.k]).length;
+      h += `<tr class="${r.oldrun ? "oldrun" : ""}"><td class="run"><b><a class="open-run" target="_top" href="index.html#${encodeURIComponent(r.id)}">${esc(r.name)}</a></b><span class="old">was: ${esc(r.old)}</span></td><td>${modeChip(r.mode)}</td>` +
+        FY_COLS.map(c => r.scen !== "2024" && c.y24 ? `<td><span class="na" tabindex="0" data-tip="na">2024 only</span></td>`
+          : r.has[c.k] ? `<td><span class="hasmark" tabindex="0" data-tip="${c.tip}">✓</span></td>` : `<td class="miss"><span class="missmark" tabindex="0" data-tip="${c.tip}">✗</span></td>`).join("") +
+        `<td class="score">${got} / ${cols.length}<span class="bar"><i style="width:${Math.round(100 * got / cols.length)}%"></i></span></td></tr>`;
+    }
+  }
+  document.getElementById("fy").innerHTML = h + `</tbody>`;
+  document.getElementById("n-full").textContent = n;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const setting = k => SETTINGS.find(s => s.key === k);
+function isOn(key, v) { const s = setting(key); return s.on ? s.on(v) : !!v; }
+function label(key, v) { const s = setting(key); return s.vals ? s.vals[v] || v : v; }
+function cell(key, run) {
+  if (key === "scenario") return `<span class="chip${run.scen === "2024" ? "" : " scen"}" tabindex="0" data-tip="scenario:${run.scen}">${run.scen}</span>`;
+  const v = run.f[key];
+  if (v === null || v === undefined) return `<span class="na" tabindex="0" data-tip="na">2024 only</span>`;
+  if (key === "participation") return modeChip(v);
+  const todo = setting(key).todo && isOn(key, v) ? " todo" : "";
+  if (typeof v === "string") return `<span class="chip${todo || (isOn(key, v) ? " on" : "")}" tabindex="0" data-tip="${key}:${v}">${esc(label(key, v))}</span>`;
+  return v ? `<span class="yes" aria-label="on" tabindex="0" data-tip="${key}">✓</span>` : `<span class="no" aria-label="off" tabindex="0" data-tip="off">–</span>`;
+}
+function modeChip(v) { return `<span class="chip mode mode-${v}" tabindex="0" data-tip="participation:${v}">${esc(MODES[v])}</span>`; }
+function startLine(run) {
+  const f = run.f, p = [];
+  if (run.scen !== "2024") p.push(SCEN_SW[run.scen]);
+  else {
+    if (f.gas) p.push("GAS=on"); if (f.markup) p.push("MARKUP=on");
+    if (f.hydro) p.push("HYDRO=aligned_rc_observed"); if (f.res === "offered") p.push("RES=offered");
+    if (f.pumping) p.push("PUMPING=removed"); if (f.pump_limits) p.push("PUMPLIMIT=on");
+  }
+  if (f.intraday_starts) p.push("IDSTARTS=on");
+  if (f.hydro_topup) p.push("HYDROTOPUP=on");
+  if (f.participation !== "active") p.push("PARTICIPATION=" + f.participation);
+  if (f.balancing === "qualified") p.push("BALANCING=qualified");
+  if (f.rd === "ree") p.push("REDISPATCH=ree");
+  return p.join(" ") + " scripts/solstorm_start_markets.sh <out>";
+}
+
+function mainFor(side) {   // the main run with the same system and the nearest trading mode
+  const mode = side.f.participation === "measured" ? "measured_all" : side.f.participation;
+  return RUNS.find(r => r.scen === side.scen && r.f.participation === mode);
+}
+const same = (a, b) => String(a) === String(b);
+const VIEWS = {
+  main: { table: "runs", detail: "detail", groups: MAIN_GROUPS, runs: RUNS, picked: 1, kind: "main" },
+  side: { table: "side", detail: "side-detail", groups: SIDE_GROUPS, runs: SIDE, picked: Math.min(4, SIDE.length - 1), kind: "side" },
+};
+function renderGrid(v) {
+  const sets = [...new Set(SETTINGS.map(s => s.group))];
+  const firsts = new Set(); let k = 0; for (const g of v.groups) { firsts.add(k); k += g.runs.length; }
+  const differs = key => new Set(v.runs.map(r => key === "scenario" ? r.scen : r.f[key]).filter(x => x !== null)).size > 1;
+  let h = `<thead><tr class="sys"><th class="rowh"></th>${v.groups.map(g => `<th colspan="${g.runs.length}" class="gap">${esc(g.title)}</th>`).join("")}</tr>`;
+  h += `<tr><th class="rowh"><span class="fine">Setting</span></th>` + v.runs.map((r, i) => {
+    const sub = v.kind === "main" ? "not run yet" : (r.old.match(/run \d+[ab]?/) || ["published"])[0].replace(/^run/, "was run");
+    return `<th class="${i === v.picked ? "picked" : ""}${firsts.has(i) ? " gap" : ""}" scope="col"><button class="colbtn mode-${r.f.participation}" data-view="${v.kind}" data-run="${i}" aria-pressed="${i === v.picked}" data-tip="participation:${r.f.participation}"><span class="nm">${esc(r.short)}</span><span class="sub">${esc(sub)}</span></button></th>`;
+  }).join("") + `</tr></thead><tbody>`;
+  for (const g of sets) {
+    h += `<tr class="grp"><th colspan="${v.runs.length + 1}">${esc(g)}</th></tr>`;
+    for (const s of SETTINGS.filter(s => s.group === g)) {
+      h += `<tr class="${v.kind === "main" && differs(s.key) ? "differs" : ""}"><th class="rowh" scope="row"><button class="rowbtn" data-set="${s.key}" data-tip="${s.key}">${esc(s.name)}</button></th>` +
+        v.runs.map((r, i) => {
+          const d = v.kind === "side" && s.key !== "scenario" && r.f[s.key] !== null && !same(r.f[s.key], mainFor(r).f[s.key]);
+          return `<td class="${i === v.picked ? "picked" : ""}${firsts.has(i) ? " gap" : ""}${d ? " diffcell" : ""}">${cell(s.key, r)}</td>`;
+        }).join("") + `</tr>`;
+    }
+  }
+  document.getElementById(v.table).innerHTML = h + `</tbody>`;
+}
+function settingLi(s, r) {
+  const v = r.f[s.key], on = isOn(s.key, v);
+  const val = s.key === "participation" ? " " + modeChip(v) : typeof v === "string" ? ` <span class="chip${s.todo && on ? " todo" : on ? " on" : ""}" tabindex="0" data-tip="${s.key}:${v}">${esc(label(s.key, v))}</span>` : "";
+  return { on, html: `<li class="${on ? "" : "off"}"><span class="m">${on ? "✓" : "–"}</span><span><span tabindex="0" data-tip="${s.key}">${esc(s.name)}</span>${val}</span></li>` };
+}
+function renderDetail(v) {
+  const r = v.runs[v.picked], line = startLine(r);
+  const lis = SETTINGS.filter(s => s.key !== "scenario" && r.f[s.key] !== null).map(s => settingLi(s, r));
+  let body;
+  if (v.kind === "main") {
+    body = `
+    <div class="detail-head mode-${r.f.participation}"><h3>${esc(r.sys)} <span class="mname">${esc(r.short)}</span></h3><span class="chip todo">not run yet</span></div>
+    <p class="desc">${esc(r.desc)}</p>
+    <div class="cols2">
+      <div><p class="h4">Switched on</p><ul class="slist">${lis.filter(l => l.on).map(l => l.html).join("")}</ul></div>
+      <div><p class="h4">Off</p><ul class="slist">${lis.filter(l => !l.on).map(l => l.html).join("") || `<li class="off"><span class="m">–</span><span>Nothing; every improvement is on</span></li>`}</ul></div>
+    </div>`;
+  } else {
+    const m = mainFor(r);
+    const diffs = SETTINGS.filter(s => s.key !== "scenario" && r.f[s.key] !== null && !same(r.f[s.key], m.f[s.key])).map(s => {
+      const a = r.f[s.key], b = m.f[s.key];
+      const txt = typeof a === "string" ? `${label(s.key, a)} (main run: ${label(s.key, b)})` : a ? "on (off in the main run)" : "off (on in the main run)";
+      return `<li><span class="m" style="color:var(--diff-ink)">≠</span><span><span tabindex="0" data-tip="${s.key}">${esc(s.name)}</span>: <span class="chip diff" tabindex="0" data-tip="${s.key}${typeof a === "string" ? ":" + a : ""}">${esc(txt)}</span></span></li>`;
+    });
+    body = `
+    <div class="detail-head mode-${r.f.participation}"><h3><span class="mname">${esc(r.name)}</span> <span class="fine" style="font-size:13px">was: ${esc(r.old)}</span></h3><a class="open-run" target="_top" href="index.html#${encodeURIComponent(r.id)}">Open this run →</a></div>
+    <p class="desc">${esc(r.why)}</p>
+    <div class="cols2">
+      <div><p class="h4">Differs from ${esc(m.name)}</p><ul class="slist">${diffs.join("") || `<li class="off"><span class="m">=</span><span>Nothing</span></li>`}</ul></div>
+      <div><p class="h4">All its settings</p><ul class="slist">${lis.map(l => l.html).join("")}</ul></div>
+    </div>`;
+  }
+  document.getElementById(v.detail).innerHTML = body + `
+    <div>
+      <p class="h4">Start line to run it on Solstorm</p>
+      <div class="startline"><code>${esc(line)}</code><button class="copy" data-line="${esc(line)}">Copy</button></div>
+      ${v.kind === "main" ? `<p class="fine" style="margin-top:6px"><code>REDISPATCH=ree</code> is a placeholder: the REE-way redispatch is not in main yet, so this line cannot run until it is merged.</p>` : `<p class="fine" style="margin-top:6px">A rerun on today's code gives the same totals and prices; single plants can differ slightly (equal-cost plants swap output).</p>`}
+    </div>`;
+}
+function renderView(v) { renderGrid(v); renderDetail(v); }
+function modesTable() {
+  return `<div class="modes-wrap"><table class="modes"><thead><tr><th>Mode</th><th>What happens</th><th><span data-tip="ID2" tabindex="0">ID2</span> <span data-tip="alpha" tabindex="0">α</span></th><th><span data-tip="ID3" tabindex="0">ID3</span> α</th><th><span data-tip="CID" tabindex="0">CID</span> α</th><th>Switch</th></tr></thead><tbody>
+    <tr class="mode-active"><td><b data-tip="participation:active" tabindex="0">Active</b></td><td>Every forecast change is traded in every intraday market</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td><code>active</code> (default)</td></tr>
+    <tr class="mode-measured_all"><td><b data-tip="participation:measured_all" tabindex="0">Partial</b></td><td>Every intraday market trades its measured share; the rest goes to balancing</td><td class="num">0.32 / 0.22 / 0.13</td><td class="num">0.07 / 0.15 / 0.10</td><td class="num">0.07 / 0.07 / 0.06</td><td><code>measured_all</code></td></tr>
+    <tr class="mode-passive"><td><b data-tip="participation:passive" tabindex="0">Passive</b></td><td>Nothing is traded after the day-ahead; all goes to balancing</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td><code>passive</code></td></tr>
+    <tr class="mode-measured"><td><b data-tip="participation:measured" tabindex="0">Partial CID</b> <span class="fine">(side runs)</span></td><td>Auctions as Active; only CID trades its measured share</td><td class="num">1</td><td class="num">1</td><td class="num">0.07 / 0.07 / 0.06</td><td><code>measured</code></td></tr>
+  </tbody></table></div><p class="fine">α = share of the forecast change that is traded, for demand / wind / solar. ID3 trades hours 12–23 only.</p>`;
+}
+function renderGuide() {
+  const groups = [...new Set(SETTINGS.map(s => s.group))];
+  const mainUse = s => s.key === "scenario" || s.key === "participation" ? "differs per run" : s.y24 ? "on in the three 2024 runs (2024 only)" : "on in all nine";
+  let h = "";
+  for (const g of groups) {
+    h += `<div class="sgroup"><h3>${esc(g)}</h3><div class="rows">` + SETTINGS.filter(s => s.group === g).map(s => `
+      <details class="srow" id="set-${s.key}">
+        <summary><span class="chev" aria-hidden="true">▶</span><span class="sname">${esc(s.name)}</span><span class="sshort">${esc(TIP[s.key] || "")}</span><code>${esc(/[|]| or /.test(s.sw) ? s.sw.split("=")[0] + "=…" : s.sw.split("   ")[0])}</code></summary>
+        <div class="sbody">
+          <p>${esc(s.what)}</p>${s.modes ? modesTable() : ""}${s.more ? `<p class="fine">${esc(s.more)}</p>` : ""}
+          <dl><dt>Model switch</dt><dd><code>${esc(s.sw)}</code>${s.todo ? ` <span class="chip todo" tabindex="0" data-tip="placeholder">placeholder</span>` : ""}</dd>
+              <dt>Default</dt><dd>${esc(s.def)}</dd>
+              <dt>Main runs</dt><dd>${mainUse(s)}</dd>
+              <dt>Model change</dt><dd>${esc(s.sec)}</dd></dl>
+        </div>
+      </details>`).join("") + `</div></div>`;
+  }
+  h += `<div class="sgroup"><h3>Always on</h3><div class="rows">` + FIXED.map(s => `
+      <details class="srow fixedrow"><summary><span class="chev" aria-hidden="true">▶</span><span class="sname">${esc(s.name)}</span><span class="sshort">${esc(s.what)}</span><code>–</code></summary>
+        <div class="sbody"><dl><dt>Model change</dt><dd>${esc(s.sec)}</dd><dt>Switch</dt><dd>none, always on</dd></dl></div></details>`).join("") + `</div></div>`;
+  document.getElementById("guide").innerHTML = h;
+}
+function renderNames() {
+  let h = `<thead><tr><th>Old name</th><th>New name</th><th>Kind</th></tr></thead><tbody>`;
+  for (const row of NAMES) {
+    if (row.length === 1) { h += `<tr class="sep"><td colspan="3">${esc(row[0])}</td></tr>`; continue; }
+    h += `<tr><td class="old">${esc(row[0])}</td><td class="new">${esc(row[1])}</td><td class="fine">${esc(row[2])}</td></tr>`;
+  }
+  document.getElementById("names").innerHTML = h + `</tbody>`;
+}
+function showTab(id) {
+  for (const t of document.querySelectorAll('[role="tab"]')) {
+    const on = t.id === id; t.setAttribute("aria-selected", on);
+    document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+  }
+}
+document.addEventListener("click", e => {
+  const t = e.target.closest('[role="tab"]');
+  if (t) { showTab(t.id); return; }
+  const c = e.target.closest(".colbtn");
+  if (c) { const v = VIEWS[c.dataset.view]; v.picked = +c.dataset.run; renderView(v); return; }
+  const fb = e.target.closest(".fbtn");
+  if (fb) { cfilter = fb.dataset.f; document.querySelectorAll(".fbtn").forEach(b => b.setAttribute("aria-pressed", b === fb)); renderChanges(); return; }
+  const cp = e.target.closest(".copy");
+  if (cp) { (async () => { try { await navigator.clipboard.writeText(cp.dataset.line); cp.textContent = "Copied"; } catch (_) { cp.textContent = "Select and copy"; } setTimeout(() => { cp.textContent = "Copy"; }, 1600); })(); return; }
+  const s = e.target.closest(".rowbtn");
+  if (s) {
+    showTab("t-guide");
+    const el = document.getElementById("set-" + s.dataset.set);
+    el.open = true;
+    el.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+    el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1400);
+  }
+});
+const tipEl = document.getElementById("tip");
+function showTip(el) {
+  const k = el.dataset.tip, base = k.split(":")[0], txt = TIP[k] || TIP[base];
+  if (!txt) return;
+  const head = k.includes(":") && base !== "scenario" && setting(base) ? setting(base).name : "";
+  tipEl.innerHTML = (head ? `<b>${esc(head)}</b>` : "") + esc(txt);
+  tipEl.classList.add("show");
+  const b = el.getBoundingClientRect(), t = tipEl.getBoundingClientRect();
+  const x = Math.min(Math.max(8, b.left + b.width / 2 - t.width / 2), innerWidth - t.width - 8);
+  let y = b.top - t.height - 8; if (y < 8) y = b.bottom + 8;
+  tipEl.style.left = x + "px"; tipEl.style.top = y + "px";
+}
+const hideTip = () => tipEl.classList.remove("show");
+document.addEventListener("mouseover", e => { const el = e.target.closest("[data-tip]"); el ? showTip(el) : hideTip(); });
+document.addEventListener("focusin", e => { const el = e.target.closest("[data-tip]"); el ? showTip(el) : hideTip(); });
+document.addEventListener("scroll", hideTip, true);
+renderView(VIEWS.main); renderView(VIEWS.side); renderGuide(); renderNames();
+document.getElementById("n-side").textContent = SIDE.length;
+renderChanges(); document.getElementById("n-changes").textContent = CHANGES.length;
+renderFullYear();
+// embedded: tell index.html how tall the page is, whenever it changes (tabs, open rows)
+if (document.documentElement.classList.contains("embed") && window.parent !== window) {
+  const post = () => window.parent.postMessage({ runSettingsHeight: document.documentElement.scrollHeight }, "*");
+  new ResizeObserver(post).observe(document.body); post();
+}
+</script>
+</body>
+</html>
