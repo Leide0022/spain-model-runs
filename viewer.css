@@ -115,6 +115,7 @@ button { font: inherit; color: inherit; }
 .home-btn svg { color: var(--accent); }
 .home-btn:hover { background: var(--surface-2); }
 .report.settings-on > :not(#settings-view):not(#status-note) { display: none !important; }
+.settings-view { min-width: 0; }
 .settings-view iframe { display: block; width: 100%; min-height: 70vh; border: 0; background: transparent; }
 .home-btn[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
 /* the home page replaces the run report while it is open */
