@@ -1708,7 +1708,7 @@
           <div class="row"><i class="sw-line" style="background:var(--real)"></i>${rName}<span class="v">${nf(a)} €/MWh</span></div>
           <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model ${state.priceStage}<span class="v">${nf(b)} €/MWh</span></div>
           <div class="row">Difference<span class="v">${a != null && b != null ? signed(b - a) + " €/MWh" : "–"}</span></div>`
-          + (g != null && g >= 0 ? `<div class="row"><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i>Model set by<span class="v">${r.setter.groups[g]}${S.unit[i] >= 0 ? " · " + r.setter.units[S.unit[i]] : ""}</span></div>` : "")
+          + (g != null && g >= 0 ? `<div class="row"><i class="sw-box" style="background:${SETTER_COLOR[g]}"></i>Model set by<span class="v">${SETTER_GROUPS[g]}${S.unit[i] >= 0 ? " · " + r.setter.units[S.unit[i]] : ""}</span></div>` : "")
           + (hourly && RS && RS.group[i] >= 0 ? `<div class="row"><i class="sw-box" style="background:${SETTER_COLOR[RS.group[i]]}"></i>Real set by<span class="v">${RS.groups[RS.group[i]]}${RS.unit[i] >= 0 ? " · " + RS.units[RS.unit[i]] : ""}</span></div>` : "");
       },
     });
@@ -1726,8 +1726,9 @@
   // the groups (publish_run.py SETTER_GROUPS, build_price_setter.py): "Wind, solar, run-of-river" is the joint group of
   // packages before 2 Nov 2026 and of real hours where they tie at the price; "Demand bid", "Other renewables" and
   // "Generator buy-back" (a plant buying back part of its schedule; the hover names its type) are real only;
-  // "Storage" (both directions) is the group of packages before 2 Nov 2026, later split by type and direction
-  const SETTER_GROUPS = ["Hydro (water value)", "Storage", "CCGT", "Gas turbine & oil", "Coal", "Nuclear",
+  // "Storage" (both directions) is the group of runs before 2 Nov 2026: the direction was not recorded, and it cannot be
+  // recovered reliably from the saved output, so those runs show it as one group until they are run again
+  const SETTER_GROUPS = ["Hydro (water value)", "Storage, both directions (older run)", "CCGT", "Gas turbine & oil", "Coal", "Nuclear",
     "Wind, solar, run-of-river", "CHP group", "Imports", "Shortage / unclear", "Demand bid",
     "Wind", "Solar, run-of-river", "Other renewables", "Generator buy-back",
     "Pumped storage, generating", "Pumped storage, pumping", "Battery, discharging", "Battery, charging"];
