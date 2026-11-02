@@ -274,6 +274,8 @@ tr.key-row.model td:first-child { box-shadow: inset 3px 0 0 var(--model); }
 tr.key-row:not(.model) td:first-child { box-shadow: inset 3px 0 0 var(--real); }
 tr.sub-row td { color: var(--ink-2); font-size: 13.5px; }
 .pct-below { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+tr.money-head td { font-size: 12px; font-weight: 600; color: var(--muted); }
+tr.money-row.key td { font-weight: 600; border-top: 1px solid var(--axis); }
 .tip table { border-collapse: collapse; width: auto; }
 .tip td, .tip th { border: 0; padding: 1px 0 1px 12px; font-size: 13.5px; text-align: right; text-transform: none; letter-spacing: 0; }
 .tip td:first-child, .tip th:first-child { padding-left: 0; text-align: left; }

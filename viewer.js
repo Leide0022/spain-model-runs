@@ -2207,6 +2207,14 @@
     const wtot = (key, pkey) => { const w = rows.filter(x => x[pkey] != null && x[key] > 0); const v = w.reduce((t, x) => t + x[key], 0);
                                   return v > 0 ? w.reduce((t, x) => t + x[key] * x[pkey], 0) / v : null; };
     const B = r.balancing;
+    // money: Σ MWh × price over the hours (€); REE per product with that product's price, hours
+    // without a price left out; the model with its one BAL price in both directions
+    const money = (vol, price) => (vol && price) ? vol.reduce((t, x, h) => t + (x && price[h] != null ? Math.abs(x) * price[h] : 0), 0) : 0;
+    const reePaid = V.reduce((t, [, k]) => t + money(E(k + "_up"), E(pr(k, "up"))), 0);
+    const reeRecv = V.reduce((t, [, k]) => t + money(E(k + "_down"), E(pr(k, "down"))), 0);
+    const modPaid = B ? money(B.up, r.price.BAL) : null, modRecv = B ? money(B.down, r.price.BAL) : null;
+    const meur = x => x == null ? "–" : nf(x / 1e6, Math.abs(x) < 1e7 ? 2 : 1);
+    const moneyRow = (l, a, m) => `<tr class="money-row"><td>${l}</td><td class="num">${meur(a)}</td><td class="num">${meur(m)}${m != null && a ? `<span class="pct-below">${nf(100 * m / a, 0)} % of REE</span>` : ""}</td><td></td><td></td></tr>`;
     const pct = (a, b) => b ? ` <span class="pv-muted-txt">(${nf(100 * a / b, 0)} % of REE)</span>` : "";
     const td = (x, d) => `<td class="num">${nf(x, d)}</td>`;
     // totals first (model vs REE, the comparison that matters), then REE per product
@@ -2223,6 +2231,11 @@
            : `<tr><td colspan="5" class="pv-tbc">The model's balancing volume is not in this run's package yet; publish it again with the current publish_run.py.</td></tr>`)
       + sect("REE by product")
       + rows.map(x => `<tr class="sub-row"><td>${x.l}</td>${td(x.up, 0)}${td(x.dn, 0)}${td(x.pu, 1)}${td(x.pd, 1)}</tr>`).join("")
+      + sect("Money: what balancing cost, million €")
+      + `<tr class="money-head"><td></td><td class="num">REE</td><td class="num">Model</td><td></td><td></td></tr>`
+      + moneyRow("Paid for up (MWh up × up price, to the plants)", reePaid, modPaid)
+      + moneyRow("Received for down (MWh down × down price, from the plants)", reeRecv, modRecv)
+      + `<tr class="money-row key"><td>Net cost of balancing (paid − received)</td><td class="num">${meur(reePaid - reeRecv)}</td><td class="num">${B ? meur(modPaid - modRecv) : "–"}</td><td></td><td></td></tr>`
       + "</tbody>";
     $("imb-table").innerHTML = `<thead><tr><th>What had to be balanced, ${nd} day${nd > 1 ? "s" : ""}</th><th>Sum of hourly absolute values, GWh</th></tr></thead><tbody>`
       + `<tr><td>${term("REE, net imbalance of generation and demand", "ree_imb")}</td><td>${nf(sumAbs(E("imbalance")), 0)}</td></tr>`
