@@ -16,7 +16,7 @@
 
   const state = { run: MANIFEST.length ? MANIFEST[0].id : null, priceStage: "DA", priceShow: { real: true, model: true }, priceRes: "hour", setterStage: "DA", tradeRes: "day", mixStage: "DA", mixRes: "hour", mixRef: "omie", zoom: null, tab: "overview", gridMode: "max", gridHour: null, gridSel: null, mapStyle: "terrain", plantSize: "cap", plantTime: "period", plantHour: null, plantSel: null, plantHidden: [], playSpeed: 2,
     gridLayers: ["hv", "lv", "trafo", "border"], gridSort: ["max", -1], gridQuery: "", gridAll: false };
-  const TABS = [["overview", "All"], ["price", "Price"], ["mix", "Generation mix"], ["trading", "Traded volume"], ["balancing", "Balancing"], ["status", "Redispatch: failed hours"], ["grid", "Line loading map"], ["plants", "Power plant map"], ["esios", "Redispatch & balancing vs REE"], ["flex", "Trading margin"], ["invest", "Investment case"], ["stages", "Market stages"], ["compare", "Compare runs"]];
+  const TABS = [["overview", "All"], ["price", "Price"], ["mix", "Generation mix"], ["trading", "Traded volume"], ["balancing", "Balancing"], ["status", "Redispatch: failed hours"], ["grid", "Line loading map"], ["plants", "Power plant map"], ["esios", "Redispatch vs REE"], ["flex", "Trading margin"], ["invest", "Investment case"], ["stages", "Market stages"], ["compare", "Compare runs"]];
   // the menu: a top row of groups, and the group's own tabs in a second row (keys as in TABS and data-tabs)
   const GROUPS = [["summary", "All", ["overview"]], ["market", "Market", ["price", "mix", "trading", "balancing"]],
     ["grid", "Grid", ["status", "grid", "plants", "esios"]], ["storage", "Storage", ["flex", "invest"]],
@@ -3252,8 +3252,8 @@
     });
   }
   // the order of the sections on the "All" tab, under one heading per menu group
-  const ALL_ORDER = [["Market", ["sec-price", "sec-setter", "sec-mix", "sec-trading"]],
-    ["Grid", ["sec-status", "sec-grid", "sec-plants", "sec-esios-intro", "sec-rd", "sec-bal"]],
+  const ALL_ORDER = [["Market", ["sec-price", "sec-setter", "sec-mix", "sec-trading", "sec-ledger", "sec-bal"]],
+    ["Grid", ["sec-status", "sec-grid", "sec-plants", "sec-esios-intro", "sec-rd"]],
     ["Storage", ["sec-flex", "sec-invest"]], ["Model", ["sec-stages"]], ["Compare runs", ["sec-compare"]]];
   function orderSections() {
     const rep = $("report");

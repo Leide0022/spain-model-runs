@@ -166,7 +166,7 @@
         <div class="sec-head">
           <div>
             <h3 class="pv-title">REE (e·sios): what the grid operator really did</h3>
-            <p>Red Eléctrica's own data for the stages after the market, from its e·sios platform: redispatch for grid security and the balancing markets. These are the real counterparts of the model's last two stages (BAL and redispatch). Spanish peninsula, 2024; the data is downloaded with esios_download/fetch_esios.py (model repo) and built into reference/esios_2024.js by tools/build_esios.py.</p>
+            <p>Red Eléctrica's own data for the stage after the market, from its e·sios platform: redispatch for grid security, the real counterpart of the model's redispatch. The balancing markets are compared under Market → Balancing. Spanish peninsula, 2024; the data is downloaded with esios_download/fetch_esios.py (model repo) and built into reference/esios_2024.js by tools/build_esios.py.</p>
           </div>
         </div>
       </section>
@@ -188,22 +188,6 @@
         <div id="rd-why"></div>
         <p class="fineprint" id="rd-why-note"></p>
         <p class="fineprint">Pooled to match the model's single redispatch stage: REE's technical constraints after the day-ahead market (phase I turns plants up or down for grid security, phase II rebalances) plus real-time constraints, Spanish peninsula, from e·sios (volumes 701–704, 720, 721; costs 1373–1376, 1723, 1724). REE pays what goes up its own bid including start-up costs, and refunds what goes down at its bid or the day-ahead price (P.O. 3.2, P.O. 14.4); the cost is the extra cost over the market, paid by consumers. Model: redispatch minus balancing over all units except the border flows, valued at the model's marginal costs; it includes grid losses, and failed redispatch hours have no value.</p>
-      </section>
-
-      <section class="card" id="sec-bal" data-real role="tabpanel" data-tabs="overview esios">
-        <div class="sec-head">
-          <div>
-            <h3>Balancing: the model's BAL stage vs REE's balancing markets</h3>
-            <p>The model's balancing price next to REE's balancing energy prices, and how much balancing energy REE used. Spain has no single balancing price: RR (replacement reserve) is the hourly market closest to the model's BAL stage; aFRR is the automatic reserve.</p>
-          </div>
-        </div>
-        <div class="legend" id="bal-legend"></div>
-        <div class="chart" id="bal-chart"></div>
-        <div class="legend pv-gap" id="bal-vol-legend"><span><i class="sw-line" style="background:var(--real)"></i>REE (aFRR + mFRR + RR)</span><span><i class="sw-line" style="background:var(--model)"></i>Model, balancing stage</span></div>
-        <div id="bal-vol"></div>
-        <div class="table-wrap pv-gap"><table id="bal-table"></table></div>
-        <div class="table-wrap pv-gap"><table id="imb-table"></table></div>
-        <p class="fineprint">REE: e·sios indicators 680–683 (aFRR), 10394/10395 and 676/677 (mFRR; 10386/10387 in December), 1782–1784 (RR), 1338 (net imbalance). Prices are averaged over the hours with activation. Model: the balancing stage's change from the continuous intraday schedule, and the forecast change (load − wind − solar) it covers.</p>
       </section>
 
       <section class="card" id="sec-grid" role="tabpanel" data-tabs="overview grid">
@@ -357,6 +341,22 @@
           </div>
         </div>
         <div id="led-body"></div>
+      </section>
+
+      <section class="card" id="sec-bal" data-real role="tabpanel" data-tabs="overview balancing">
+        <div class="sec-head">
+          <div>
+            <h3>Balancing: the model's BAL stage vs REE's balancing markets</h3>
+            <p>The model's balancing price next to REE's balancing energy prices, and how much balancing energy REE used. Spain has no single balancing price: RR (replacement reserve) is the hourly market closest to the model's BAL stage; aFRR is the automatic reserve.</p>
+          </div>
+        </div>
+        <div class="legend" id="bal-legend"></div>
+        <div class="chart" id="bal-chart"></div>
+        <div class="legend pv-gap" id="bal-vol-legend"><span><i class="sw-line" style="background:var(--real)"></i>REE (aFRR + mFRR + RR)</span><span><i class="sw-line" style="background:var(--model)"></i>Model, balancing stage</span></div>
+        <div id="bal-vol"></div>
+        <div class="table-wrap pv-gap"><table id="bal-table"></table></div>
+        <div class="table-wrap pv-gap"><table id="imb-table"></table></div>
+        <p class="fineprint">REE: e·sios indicators 680–683 (aFRR), 10394/10395 and 676/677 (mFRR; 10386/10387 in December), 1782–1784 (RR), 1338 (net imbalance). Prices are averaged over the hours with activation. Model: the balancing stage's change from the continuous intraday schedule, and the forecast change (load − wind − solar) it covers.</p>
       </section>
 
       <section class="card" id="sec-stages" role="tabpanel" data-tabs="overview stages">
