@@ -25,7 +25,7 @@ YEAR = 2024
 # same order as the model packages (publish_run.py SETTER_GROUPS) + demand
 GROUPS = ["Hydro (water value)", "Storage", "CCGT", "Gas turbine & oil", "Coal", "Nuclear",
           "Wind, solar, run-of-river", "CHP group", "Imports", "Shortage / unclear", "Demand bid",
-          "Wind", "Solar, run-of-river", "Other renewables"]
+          "Wind", "Solar, run-of-river", "Other renewables", "Generator buy-back"]
 IDA_OF = {"ID2": 2, "ID3": 3}   # model stage -> IDA session
 
 
@@ -39,7 +39,14 @@ def main():
     days = [(date(YEAR, 1, 1) + timedelta(k)).isoformat() for k in range(366)]
     day_i = {x: k for k, x in enumerate(days)}
     frames = [d] + ([ida] if ida is not None else [])
-    units = sorted({u for f in frames for u in f.unit if isinstance(u, str) and u})
+    # a generator buying back is shown as "<unit>, buying back (<its type>)"
+    def label(r):
+        u = r.unit if isinstance(r.unit, str) else ""
+        of = getattr(r, "buyback_of", "")
+        return f"{u}, buying back ({of})" if u and isinstance(of, str) and of else u
+    for f in frames:
+        f["label"] = [label(r) for r in f.itertuples(index=False)]
+    units = sorted({u for f in frames for u in f.label if u})
     uix = {u: i for i, u in enumerate(units)}
 
     def arrays(f):
@@ -50,7 +57,7 @@ def main():
                 continue
             i = k * 24 + int(r.hour)
             grp[i] = GROUPS.index(r.group)
-            unit[i] = uix.get(r.unit, -1) if isinstance(r.unit, str) else -1
+            unit[i] = uix.get(r.label, -1) if r.label else -1
         return dict(group=grp, unit=unit)
 
     stages = {"DA": arrays(d)}
