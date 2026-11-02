@@ -272,7 +272,6 @@ table.names tr.sep td { font-size: 11px; letter-spacing: .06em; text-transform: 
     <button role="tab" id="t-runs" aria-controls="p-runs" aria-selected="true">Main runs<span class="n">9</span></button>
     <button role="tab" id="t-side" aria-controls="p-side" aria-selected="false">Side runs<span class="n" id="n-side"></span></button>
     <button role="tab" id="t-full" aria-controls="p-full" aria-selected="false">Full-year runs<span class="n" id="n-full"></span></button>
-    <button role="tab" id="t-guide" aria-controls="p-guide" aria-selected="false">All settings</button>
     <button role="tab" id="t-changes" aria-controls="p-changes" aria-selected="false">All changes<span class="n" id="n-changes"></span></button>
     <button role="tab" id="t-names" aria-controls="p-names" aria-selected="false">Old names</button>
   </div>
@@ -300,13 +299,8 @@ table.names tr.sep td { font-size: 11px; letter-spacing: .06em; text-transform: 
     <div class="card grid-wrap"><table class="fy" id="fy"></table></div>
   </section>
 
-  <section class="panel" id="p-guide" role="tabpanel" aria-labelledby="t-guide" hidden>
-    <p class="lead">Click a setting to read more. On Solstorm, put the switch in front of the start line, e.g. <code>GAS=on MARKUP=on scripts/solstorm_start_markets.sh &lt;out&gt;</code>. Each run saves its settings, and the website reads them from there.</p>
-    <div id="guide" class="slist-all"></div>
-  </section>
-
   <section class="panel" id="p-changes" role="tabpanel" aria-labelledby="t-changes" hidden>
-    <p class="lead">Everything we have changed in the model since Ehsan's version (4 Sep 2026). Click a change to read more. The tag on the right says if it is always on, a setting you switch on, only output, or not in the model yet.</p>
+    <p class="lead">Everything we have changed in the model since Ehsan's version (4 Sep 2026). Click a change to read more. The tag on the right says if it is always on, a setting you switch on, only output, or not in the model yet. For a setting, put the switch in front of the start line on Solstorm, e.g. <code>GAS=on MARKUP=on scripts/solstorm_start_markets.sh &lt;out&gt;</code>; each run saves its settings, and the website reads them from there.</p>
     <div class="cfilter" role="group" aria-label="Show changes">
       <button class="fbtn" data-f="all" aria-pressed="true">All</button>
       <button class="fbtn" data-f="always" aria-pressed="false">Always on</button>
@@ -406,11 +400,6 @@ const SETTINGS = [
     vals: { ree: "REE way", ac: "AC at cost" }, on: v => v === "ree",
     what: "Redispatch as REE does it: phase I (technical constraints on the day-ahead schedule) and phase II, pay-as-bid, with reactive power and voltage rules.",
     more: "On Magnus's branch redispatch-realism, not in main yet. The switch name is a placeholder until it is merged." },
-];
-const FIXED = [
-  { name: "Day-by-day market chain", sec: "§16", what: "Each day runs day-ahead → ID2 → ID3 → CID → balancing before the next day." },
-  { name: "Cross-border split", sec: "§11", what: "The redispatch chooses how the exchange with France and Portugal splits over the border lines (2024)." },
-  { name: "All 366 days", sec: "§26", what: "Inputs for every day of 2024, including 30–31 December. Runs published before 29 Oct have 364 days." },
 ];
 
 // main runs: everything on; only system and trading mode change
@@ -573,6 +562,27 @@ const CHANGES = [
 ];
 const STATUS = { always: "Always on", output: "Output only", branch: "Not in model yet", dropped: "Dropped" };
 let cfilter = "all";
+// which setting (SETTINGS key) a change row is: its switch, default, main-run use and, for the
+// trading modes, the α table are shown in that row
+const CHANGE_KEY = { "Offered solar and wind bids": "res", "Hydro planning from real reservoirs": "hydro",
+  "Extra hydro when the system runs short": "hydro_topup", "Gas plants: own efficiency and start/stop": "gas",
+  "Generation tax and mark-ups": "markup", "Starts in the intraday auctions": "intraday_starts",
+  "Intraday trading modes": "participation", "Only approved plants balance": "balancing", "Pumping out of demand": "pumping",
+  "Pumping power per plant": "pump_limits", "Batteries with losses and wear": "bess", "Redispatch the REE way": "rd",
+  "2035 scenario runs": "scenario" };
+const mainUse = s => s.key === "scenario" || s.key === "participation" ? "differs per run" : s.y24 ? "on in the three 2024 runs (2024 only)" : s.key === "bess" ? "on in the six 2035 runs (2035 only)" : "on in all nine";
+function settingExtras(key) {
+  const s = setting(key);
+  if (!s) return "";
+  return `${s.modes ? modesTable() : ""}${s.more ? `<p class="fine">${esc(s.more)}</p>` : ""}`;
+}
+function settingFacts(key) {
+  const s = setting(key);
+  if (!s) return "";
+  return `<dt>Model switch</dt><dd><code>${esc(s.sw)}</code>${s.todo ? ` <span class="chip todo" tabindex="0" data-tip="placeholder">placeholder</span>` : ""}</dd>
+              <dt>Default</dt><dd>${esc(s.def)}</dd>
+              <dt>Main runs</dt><dd>${mainUse(s)}</dd>`;
+}
 function renderChanges() {
   const areas = [...new Set(CHANGES.map(c => c.area))];
   const shown = c => cfilter === "all" || c.st === cfilter || (cfilter === "branch" && c.st === "dropped");
@@ -581,11 +591,12 @@ function renderChanges() {
     const rows = CHANGES.filter(c => c.area === a && shown(c));
     if (!rows.length) continue;
     h += `<div class="sgroup"><h3>${esc(a)}</h3><div class="rows">` + rows.map(c => `
-      <details class="srow">
+      <details class="srow"${CHANGE_KEY[c.name] ? ` id="chg-${CHANGE_KEY[c.name]}"` : ""}>
         <summary><span class="chev" aria-hidden="true">▶</span><span class="sname">${esc(c.name)}</span><span class="sshort">${esc(c.short)}</span><span class="stag ${c.st}">${esc(c.st === "switch" ? c.sw : STATUS[c.st])}</span></summary>
         <div class="sbody">
-          <p>${esc(c.what)}</p>${c.more ? `<p class="fine">${esc(c.more)}</p>` : ""}
+          <p>${esc(c.what)}</p>${c.more ? `<p class="fine">${esc(c.more)}</p>` : ""}${settingExtras(CHANGE_KEY[c.name])}
           <dl><dt>Status</dt><dd>${c.st === "switch" ? "A setting: off by default, switched on with <code>" + esc(c.sw) + "</code>" : esc(STATUS[c.st])}</dd>
+              ${settingFacts(CHANGE_KEY[c.name])}
               <dt>Model change</dt><dd>${esc(c.sec)}</dd>
               <dt>Since</dt><dd>${esc(c.since)} 2026</dd></dl>
         </div>
@@ -758,28 +769,6 @@ function modesTable() {
     ${row("mode-measured", `<b data-tip="participation:measured" tabindex="0">Partial CID</b> <span class="fine">(side runs)</span>`, "Auctions as Active; only CID trades its measured share", ONE, ONE, CIDM, `<code>measured</code>`)}
   </tbody></table></div><p class="fine">α = the share of each source's forecast change that is traded in that market, measured separately for demand, wind and solar from REE's 2024 schedules. ID3 trades hours 12–23 only.</p>`;
 }
-function renderGuide() {
-  const groups = [...new Set(SETTINGS.map(s => s.group))];
-  const mainUse = s => s.key === "scenario" || s.key === "participation" ? "differs per run" : s.y24 ? "on in the three 2024 runs (2024 only)" : s.key === "bess" ? "on in the six 2035 runs (2035 only)" : "on in all nine";
-  let h = "";
-  for (const g of groups) {
-    h += `<div class="sgroup"><h3>${esc(g)}</h3><div class="rows">` + SETTINGS.filter(s => s.group === g).map(s => `
-      <details class="srow" id="set-${s.key}">
-        <summary><span class="chev" aria-hidden="true">▶</span><span class="sname">${esc(s.name)}</span><span class="sshort">${esc(TIP[s.key] || "")}</span><code>${esc(/[|]| or /.test(s.sw) ? s.sw.split("=")[0] + "=…" : s.sw.split("   ")[0])}</code></summary>
-        <div class="sbody">
-          <p>${esc(s.what)}</p>${s.modes ? modesTable() : ""}${s.more ? `<p class="fine">${esc(s.more)}</p>` : ""}
-          <dl><dt>Model switch</dt><dd><code>${esc(s.sw)}</code>${s.todo ? ` <span class="chip todo" tabindex="0" data-tip="placeholder">placeholder</span>` : ""}</dd>
-              <dt>Default</dt><dd>${esc(s.def)}</dd>
-              <dt>Main runs</dt><dd>${mainUse(s)}</dd>
-              <dt>Model change</dt><dd>${esc(s.sec)}</dd></dl>
-        </div>
-      </details>`).join("") + `</div></div>`;
-  }
-  h += `<div class="sgroup"><h3>Always on</h3><div class="rows">` + FIXED.map(s => `
-      <details class="srow fixedrow"><summary><span class="chev" aria-hidden="true">▶</span><span class="sname">${esc(s.name)}</span><span class="sshort">${esc(s.what)}</span><code>–</code></summary>
-        <div class="sbody"><dl><dt>Model change</dt><dd>${esc(s.sec)}</dd><dt>Switch</dt><dd>none, always on</dd></dl></div></details>`).join("") + `</div></div>`;
-  document.getElementById("guide").innerHTML = h;
-}
 function renderNames() {
   let h = `<thead><tr><th>Old name</th><th>New name</th><th>Kind</th></tr></thead><tbody>`;
   for (const row of NAMES) {
@@ -805,8 +794,10 @@ document.addEventListener("click", e => {
   if (cp) { (async () => { try { await navigator.clipboard.writeText(cp.dataset.line); cp.textContent = "Copied"; } catch (_) { cp.textContent = "Select and copy"; } setTimeout(() => { cp.textContent = "Copy"; }, 1600); })(); return; }
   const s = e.target.closest(".rowbtn");
   if (s) {
-    showTab("t-guide");
-    const el = document.getElementById("set-" + s.dataset.set);
+    showTab("t-changes");
+    if (cfilter !== "all") { cfilter = "all"; document.querySelectorAll(".fbtn").forEach(b => b.setAttribute("aria-pressed", b.dataset.f === "all")); renderChanges(); }
+    const el = document.getElementById("chg-" + s.dataset.set);
+    if (!el) return;
     el.open = true;
     el.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
     el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1400);
@@ -828,7 +819,7 @@ const hideTip = () => tipEl.classList.remove("show");
 document.addEventListener("mouseover", e => { const el = e.target.closest("[data-tip]"); el ? showTip(el) : hideTip(); });
 document.addEventListener("focusin", e => { const el = e.target.closest("[data-tip]"); el ? showTip(el) : hideTip(); });
 document.addEventListener("scroll", hideTip, true);
-renderView(VIEWS.main); renderView(VIEWS.side); renderGuide(); renderNames();
+renderView(VIEWS.main); renderView(VIEWS.side); renderNames();
 document.getElementById("n-side").textContent = SIDE.length;
 renderChanges(); document.getElementById("n-changes").textContent = CHANGES.length;
 renderFullYear();
