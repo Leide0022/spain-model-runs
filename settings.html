@@ -411,7 +411,7 @@ const FIXED = [
 
 // main runs: everything on; only system and trading mode change
 const MAIN24 = { res: "offered", pumping: true, gas: true, markup: true, intraday_starts: true, hydro: true, pump_limits: true, hydro_topup: true, bess: null, balancing: "qualified", rd: "ree" };
-const MAIN35 = { res: null, pumping: null, gas: true, markup: true, intraday_starts: true, hydro: null, pump_limits: null, hydro_topup: true, bess: false, balancing: "qualified", rd: "ree" };   // bess: not decided yet
+const MAIN35 = { res: null, pumping: null, gas: true, markup: true, intraday_starts: true, hydro: null, pump_limits: null, hydro_topup: true, bess: true, balancing: "qualified", rd: "ree" };
 const MDESC = {
   active: "every forecast change is traded in the intraday markets (PowerVision's active case).",
   measured_all: "each intraday market trades only its measured share of the forecast change; the rest goes to balancing.",
@@ -747,7 +747,7 @@ function modesTable() {
 }
 function renderGuide() {
   const groups = [...new Set(SETTINGS.map(s => s.group))];
-  const mainUse = s => s.key === "scenario" || s.key === "participation" ? "differs per run" : s.y24 ? "on in the three 2024 runs (2024 only)" : s.key === "bess" ? "not decided for the main runs yet (2035 only)" : "on in all nine";
+  const mainUse = s => s.key === "scenario" || s.key === "participation" ? "differs per run" : s.y24 ? "on in the three 2024 runs (2024 only)" : s.key === "bess" ? "on in the six 2035 runs (2035 only)" : "on in all nine";
   let h = "";
   for (const g of groups) {
     h += `<div class="sgroup"><h3>${esc(g)}</h3><div class="rows">` + SETTINGS.filter(s => s.group === g).map(s => `
