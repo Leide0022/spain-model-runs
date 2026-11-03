@@ -387,7 +387,7 @@ const SETTINGS = [
     more: "Tests: removes all 1000 €/MWh hours on 20 May and 11 Dec 2024, with at most 10 GWh extra water a day. Normal days are unchanged." },
   { key: "bess", group: "Hydro and storage", name: "Batteries with losses and wear", sec: "new, 2 Nov", sw: "BESS=on", def: "off", y35: true,
     what: "The 2035 batteries (EMPIRE: 2-hour Li-ion, 6.4 GW Trinity, 25 GW NECP) get a round-trip efficiency of 85 %, a wear cost of 10 €/MWh discharged and use 0–100 % of their size. Off, they are lossless and free to cycle. Each day still starts and ends half full.",
-    more: "Sources: NREL Annual Technology Baseline (85 %), Xu et al. 2018 (wear cost in market bids), Rystad 2026 (battery cell and block costs). Sensitivities: BESSEFF, BESSWEAR, BESSSOC. On branch batteries-2035, not in main yet." },
+    more: "Sources: NREL Annual Technology Baseline (85 %), Xu et al. 2018 (wear cost in market bids), Rystad 2026 (battery cell and block costs). Sensitivities: BESSEFF, BESSWEAR, BESSSOC. In main since 3 Nov 2026. Test, NECP 13–19 May: daily price spread 12 → 18 €/MWh, about 6× less cycling, energy out = 0.85 × in." },
   { key: "participation", group: "Trading", name: "Intraday trading mode", sec: "§23", sw: "PARTICIPATION=active | measured_all | passive   (old: measured)", def: "Active",
     vals: MODES, on: v => v !== "active", modes: true,
     what: "How much of each forecast change (demand, wind, solar) is traded in the intraday markets. What is not traded is left to balancing.",
@@ -522,7 +522,7 @@ const CHANGES = [
   { area: "Markets and trading", name: "Only approved plants balance", short: "Like in Spain, only plants REE approves take part in balancing.", st: "switch", sw: "BALANCING=qualified", sec: "§23", since: "27 Oct",
     what: "Balancing uses only CCGTs, gas turbines, coal, reservoir hydro, pumped storage and batteries, as REE's rules allow. Other plants keep their schedule." },
   { area: "Markets and trading", name: "Who sets the price", short: "Every market records which plant set the price, and why.", st: "output", sec: "§19", since: "19 Oct",
-    what: "Every market stage saves the plant that set the price each hour and the reason (its cost, water value, a limit). Shown on the website." },
+    what: "Every market stage saves the plant that set the price each hour and the reason (its cost, water value, a limit). Shown on the website. Since 3 Nov an idle battery (0 MW) is no longer counted as the setter: with losses it idles because cycling does not pay. Runs made before then overcount batteries until they are run again." },
   { area: "Markets and trading", name: "Real price setter from OMIE bids", short: "Which plant really set the 2024 day-ahead price, for comparison.", st: "output", sec: "website", since: "28 Oct",
     what: "Built from OMIE's 2024 bids, so the website can show the model's price setter next to the real one." },
 
@@ -532,8 +532,9 @@ const CHANGES = [
     what: "Pumping power per plant from the JRC Hydro-power database: 5.1 GW in all, instead of pumping at full turbine power (8.2 GW)." },
   { area: "Pumped storage", name: "Pumped storage keeps water across days", short: "Experiment: tested, made prices worse, not used.", st: "dropped", sec: "§25", since: "28 Oct",
     what: "Pumped storage carried its water to the next day. On 27 Feb it raised the day-ahead price from 14 to 32 €/MWh (real 4), so it was dropped. Kept as tag archive/pumping-out-of-load-incl-carry." },
-  { area: "Batteries", name: "Batteries with losses and wear", short: "2035 batteries lose 15 % per cycle and pay 10 €/MWh wear.", st: "branch", sw: "BESS=on", sec: "new", since: "2 Nov",
-    what: "The 2035 Li-ion batteries get a round-trip efficiency of 85 % (NREL ATB), a wear cost of 10 €/MWh discharged (Xu et al. 2018; Rystad 2026 costs) and a usable range of 0–100 %. Each day still starts and ends half full. On branch batteries-2035; a one-week NECP test is running." },
+  { area: "Batteries", name: "Batteries with losses and wear", short: "2035 batteries lose 15 % per cycle and pay 10 €/MWh wear.", st: "switch", sw: "BESS=on", sec: "§29", since: "3 Nov",
+    what: "The 2035 Li-ion batteries get a round-trip efficiency of 85 % (NREL ATB), a wear cost of 10 €/MWh discharged (Xu et al. 2018; Rystad 2026 costs) and a usable range of 0–100 %. Each day still starts and ends half full. Test, NECP 13–19 May: energy out = 0.85 × energy in, about 6× less cycling, daily price spread 12 → 18 €/MWh. A battery locked at full power in a later market no longer makes that market fail.",
+    more: "In main since 3 Nov 2026 (835a91c). The markets take about twice as long with it (one NECP week: 38 → 70 min)." },
 
   { area: "Grid and redispatch", name: "Border split chosen by the redispatch", short: "Fixes most failed grid hours at the French border.", st: "always", sec: "§11", since: "7 Oct",
     what: "The redispatch chooses how the exchange with France and Portugal splits over the border lines. Before, a 240 MW transformer limit at the French border made about 12 % of hours fail." },
@@ -614,6 +615,7 @@ const FY_COLS = [
   { k: "hydro", label: "Hydro planning", tip: "hydro", y24: true },
   { k: "pump_limits", label: "Pump power per plant", tip: "pump_limits", y24: true },
   { k: "hydro_topup", label: "Extra hydro when short", tip: "hydro_topup" },
+  { k: "bess", label: "Batteries with losses", tip: "bess", y35: true },
   { k: "qualified", label: "Only approved plants balance", tip: "balancing:qualified" },
   { k: "ree", label: "REE-way redispatch", tip: "rd:ree" },
   { k: "chain", label: "Day by day", tip: "chain" },
@@ -622,9 +624,12 @@ const FY_COLS = [
 TIP.chain = "Each day runs all markets before the next day, so plants keep their on/off state.";
 TIP.days366 = "All 366 days of 2024, including 30–31 December. Runs before 29 Oct have 364.";
 const FY_HAS = r => ({ offered: r.f.res === "offered", pumping: !!r.f.pumping, gas: r.f.gas, markup: r.f.markup, intraday_starts: r.f.intraday_starts,
-  hydro: !!r.f.hydro, pump_limits: !!r.f.pump_limits, hydro_topup: r.f.hydro_topup, qualified: r.f.balancing === "qualified", ree: r.f.rd === "ree",
+  hydro: !!r.f.hydro, pump_limits: !!r.f.pump_limits, hydro_topup: r.f.hydro_topup, bess: !!r.f.bess, qualified: r.f.balancing === "qualified", ree: r.f.rd === "ree",
   chain: r.f.chain, days366: r.f.days366 });
-const FY_SCORE = r => { const cols = FY_COLS.filter(c => !(r.scen !== "2024" && c.y24)); return cols.filter(c => r.has[c.k]).length / cols.length; };
+// a column that does not apply to a run's system: 2024-only inputs in 2035, 2035-only (batteries) in 2024
+const FY_NA = (scen, c) => (scen !== "2024" && c.y24) || (scen === "2024" && c.y35);
+const naCell = c => `<td><span class="na" tabindex="0" data-tip="${c.y35 ? "na35" : "na"}">${c.y35 ? "2035 only" : "2024 only"}</span></td>`;
+const FY_SCORE = r => { const cols = FY_COLS.filter(c => !FY_NA(r.scen, c)); return cols.filter(c => r.has[c.k]).length / cols.length; };
 const FULLYEAR = [["2024", r => r.scen === "2024"], ["2035", r => r.scen !== "2024"]].map(([group, test]) => ({ group,
   runs: MANIFEST.filter(m => m.n_days >= 300).map(m => BY_ID[m.id]).filter(test)
     .map(r => ({ ...r, mode: r.f.participation, has: FY_HAS(r), oldrun: r.superseded }))
@@ -637,13 +642,13 @@ function renderFullYear() {
   for (const g of FULLYEAR) {
     h += `<tr class="sep"><td colspan="${FY_COLS.length + 3}">${esc(g.group)}</td></tr>`;
     h += `<tr class="mainrow"><td class="run"><b>Main runs ${g.group === "2024" ? "2024" : "2035 (Trinity, NECP)"}</b><span class="old">what the main runs will have · not run yet</span></td><td><span class="fine">all three</span></td>` +
-      FY_COLS.map(c => g.group === "2035" && c.y24 ? `<td><span class="na" tabindex="0" data-tip="na">2024 only</span></td>` : `<td><span class="hasmark">✓</span></td>`).join("") + `<td class="score"></td></tr>`;
+      FY_COLS.map(c => FY_NA(g.group, c) ? naCell(c) : `<td><span class="hasmark">✓</span></td>`).join("") + `<td class="score"></td></tr>`;
     for (const r of g.runs) {
       n++;
-      const cols = FY_COLS.filter(c => !(r.scen !== "2024" && c.y24));
+      const cols = FY_COLS.filter(c => !FY_NA(r.scen, c));
       const got = cols.filter(c => r.has[c.k]).length;
       h += `<tr class="${r.oldrun ? "oldrun" : ""}"><td class="run"><b><a class="open-run" target="_top" href="index.html#${encodeURIComponent(r.id)}">${esc(r.name)}</a></b><span class="old">was: ${esc(r.old)}</span></td><td>${modeChip(r.mode)}</td>` +
-        FY_COLS.map(c => r.scen !== "2024" && c.y24 ? `<td><span class="na" tabindex="0" data-tip="na">2024 only</span></td>`
+        FY_COLS.map(c => FY_NA(r.scen, c) ? naCell(c)
           : r.has[c.k] ? `<td><span class="hasmark" tabindex="0" data-tip="${c.tip}">✓</span></td>` : `<td class="miss"><span class="missmark" tabindex="0" data-tip="${c.tip}">✗</span></td>`).join("") +
         `<td class="score">${got} / ${cols.length}<span class="bar"><i style="width:${Math.round(100 * got / cols.length)}%"></i></span></td></tr>`;
     }
