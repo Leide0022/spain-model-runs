@@ -5,7 +5,7 @@ window.RUN_MANIFEST = [
   "id": "2024-ree-partial",
   "name": "2024 Partial + REE-way redispatch",
   "note": "As 2024 Active + REE-way redispatch, with Partial trading (each intraday market trades its measured share). Branch redispatch-realism 9bf3094, 366 days, weeks in order. Cost shown is the viewer estimate, not pay-as-bid.",
-  "published": "2026-11-04T10:36:29+01:00",
+  "published": "2026-11-04T11:19:09+01:00",
   "published_by": "magnusberard",
   "first_day": "2024-01-01",
   "last_day": "2024-12-31",
@@ -26,7 +26,7 @@ window.RUN_MANIFEST = [
    "2024-11",
    "2024-12"
   ],
-  "size_mb": 46.3,
+  "size_mb": 46.4,
   "info": {
    "ran_by": "magnusberard",
    "branch": "redispatch-realism",
@@ -71,7 +71,7 @@ window.RUN_MANIFEST = [
   "id": "2024-ree-active",
   "name": "2024 Active + REE-way redispatch",
   "note": "Branch redispatch-realism 9bf3094. Main 2024 settings (plant costs, mark-ups, hydro planning, offered solar/wind, pumping fixes, intraday starts, hydro top-up, qualified balancing), Active trading. Redispatch the REE way inside the market chain: phase I/II after the DA with security limits in ID2-BAL, REE zones and AC check, REE buy-back offers in phase II, border ties. 366 days, weeks in order. Cost shown is the viewer estimate, not pay-as-bid.",
-  "published": "2026-11-04T10:36:18+01:00",
+  "published": "2026-11-04T11:18:36+01:00",
   "published_by": "magnusberard",
   "first_day": "2024-01-01",
   "last_day": "2024-12-31",
@@ -92,7 +92,7 @@ window.RUN_MANIFEST = [
    "2024-11",
    "2024-12"
   ],
-  "size_mb": 46.1,
+  "size_mb": 46.3,
   "info": {
    "ran_by": "magnusberard",
    "branch": "redispatch-realism",
