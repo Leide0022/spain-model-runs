@@ -66,7 +66,7 @@
     model_imb: ["Model forecast change", "Load minus wind minus solar at the balancing stage, minus the same at the continuous intraday stage: the forecast change the model's balancing stage has to cover. It is the model's counterpart of the imbalance."],
     led_gap: ["Caused the gap", "What wind, solar and demand missed after the last trading stage (CID): the balancing stage's value minus the CID value. Wind or solar producing less, or demand using more, leaves the system short. In the model only these three miss their plan, with one national forecast change each."],
     led_cover: ["Covered it", "What each plant type moved in the balancing stage compared with its CID schedule: up when the system was short, down when it was long. In every hour the covers add up to the net gap."],
-    rd_cost: ["Extra cost of redispatch", "What the redispatch costs on top of the market: paid for energy turned up minus what is saved or refunded for energy turned down. REE: its settled cost of technical constraints (P.O. 14.4), pay-as-bid with start-up costs. Model: marginal cost × change, with no start-ups or bids."],
+    rd_cost: ["Extra cost of redispatch", "What the redispatch costs on top of the market: paid for energy turned up minus the energy's value at the day-ahead price (it replaces energy bought anyway), and for energy turned down the day-ahead price minus the refund. REE: its settled cost of technical constraints (P.O. 14.4), pay-as-bid with start-up costs; real time from its per-unit records, since e·sios 1723/1724 are gross payments. Model, REE-way runs: the same rule with its own bids and start-ups; other runs: marginal cost × change, with no start-ups or bids."],
     model_rd: ["Model redispatch", "The model's redispatch minus its balancing schedule, summed over all units except the fixed border flows. It includes the grid losses the copper-plate markets do not see. Failed redispatch hours have no value."],
     real_mix: ["Real generation", "OMIE's day-ahead programme per technology (the 'Energía horaria por tecnologías' report)."],
     DA: ["Day-ahead (DA)", "Clears all 24 hours the day before delivery, using the day-ahead forecast of load, wind and solar."],
@@ -2292,6 +2292,17 @@
     const E = k => esiosFor(r, k);
     const add = (...a) => a[0].map((_, i) => a.reduce((s, x) => s + (x[i] || 0), 0));
     const rUp = add(E("rt1_up"), E("rt2_up"), E("rtr_up")), rDown = add(E("rt1_down"), E("rt2_down"), E("rtr_down"));
+    // by phase: REE phase I + II (after the day-ahead) and real time; the model's split comes with REE-way packages
+    // (redispatch.phases, from the model repo's redispatch_realism/rd_phases.py)
+    const PH = RD && RD.phases && RD.phases.ph1 && RD.phases.rt ? RD.phases : null;
+    const rP1Up = add(E("rt1_up"), E("rt2_up")), rP1Down = add(E("rt1_down"), E("rt2_down"));
+    const rRtUp = E("rtr_up"), rRtDown = E("rtr_down");
+    // REE's real-time COST (P.O. 14.4 §19.10): payments minus the energy at the day-ahead price (tools/add_rt_cost.py);
+    // e·sios 1723/1724 are the gross payments and only stand in where the reference file has no net series
+    const RT_NET = !!E("rtr_cost_net");
+    const reeRtCost = RT_NET ? E("rtr_cost_net") : add(E("rtr_up_cost"), E("rtr_down_cost"));
+    const reeP1Cost = add(E("rt1_up_cost"), E("rt2_up_cost")).map((x, i) => x - (E("rt1_down_cost")[i] || 0) - (E("rt2_down_cost")[i] || 0));
+    const both = (a, b) => a.map((x, i) => x == null && b[i] == null ? null : (x || 0) + (b[i] || 0));
     const unit = hourly ? "MW" : "GWh/day";
     const agg = a => hourly ? a : dailySum(a, nd);
     const draw = (id, label, real, model) => {
@@ -2306,22 +2317,69 @@
           <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model<span class="v">${nf(mv[i], hourly ? 0 : 1)} ${unit}</span></div>`,
       });
     };
-    host.innerHTML = `<div class="rd-pair"><div><h4>Turned up</h4><div class="chart" id="rd-up"></div></div><div><h4>Turned down</h4><div class="chart" id="rd-down"></div></div></div>`;
-    $("rd-legend").innerHTML = `<span><i class="sw-line" style="background:var(--real)"></i>${term("REE redispatch", "ree_rd")}</span><span><i class="sw-line" style="background:var(--model)"></i>${term("Model redispatch", "model_rd")}</span><span style="color:var(--muted)">${hourly ? "MW each hour" : "Energy per day"}</span>`;
-    requestAnimationFrame(() => { draw("rd-up", "Redispatch up, REE vs model", rUp, mUp); draw("rd-down", "Redispatch down, REE vs model", rDown, mDown); });
     // totals over the solved hours, so both sides cover the same hours
     const ok = i => r.status[i] === 1;
     const tot = a => a ? a.reduce((s, x, i) => s + (ok(i) ? (x || 0) : 0), 0) : 0;
     const G = a => tot(a) / 1000, M = a => tot(a) / 1e6;
+    // how well the model follows REE, as on the phase I page: volume, correlation per hour, day, week and month,
+    // the average day's shape, and the monthly error (Σ |model − REE| per month over REE's volume); solved hours
+    // where both sides have a value
+    const fit = (ree, mod) => {
+      const idx = [];
+      for (let i = 0; i < N; i++) if (ok(i) && ree[i] != null && mod[i] != null) idx.push(i);
+      if (idx.length < 3) return null;
+      const by = key => { const g = new Map(); for (const i of idx) { const k = key(i), v = g.get(k) || [0, 0]; v[0] += ree[i]; v[1] += mod[i]; g.set(k, v); } return [...g.values()]; };
+      const day = by(i => Math.floor(i / 24)), week = by(i => Math.floor(i / 168)), month = by(i => r.days[Math.floor(i / 24)].slice(0, 7));
+      const sr = idx.reduce((s, i) => s + ree[i], 0), sm = idx.reduce((s, i) => s + mod[i], 0);
+      return { sr, sm, vol: sr ? sm / sr : null, hourly: corr(idx.map(i => [ree[i], mod[i]])), daily: corr(day), weekly: corr(week),
+               monthly: corr(month), hod: corr(by(i => i % 24)), months: month.length,
+               merr: month.length >= 2 && sr ? month.reduce((s, [a, b]) => s + Math.abs(b - a), 0) / sr : null };
+    };
+    const f2 = x => x == null ? "–" : nf(x, 2), pc = x => x == null ? "–" : nf(100 * x, 0) + " %";
+    const meur = x => x == null ? "–" : nf(x, Math.abs(x) < 10 ? 2 : 1);
+    const kpis = (f, what, cR, cM, cNote) => !f ? "" : `<div class="kpis" style="margin:4px 0 14px">` + [
+      [`Volume, ${what}`, pc(f.vol), `${nf(f.sm / 1e3, 0)} of ${nf(f.sr / 1e3, 0)} GWh`],
+      ["Correlation, hourly", f2(f.hourly), `daily ${f2(f.daily)}`],
+      ["Correlation, weekly", f2(f.weekly), `monthly ${f2(f.monthly)}`],
+      ["Average-day shape", f2(f.hod), "correlation, 24 hours"],
+      ["Monthly error", f.merr == null ? "–" : nf(100 * f.merr, 0) + " %", f.merr == null ? "needs two months or more" : "of REE's volume"],
+      [term("Extra cost", "rd_cost"), cR ? pc(cM / cR) : "–", `${meur(cM)} of ${meur(cR)} M€${cNote ? " · " + cNote : ""}`],
+    ].map(([k, v, s]) => `<div class="kpi"><span class="k-label">${k}</span><span class="k-value">${v}</span><span class="k-sub">${s}</span></div>`).join("") + `</div>`;
+    // the model's cost on REE's measure (P.O. 14.4) where the package has the phase split; else its marginal-cost valuation
+    const mCostP1 = PH ? M(PH.ph1.cost) : null, mCostRt = PH ? M(PH.rt.cost) : null;
+    const mCostAll = PH ? mCostP1 + mCostRt : RD ? M(RD.cost) : null;
+    const rCostP1 = M(reeP1Cost), rCostRt = M(reeRtCost), rCostAll = rCostP1 + rCostRt;
+    const mAll = both(mUp, mDown), rAll = add(rUp, rDown);
+    const pair = (a, b) => `<div class="rd-pair"><div><h4>Turned up</h4><div class="chart" id="${a}"></div></div><div><h4>Turned down</h4><div class="chart" id="${b}"></div></div></div>`;
+    const noPhase = `<p class="fineprint">This run's package has no split by phase: only REE-way runs have one, published with the current publish_run.py (or added with the model repo's redispatch_realism/add_rd_phases.py).</p>`;
+    const block = (title, sub, inner) => `<h4 class="rd-h4">${title}</h4>${sub ? `<p class="fineprint" style="margin:0 0 6px">${sub}</p>` : ""}${inner}`;
+    host.innerHTML =
+      block("Overall redispatch: turned up + turned down", "All phases together, energy moved in both directions.",
+            kpis(fit(rAll, mAll), "up + down", rCostAll, mCostAll, PH ? "" : "model at marginal cost") + `<div class="chart" id="rd-all"></div>`)
+      + block("Phase I/II (after the day-ahead) vs REE", "REE: phase I (plants turned up or down for grid security on the day-ahead programme) plus phase II (rebalancing). Model: its phase I/II stage. Tiles on energy turned up.",
+              PH ? kpis(fit(rP1Up, PH.ph1.up), "turned up", rCostP1, mCostP1) + pair("rd-p1-up", "rd-p1-down") : noPhase)
+      + block("Real time vs REE", "REE: real-time technical constraints, mostly gas plants started for upward reserve. Model: its real-time AC stage. Tiles on energy turned up.",
+              PH ? kpis(fit(rRtUp, PH.rt.up), "turned up", rCostRt, mCostRt) + pair("rd-rt-up", "rd-rt-down") : noPhase)
+      + block("All phases: turned up and turned down", "", pair("rd-up", "rd-down"));
+    $("rd-legend").innerHTML = `<span><i class="sw-line" style="background:var(--real)"></i>${term("REE redispatch", "ree_rd")}</span><span><i class="sw-line" style="background:var(--model)"></i>${term("Model redispatch", "model_rd")}</span><span style="color:var(--muted)">${hourly ? "MW each hour" : "Energy per day"}</span>`;
+    requestAnimationFrame(() => {
+      draw("rd-all", "Redispatch, up + down, REE vs model", rAll, mAll);
+      if (PH) {
+        draw("rd-p1-up", "Phase I/II up, REE vs model", rP1Up, PH.ph1.up); draw("rd-p1-down", "Phase I/II down, REE vs model", rP1Down, PH.ph1.down);
+        draw("rd-rt-up", "Real time up, REE vs model", rRtUp, PH.rt.up); draw("rd-rt-down", "Real time down, REE vs model", rRtDown, PH.rt.down);
+      }
+      draw("rd-up", "Redispatch up, REE vs model", rUp, mUp); draw("rd-down", "Redispatch down, REE vs model", rDown, mDown);
+    });
     // REE cost = extra cost over the market (P.O. 14.4): what is paid for going up minus the refunds
-    // for going down. Phase I/II from 1373–1376 (their net is indicator 709); real time from 1723/1724
+    // for going down. Phase I/II from 1373–1376 (their net is indicator 709); real time: payments minus the
+    // energy at the day-ahead price (rtr_cost_net), as 1723/1724 are gross payments
     const rows = [
       ["REE, after the day-ahead, phase I", G(E("rt1_up")), G(E("rt1_down")), M(E("rt1_up_cost")) - M(E("rt1_down_cost"))],
       ["REE, after the day-ahead, phase II (rebalancing)", G(E("rt2_up")), G(E("rt2_down")), M(E("rt2_up_cost")) - M(E("rt2_down_cost"))],
-      ["REE, real time", G(E("rtr_up")), G(E("rtr_down")), M(E("rtr_up_cost")) + M(E("rtr_down_cost"))],
+      ["REE, real time", G(E("rtr_up")), G(E("rtr_down")), rCostRt],
     ];
     const ru = rows.reduce((s, x) => s + x[1], 0), rd = rows.reduce((s, x) => s + x[2], 0), rc = rows.reduce((s, x) => s + x[3], 0);
-    const mu = G(mUp), md = G(mDown), mc = RD ? M(RD.cost) : null, ml = RD ? G(RD.losses) : null;
+    const mu = G(mUp), md = G(mDown), mc = mCostAll, ml = RD ? G(RD.losses) : null;
     const perMWh = (c, v) => c == null || !v ? "–" : nf(1e6 * c / (1000 * v), 1);
     const solved = r.status.reduce((a, b) => a + b, 0);
     const pctOf = (a, b) => b ? ` <span class="pv-muted-txt">(${nf(100 * a / b, 0)} %)</span>` : "";
@@ -2330,26 +2388,47 @@
       + `<tr class="total-row"><td>REE, total</td><td>${nf(ru, 0)}</td><td>${nf(rd, 0)}</td><td>${nf(rc * 1e6, 0)}</td><td>${perMWh(rc, ru)}</td></tr>`
       + `<tr class="total-row"><td>Model, redispatch</td><td>${nf(mu, 0)}${pctOf(mu, ru)}</td><td>${nf(md, 0)}${pctOf(md, rd)}</td><td>${mc == null ? "–" : nf(mc * 1e6, 0) + pctOf(mc, rc)}</td><td>${perMWh(mc, mu)}</td></tr>`
       + (RD ? `<tr><td class="pv-muted-txt">of which grid losses in the model (the markets have none)</td><td class="pv-muted-txt">${nf(ml, 0)}</td><td></td><td></td><td></td></tr>` : "")
+      + (PH && RD.cost ? `<tr><td class="pv-muted-txt">model at marginal cost × change (the viewer's valuation before 6 Nov)</td><td></td><td></td><td class="pv-muted-txt">${nf(M(RD.cost) * 1e6, 0)}</td><td></td></tr>` : "")
       + "</tbody>";
-    $("rd-cost-note").innerHTML = RD ? `REE's whole real-time cost was ${nf(M(E("rtr_cost")) * 1e6, 0)} € (indicator 724); the table uses its up and down parts (1723, 1724), which go with the volumes.`
-      : `This run's package has no model cost yet; publish it again with the current publish_run.py.`;
-    // cost per day (or hour), REE vs model
-    const cHost = $("rd-cost-chart");
-    if (!RD) { cHost.innerHTML = ""; return; }
-    const reeCost = add(E("rt1_up_cost"), E("rt2_up_cost"), E("rtr_up_cost"), E("rtr_down_cost")).map((x, i) => x - (E("rt1_down_cost")[i] || 0) - (E("rt2_down_cost")[i] || 0));
+    // cost by phase, the model next to REE: each on P.O. 14.4's measure (extra cost over the market)
+    const pRow = (l, rU, mU, rC, mC, cls) => `<tr class="${cls || ""}"><td>${l}</td><td class="num">${nf(rU, 0)}</td><td class="num">${mU == null ? "–" : nf(mU, 0)}${mU != null && rU ? `<span class="pct-below">${nf(100 * mU / rU, 0)} % of REE</span>` : ""}</td>`
+      + `<td class="num">${meur(rC)}</td><td class="num">${meur(mC)}${mC != null && rC ? `<span class="pct-below">${nf(100 * mC / rC, 0)} % of REE</span>` : ""}</td>`
+      + `<td class="num">${perMWh(rC, rU)}</td><td class="num">${mC == null ? "–" : perMWh(mC, mU)}</td></tr>`;
+    $("rd-phase-cost").innerHTML = `<div class="tbl-block"><h4 class="tbl-h">Cost by phase: model vs REE</h4>`
+      + `<p class="tbl-sub">Over the ${solved} solved hours. Extra cost over the market as REE settles it (P.O. 14.4): what is paid for energy turned up minus the energy's value at the day-ahead price, start-ups included; for the model the same rule with its bids.</p>`
+      + `<div class="table-wrap"><table><thead><tr><th></th><th class="num">REE up, GWh</th><th class="num">Model up, GWh</th><th class="num">REE extra cost, M€</th><th class="num">Model extra cost, M€</th><th class="num">REE, € per MWh up</th><th class="num">Model, € per MWh up</th></tr></thead><tbody>`
+      + pRow("Phase I/II (after the day-ahead)", G(rP1Up), PH ? G(PH.ph1.up) : null, rCostP1, mCostP1)
+      + pRow("Real time", G(rRtUp), PH ? G(PH.rt.up) : null, rCostRt, mCostRt)
+      + pRow("All redispatch", ru, PH ? G(PH.ph1.up) + G(PH.rt.up) : null, rCostAll, PH ? mCostAll : null, "key-row")
+      + `</tbody></table></div>${PH ? "" : `<p class="fineprint">${noPhase.replace(/<\/?p[^>]*>/g, "")}</p>`}</div>`;
+    $("rd-cost-note").innerHTML = (RT_NET
+      ? `REE's real-time cost is what P.O. 14.4 §19.10 counts: the payments minus the real-time energy at the day-ahead price, from REE's per-unit records (I90) with start-ups; ${nf(M(add(E("rtr_up_cost"), E("rtr_down_cost"))) * 1e6, 0)} € were paid in total (e·sios 1723, 1724), which also counts the energy's own value. `
+      : `REE's real time here is its gross payments (e·sios 1723, 1724), not its cost: rebuild reference/esios_2024.js with tools/add_rt_cost.py. `)
+      + (RD ? (PH ? `The model's cost uses REE's measure: phase I/II from its own objective, real time settled with its bids (start-ups included).` : `The model's cost is its marginal cost × change, without bids or start-ups.`)
+            : `This run's package has no model cost yet; publish it again with the current publish_run.py.`);
+    // cost per day (or hour), REE vs model; by phase where the package has the split
+    const cHost = $("rd-cost-chart"), cpHost = $("rd-cost-phases");
+    if (!RD) { cHost.innerHTML = ""; cpHost.innerHTML = ""; return; }
+    const reeCost = reeP1Cost.map((x, i) => x + (reeRtCost[i] || 0));
+    const modCost = PH ? both(PH.ph1.cost, PH.rt.cost) : RD.cost;
     const cu = hourly ? "€ per hour" : "€ per day";
     const cv = a => hourly ? a.map((x, i) => ok(i) && x != null ? x : null) : dailySum(a.map((x, i) => ok(i) ? x : null), nd).map(x => x == null ? null : x * 1000);   // dailySum divides by 1000
-    requestAnimationFrame(() => {
-      const rv = cv(reeCost), mv = cv(RD.cost);
-      lineChart(cHost, {
-        n: rv.length, height: 230, yTicks: 4, yUnit: cu, label: "Redispatch cost, REE vs model", endLabels: true,
-        xTicks: dayTicks(r.days, hourly, cHost.clientWidth - 110), onZoom: (a, b) => zoomFromChart(a, b, hourly),
+    const costChart = (el, label, ree, mod) => {
+      const rv = cv(ree), mv = cv(mod);
+      lineChart(el, {
+        n: rv.length, height: 230, yTicks: 4, yUnit: cu, label, endLabels: true,
+        xTicks: dayTicks(r.days, hourly, el.clientWidth - 110), onZoom: (a, b) => zoomFromChart(a, b, hourly),
         series: [{ name: "REE", values: rv, color: "var(--real)", width: 1.5 }, { name: "Model", values: mv, color: "var(--model)", width: 2 }],
         tooltip: i => `<b>${hourly ? dayLabel(r.days[Math.floor(i / 24)]) + ", " + hh(i % 24) : dayLabel(r.days[i])}</b>
           <div class="row"><i class="sw-line" style="background:var(--real)"></i>REE<span class="v">${nf(rv[i], 0)} €</span></div>
           <div class="row"><i class="sw-line" style="background:var(--model)"></i>Model<span class="v">${nf(mv[i], 0)} €</span></div>`,
       });
-      renderWhy(r, { G, M, E, ok, ru, rd, rc, mu, mc, RD });
+    };
+    cpHost.innerHTML = PH ? `<div class="rd-pair" style="margin-top:16px"><div><h4>Phase I/II cost</h4><div class="chart" id="rd-cost-p1"></div></div><div><h4>Real-time cost</h4><div class="chart" id="rd-cost-rt"></div></div></div>` : "";
+    requestAnimationFrame(() => {
+      costChart(cHost, "Redispatch cost, REE vs model", reeCost, modCost);
+      if (PH) { costChart($("rd-cost-p1"), "Phase I/II cost, REE vs model", reeP1Cost, PH.ph1.cost); costChart($("rd-cost-rt"), "Real-time cost, REE vs model", reeRtCost, PH.rt.cost); }
+      renderWhy(r, { G, M, E, ok, ru, rd, rc, mu: PH ? G(PH.ph1.up) + G(PH.rt.up) : mu, mc, RD, PH });   // cost and volume on the same basis
     });
   }
 
@@ -2369,7 +2448,7 @@
   function renderWhy(r, k) {
     const host = $("rd-why");
     if (!k.RD || !k.RD.up_by) { host.innerHTML = `<p class="fineprint">Publish this run again with the current publish_run.py to see the model's split.</p>`; $("rd-why-note").textContent = ""; return; }
-    const { G, E, ru, rd, rc, mu, mc, RD } = k;
+    const { G, E, ru, rd, rc, mu, mc, RD, PH } = k;
     // REE: the causes overlap a little, so each stage's cause split is scaled to that stage's total
     const byCause = dir => {
       const seg = Object.fromEntries(CAUSES.map(c => [c[0], 0]));
@@ -2406,7 +2485,7 @@
     const pR = ru ? rc / ru : 0;              // M€ per GWh = k€/MWh
     const atModelVolume = mu * pR;
     const steps = [["REE extra cost", rc, "abs"], ["REE moves more energy", atModelVolume - rc, "step"],
-                   ["Marginal cost instead of bids and start-ups; pumped storage almost free", mc - atModelVolume, "step"], ["Model extra cost", mc, "abs"]];
+                   [PH ? "The model's bids and start-ups instead of REE's" : "Marginal cost instead of bids and start-ups; pumped storage almost free", mc - atModelVolume, "step"], ["Model extra cost", mc, "abs"]];
     const by = y + 26, bH = 150, vals = [0, rc, atModelVolume, mc];
     const lo = Math.min(0, ...vals), hi = Math.max(...vals, 1);
     const Y = v => by + bH - (v - lo) / (hi - lo) * bH;
@@ -2432,7 +2511,10 @@
     // the main reasons in words, with this period's numbers
     const up = byCause("up"), share = n => { const s = up.find(x => x.name === n); return s ? 100 * s.v / ru : 0; };
     const ps = G(RD.up_by["Pumped storage"]), gasDown = G(RD.down_by["Gas"]);
-    $("rd-why-note").innerHTML = `<b>Why:</b> ${nf(share("Voltage control"), 0)} % of what REE turned up was for <b>voltage control</b> and ${nf(share("Overloads after a contingency (N-1)"), 0)} % for <b>overloads after a contingency</b>; the model has neither. Only ${nf(share("Overloads, base case"), 1)} % was for overloads in the base case, the one cause the model's AC grid sees (✔). REE paid ${nf(1000 * pR, 0)} €/MWh above the market for what it turned up (bids with start-up costs); the model values its changes at marginal cost, and in its hour-by-hour redispatch pumped storage has no energy limit and costs almost nothing: it turned pumped storage up by ${nf(ps, 0)} GWh and gas down by ${nf(gasDown, 0)} GWh. REE's causes overlap a little; each stage's split is scaled to its total.`;
+    $("rd-why-note").innerHTML = `<b>Why:</b> ${nf(share("Voltage control"), 0)} % of what REE turned up was for <b>voltage control</b> and ${nf(share("Overloads after a contingency (N-1)"), 0)} % for <b>overloads after a contingency</b>; the model has neither. Only ${nf(share("Overloads, base case"), 1)} % was for overloads in the base case, the one cause the model's AC grid sees (✔). REE paid ${nf(1000 * pR, 0)} €/MWh above the market for what it turned up (bids with start-up costs); `
+      + (PH ? `the model, settled the same way with its own bids and start-ups, paid ${mu ? nf(1000 * mc / mu, 0) : "–"} €/MWh. It turned pumped storage up by ${nf(ps, 0)} GWh and gas down by ${nf(gasDown, 0)} GWh.`
+            : `the model values its changes at marginal cost, and in its hour-by-hour redispatch pumped storage has no energy limit and costs almost nothing: it turned pumped storage up by ${nf(ps, 0)} GWh and gas down by ${nf(gasDown, 0)} GWh.`)
+      + ` REE's causes overlap a little; each stage's split is scaled to its total.`;
   }
 
   // Ipopt's verdict for a failed hour (summary.csv `status`), in plain words

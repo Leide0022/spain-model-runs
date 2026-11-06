@@ -138,6 +138,13 @@ def main():
     for k in ("rt1_up", "rt2_down", "rtr_up", "rr_price", "mfrr_up_price", "rt_cost", "rtr_cost", "ida2", "ida3", "cid", "ida2_mwh", "ida3_mwh", "cid_mwh"):
         v = [x for x in data[k] if x is not None]
         print(f"  {k}: mean {sum(v) / len(v):.0f}, {len(v)} hours")
+    # REE's real-time COST (P.O. 14.4) per hour: 1723/1724 above are gross payments (tools/add_rt_cost.py)
+    i90 = REPO.parent / "esios_download" / "i90"
+    if (i90 / "i90_tc_realtime.csv.gz").exists():
+        from add_rt_cost import add_rt_cost
+        add_rt_cost(i90)
+    else:
+        print(f"  {i90} not found: rtr_cost_net (REE's real-time cost) left out; the viewer then shows the gross payments")
 
 
 if __name__ == "__main__":
